@@ -4,6 +4,9 @@ import logoBlack from "@/assets/company/AST-LOGO_NEGRO.png";
 import { IconLayoutDashboard } from "@tabler/icons-react";
 import React from "react";
 import Dashboard from "@/features/dashboard/pages/Dashboard";
+import Telemetry from "@/features/telemetry/pages/Telemetry";
+import Configuration from "@/features/configuration/pages/Configuration";
+import { IconDeviceAnalytics, IconSettings } from "@tabler/icons-react";
 
 // Imports del template (rutas base de la plantilla)
 import { AdminPage } from "@/template/admin";
@@ -24,7 +27,7 @@ const app_provider = import.meta.env.VITE_APP_PROVEEDOR;
 const app_theme = import.meta.env.VITE_APP_DEFAULT_THEME;
 
 // Configuración de autenticación
-const auth_url = import.meta.env.VITE_AUTH_URL || "http://localhost:8000";
+const auth_url = import.meta.env.VITE_AUTH_URL || "http://localhost:3000";
 const auth_callback_url = import.meta.env.VITE_AUTH_CALLBACK_URL || "/";
 const auth_endpoint = "/authentication";
 
@@ -96,8 +99,25 @@ export const configServer = () => {
       component: Dashboard,
       target: false,
       state: true,
+    },
+    {
+      id: 2,
+      name: "Telemetría",
+      link: "/telemetry",
+      icon: IconDeviceAnalytics,
+      component: Telemetry,
+      target: false,
+      state: true,
+    },
+    {
+      id: 3,
+      name: "Configuración",
+      link: "/configuration",
+      icon: IconSettings,
+      component: Configuration,
+      target: false,
+      state: true,
     }
-    // Agregar aquí más rutas específicas del sistema...
   ];
 
   // Rutas del template (aparecen en el menú de usuario del Header)
