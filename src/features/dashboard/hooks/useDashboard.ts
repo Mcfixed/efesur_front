@@ -6,6 +6,7 @@ const DASHBOARD_KEYS = {
   all: ["dashboard"] as const,
   data: () => [...DASHBOARD_KEYS.all, "data"] as const,
   locations: () => [...DASHBOARD_KEYS.all, "locations"] as const,
+  gateways: () => [...DASHBOARD_KEYS.all, "gateways"] as const,
 };
 
 export const useDashboardData = () => {
@@ -24,12 +25,20 @@ export const useDevicesLocations = () => {
   });
 };
 
+export const useGatewayStatus = () => {
+  return useQuery({
+    queryKey: DASHBOARD_KEYS.gateways(),
+    queryFn: () => dashboardService.getGatewayStatus(),
+    refetchInterval: 10000, // Refetch every 10 seconds for real-time status
+  });
+};
+
 export const useResolveAlert = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, reason, userId }: { id: number; reason: string; userId: string }) =>
-      dashboardService.resolveAlert(id, { reason, userId }),
+    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
+      dashboardService.resolveAlert(id, { reason }),
     onSuccess: () => {
       toast.success("Alerta resuelta con éxito");
       queryClient.invalidateQueries({ queryKey: DASHBOARD_KEYS.all });
@@ -37,5 +46,21 @@ export const useResolveAlert = () => {
     onError: (error: any) => {
       toast.error(error.message || "Error al resolver la alerta");
     },
+  });
+};
+
+export const useAlertHistory = (type: string, range: string) => {
+  return useQuery({
+    queryKey: [...DASHBOARD_KEYS.all, "history", type, range],
+    queryFn: () => dashboardService.getAlertHistory(type, range),
+    refetchInterval: 30000,
+  });
+};
+
+export const useAlertTimeline = (range: string) => {
+  return useQuery({
+    queryKey: [...DASHBOARD_KEYS.all, "timeline", range],
+    queryFn: () => dashboardService.getAlertTimeline(range),
+    refetchInterval: 15000,
   });
 };

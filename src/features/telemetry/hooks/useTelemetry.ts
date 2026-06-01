@@ -20,7 +20,9 @@ export const useSearchDevices = (params: SearchParams) => {
   return useQuery({
     queryKey: TELEMETRY_KEYS.search(params),
     queryFn: () => telemetryService.searchDevices(params),
-    placeholderData: (previousData) => previousData, // keep previous data while fetching new
+    enabled: params.q !== undefined && params.q !== "",
+    staleTime: 60_000,
+    placeholderData: (previousData) => previousData,
   });
 };
 

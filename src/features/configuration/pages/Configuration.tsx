@@ -14,34 +14,47 @@ import { toast } from "sonner";
 export default function Configuration() {
   const [activeTab, setActiveTab] = useState<"companies" | "users" | "devices">("companies");
 
+  const tabs = [
+    { id: "companies" as const, label: "Empresas" },
+    { id: "users" as const, label: "Usuarios" },
+    { id: "devices" as const, label: "Dispositivos" },
+  ];
+
   return (
     <div className="p-6 h-full flex flex-col overflow-y-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-text-100">Configuración del Sistema</h1>
-        <p className="text-sm text-text-200 mt-1">Administra empresas, usuarios y dispositivos.</p>
+      {/* ── Header ── */}
+      <div className="relative rounded-xl bg-linear-to-r from-bg-300/40 via-bg-100/60 to-bg-200/40 border border-border/20 px-5 py-4 mb-6">
+        <div className="absolute left-1/2 -translate-x-1/2 top-0 w-2/3 h-[1.5px]"
+          style={{ background: "linear-gradient(to left, transparent, #6b7280, transparent)" }}
+        />
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-text-100">Configuración del Sistema</h1>
+            <p className="text-sm text-text-200 mt-1">Administra empresas, usuarios y dispositivos.</p>
+          </div>
+        </div>
       </div>
 
-      <div className="flex border-b border-border-200 mb-6">
-        <button
-          className={`px-4 py-2 font-medium transition-colors ${activeTab === "companies" ? "text-brand-200 border-b-2 border-brand-200" : "text-text-300 hover:text-text-200"}`}
-          onClick={() => setActiveTab("companies")}
-        >
-          Empresas
-        </button>
-        <button
-          className={`px-4 py-2 font-medium transition-colors ${activeTab === "users" ? "text-brand-200 border-b-2 border-brand-200" : "text-text-300 hover:text-text-200"}`}
-          onClick={() => setActiveTab("users")}
-        >
-          Usuarios
-        </button>
-        <button
-          className={`px-4 py-2 font-medium transition-colors ${activeTab === "devices" ? "text-brand-200 border-b-2 border-brand-200" : "text-text-300 hover:text-text-200"}`}
-          onClick={() => setActiveTab("devices")}
-        >
-          Dispositivos
-        </button>
-      </div>
+      {/* ── Navegación principal ── */}
+      <nav className="flex gap-1 bg-bg-100/40 p-1 rounded-lg mb-6 border border-border/10" role="tablist">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+              activeTab === tab.id
+                ? "bg-brand-200/10 text-brand-200 shadow-xs"
+                : "text-text-300 hover:text-text-200 hover:bg-bg-100/50"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </nav>
 
+      {/* ── Contenido ── */}
       <div className="flex-1">
         {activeTab === "companies" && <CompaniesTab />}
         {activeTab === "users" && <UsersTab />}
@@ -119,18 +132,26 @@ function CompaniesTab() {
           { 
             key: "is_active", 
             header: "Estado",
-            render: (val) => val ? <span className="text-green-400">Activa</span> : <span className="text-text-300">Inactiva</span>
+            render: (val) => val
+              ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-400/10 text-green-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_3px_rgba(74,222,128,0.4)]" />
+                  Activa
+                </span>
+              : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-text-300/10 text-text-300">
+                  <span className="w-1.5 h-1.5 rounded-full bg-text-300" />
+                  Inactiva
+                </span>
           },
           {
             key: "actions",
             header: "Acciones",
             render: (_, row: Company) => (
-              <div className="flex gap-2">
-                <button onClick={() => handleOpenEdit(row)} className="text-brand-200 hover:text-brand-100 p-1" title="Editar">
-                  <IconEdit size={18} />
+              <div className="flex gap-1">
+                <button onClick={() => handleOpenEdit(row)} className="p-1.5 rounded-md text-brand-200 hover:bg-brand-200/10 transition-colors" title="Editar">
+                  <IconEdit size={16} />
                 </button>
-                <button onClick={() => handleOpenDelete(row)} className="text-red-500 hover:text-red-400 p-1" title="Eliminar">
-                  <IconTrash size={18} />
+                <button onClick={() => handleOpenDelete(row)} className="p-1.5 rounded-md text-red-400 hover:bg-red-400/10 transition-colors" title="Eliminar">
+                  <IconTrash size={16} />
                 </button>
               </div>
             )
@@ -138,6 +159,9 @@ function CompaniesTab() {
         ]}
         isLoading={isLoading}
         pageSize={10}
+        striped
+        hoverable
+        compact
       />
 
       <Modal 
@@ -267,23 +291,36 @@ function UsersTab() {
             { 
               key: "is_superuser", 
               header: "Superuser",
-              render: (val) => val ? "Sí" : "No"
+              render: (val) => val
+                ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-brand-200/10 text-brand-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-200" />
+                    Sí
+                  </span>
+                : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-text-300/10 text-text-300">No</span>
             },
             {
               key: "company_assignments",
               header: "Empresas Asignadas",
-              render: (val: any) => val?.length > 0 ? val.map((c: any) => c.company_name).join(", ") : "Ninguna"
+              render: (val: any) => val?.length > 0
+                ? <div className="flex flex-wrap gap-1">
+                    {val.map((c: any) => (
+                      <span key={c.company_id} className="px-2 py-0.5 rounded-full text-xs font-medium bg-bg-300/60 text-text-200 border border-border/30">
+                        {c.company_name}
+                      </span>
+                    ))}
+                  </div>
+                : <span className="text-text-400 text-xs">Ninguna</span>
             },
             {
               key: "actions",
               header: "Acciones",
               render: (_, row: User) => (
-                <div className="flex gap-2">
-                  <button onClick={() => handleOpenEdit(row)} className="text-brand-200 hover:text-brand-100 p-1" title="Editar">
-                    <IconEdit size={18} />
+                <div className="flex gap-1">
+                  <button onClick={() => handleOpenEdit(row)} className="p-1.5 rounded-md text-brand-200 hover:bg-brand-200/10 transition-colors" title="Editar">
+                    <IconEdit size={16} />
                   </button>
-                  <button onClick={() => handleOpenDelete(row)} className="text-red-500 hover:text-red-400 p-1" title="Eliminar">
-                    <IconTrash size={18} />
+                  <button onClick={() => handleOpenDelete(row)} className="p-1.5 rounded-md text-red-400 hover:bg-red-400/10 transition-colors" title="Eliminar">
+                    <IconTrash size={16} />
                   </button>
                 </div>
               )
@@ -291,6 +328,9 @@ function UsersTab() {
           ]}
           isLoading={loadingUsers}
           pageSize={10}
+          striped
+          hoverable
+          compact
         />
       </div>
       
@@ -336,11 +376,31 @@ function UsersTab() {
   );
 }
 
+// ─── Constants ───────────────────────────────────────────────────────────────
+const DEVICE_TYPE_OPTIONS = [
+  { value: null, label: "Todos" },
+  { value: "Gps", label: "GPS (Telemetría)" },
+  { value: "Gateway", label: "Gateway LoRaWAN" },
+  { value: "Lector", label: "Lector" },
+  { value: "Subestacion", label: "Subestación" },
+] as const;
+
+const DEVICE_TYPE_LABELS: Record<string, string> = {
+  Gps: "GPS (Telemetría)",
+  Gateway: "Gateway LoRaWAN",
+  Lector: "Lector",
+  Subestacion: "Subestación",
+};
+
 // ============================================================================
 // DISPOSITIVOS
 // ============================================================================
 function DevicesTab() {
-  const { data: devices, isLoading } = useDevices();
+  const [activeDeviceType, setActiveDeviceType] = useState<string | null>(null);
+  
+  const { data: devices, isLoading } = useDevices(
+    activeDeviceType ? { type: activeDeviceType } : undefined
+  );
   const { data: companies } = useCompanies();
   
   const createMutation = useCreateDevice();
@@ -394,6 +454,23 @@ function DevicesTab() {
   return (
     <div className="grid grid-cols-12 gap-6">
       <div className="col-span-12 lg:col-span-8 flex flex-col gap-4">
+        {/* ── Sub-navegación de tipos de dispositivo ── */}
+        <nav className="flex flex-wrap gap-1.5 bg-bg-100/30 p-1 rounded-lg border border-border/10" aria-label="Filtro por tipo de dispositivo">
+          {DEVICE_TYPE_OPTIONS.map((option) => (
+            <button
+              key={option.value ?? "all"}
+              onClick={() => setActiveDeviceType(option.value)}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 whitespace-nowrap ${
+                activeDeviceType === option.value
+                  ? "bg-brand-200/15 text-brand-200 shadow-xs"
+                  : "text-text-300 hover:text-text-200 hover:bg-bg-100/50"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </nav>
+
         <div className="flex justify-end">
           <button 
             onClick={handleOpenCreate}
@@ -408,23 +485,39 @@ function DevicesTab() {
           columns={[
             { key: "dev_eui", header: "DevEUI" },
             { key: "name", header: "Nombre" },
-            { key: "type_device", header: "Tipo" },
+            { 
+              key: "type_device", 
+              header: "Tipo",
+              render: (val: string) => (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-brand-200/10 text-brand-200 border border-brand-200/20">
+                  {DEVICE_TYPE_LABELS[val] ?? val}
+                </span>
+              )
+            },
             { key: "company_name", header: "Empresa" },
             { 
               key: "is_active", 
               header: "Estado",
-              render: (val) => val ? <span className="text-green-400">Activo</span> : <span className="text-red-400">Inactivo</span>
+              render: (val) => val
+                ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-400/10 text-green-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_3px_rgba(74,222,128,0.4)]" />
+                    Activo
+                  </span>
+                : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-400/10 text-red-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-400 shadow-[0_0_3px_rgba(248,113,113,0.4)]" />
+                    Inactivo
+                  </span>
             },
             {
               key: "actions",
               header: "Acciones",
               render: (_, row: Device) => (
-                <div className="flex gap-2">
-                  <button onClick={() => handleOpenEdit(row)} className="text-brand-200 hover:text-brand-100 p-1" title="Editar">
-                    <IconEdit size={18} />
+                <div className="flex gap-1">
+                  <button onClick={() => handleOpenEdit(row)} className="p-1.5 rounded-md text-brand-200 hover:bg-brand-200/10 transition-colors" title="Editar">
+                    <IconEdit size={16} />
                   </button>
-                  <button onClick={() => handleOpenDelete(row)} className="text-red-500 hover:text-red-400 p-1" title="Eliminar">
-                    <IconTrash size={18} />
+                  <button onClick={() => handleOpenDelete(row)} className="p-1.5 rounded-md text-red-400 hover:bg-red-400/10 transition-colors" title="Eliminar">
+                    <IconTrash size={16} />
                   </button>
                 </div>
               )
@@ -432,6 +525,9 @@ function DevicesTab() {
           ]}
           isLoading={isLoading}
           pageSize={10}
+          striped
+          hoverable
+          compact
         />
       </div>
 

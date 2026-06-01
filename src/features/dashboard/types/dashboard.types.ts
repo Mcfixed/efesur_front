@@ -63,3 +63,18 @@ export interface DeviceLocation {
   has_alert: boolean;
   alert_type: string | null;
 }
+
+export interface GatewayDevice {
+  id: number;
+  dev_eui: string;
+  name: string;
+  company_id: number;
+  company_name: string;
+  latitude_current: number;
+  longitude_current: number;
+  last_seen: string;
+  is_active: boolean;
+  ip_internal: string;
+  firmware_version: string;
+  is_online: boolean;
+}

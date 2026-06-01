@@ -208,6 +208,15 @@ const BaseMap: React.FC<BaseMapProps> = ({
   );
 
   const handleMapLoad = useCallback(() => {
+    const map = mapRef.current?.getMap?.();
+    if (map) {
+      // Suprimir el error de terrain de Mapbox
+      map.on('error', (e: any) => {
+        if (e?.error?.message?.includes('updateTerrain')) {
+          return; // Ignorar silenciosamente
+        }
+      });
+    }
     onMapRef?.(mapRef.current);
   }, [onMapRef]);
 
@@ -224,6 +233,7 @@ const BaseMap: React.FC<BaseMapProps> = ({
     >
       <div className="absolute w-full h-full -bg-linear-120 rounded from-slate-700 to-brand-200/23"></div>
       <ReactMapGL
+        key={selectedLayer}
         ref={mapRef}
         initialViewState={{
           longitude: initialCenter.longitude,
@@ -236,12 +246,17 @@ const BaseMap: React.FC<BaseMapProps> = ({
         mapStyle={mapLayers[selectedLayer].style}
         style={{ width: "100%", height: "100%" }}
         attributionControl={false}
-        reuseMaps
+        reuseMaps={false}
         maxPitch={85}
         renderWorldCopies={false}
-        optimizeForTerrain={true}
         fadeDuration={0}
         onLoad={handleMapLoad}
+        onError={(e: any) => {
+          if (e?.error?.message?.includes('updateTerrain')) {
+            return;
+          }
+          console.warn('[Mapbox] Error:', e);
+        }}
       >
         {children}
       </ReactMapGL>
