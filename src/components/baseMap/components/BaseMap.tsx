@@ -225,13 +225,7 @@ const BaseMap: React.FC<BaseMapProps> = ({
   }, []);
 
   return (
-    <div
-      style={{
-        padding: 0.6,
-      }}
-      className="w-full h-full flex-1 bg-bg-100   overflow-hidden rounded relative animate-fade-in-down animate-duration-500 flex justify-center items-center"
-    >
-      <div className="absolute w-full h-full -bg-linear-120 rounded from-slate-700 to-brand-200/23"></div>
+    <div className="w-full h-full flex-1 overflow-hidden relative animate-fade-in-down animate-duration-500">
       <ReactMapGL
         key={selectedLayer}
         ref={mapRef}
@@ -260,7 +254,7 @@ const BaseMap: React.FC<BaseMapProps> = ({
       >
         {children}
       </ReactMapGL>
-      <div className="relative h-full  z-50 bg-bg-100  flex flex-col gap-1 p-1 rounded">
+      <div className="absolute right-1 top-1 h-[calc(100%-8px)] z-50 bg-bg-100/90 backdrop-blur-sm flex flex-col gap-1 p-1 rounded">
         <div className="flex flex-col p-0.5 gap-1 border border-border rounded py-1">
           <LayerSelector
             selectedLayer={selectedLayer}

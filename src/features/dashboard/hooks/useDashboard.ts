@@ -13,7 +13,7 @@ export const useDashboardData = () => {
   return useQuery({
     queryKey: DASHBOARD_KEYS.data(),
     queryFn: () => dashboardService.getDashboardData(),
-    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchInterval: 10000, // Refetch every 10 seconds
   });
 };
 
@@ -21,7 +21,7 @@ export const useDevicesLocations = () => {
   return useQuery({
     queryKey: DASHBOARD_KEYS.locations(),
     queryFn: () => dashboardService.getDevicesLocations(),
-    refetchInterval: 60000, // Refetch every 60 seconds
+    refetchInterval: 10000, // Refetch every 10 seconds
   });
 };
 

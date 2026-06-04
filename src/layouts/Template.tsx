@@ -28,7 +28,7 @@ function Template() {
             />
           </div>
           <div className="flex-1 flex flex-col z-0 rounded-2xl rounded-ss-none overflow-hidden bg-bg-200 ">
-            <main className="flex-1 overflow-auto w-full  ">
+            <main className="flex-1 overflow-hidden w-full">
               <Outlet />
             </main>
           </div>

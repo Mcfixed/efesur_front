@@ -14,9 +14,11 @@ export function DeviceForm({ initialData, companies, onSubmit, onCancel, isLoadi
   const [formData, setFormData] = useState<Partial<Device>>({
     dev_eui: "",
     name: "",
-    type_device: "GPS",
+    type_device: "Gps",
     company_id: companies.length > 0 ? companies[0].id : undefined,
     is_active: true,
+    latitude_current: null,
+    longitude_current: null,
   });
 
   useEffect(() => {
@@ -27,6 +29,8 @@ export function DeviceForm({ initialData, companies, onSubmit, onCancel, isLoadi
         type_device: initialData.type_device,
         company_id: initialData.company_id,
         is_active: initialData.is_active,
+        latitude_current: initialData.latitude_current,
+        longitude_current: initialData.longitude_current,
       });
     } else if (companies.length > 0 && !formData.company_id) {
       setFormData(prev => ({ ...prev, company_id: companies[0].id }));
@@ -48,7 +52,15 @@ export function DeviceForm({ initialData, companies, onSubmit, onCancel, isLoadi
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onSubmit(formData);
+    const payload = { ...formData };
+    // Limpiar lat/lng vacíos para que el backend los trate como opcionales
+    if (payload.latitude_current === "" || payload.latitude_current === null) {
+      delete payload.latitude_current;
+    }
+    if (payload.longitude_current === "" || payload.longitude_current === null) {
+      delete payload.longitude_current;
+    }
+    await onSubmit(payload);
   };
 
   return (
@@ -80,9 +92,10 @@ export function DeviceForm({ initialData, companies, onSubmit, onCancel, isLoadi
           className="w-full px-3 py-2 bg-bg-200 border border-border-200 rounded-lg focus:outline-none focus:border-brand-200 text-text-100 transition-colors"
           required
         >
-          <option value="GPS">GPS (Telemetría)</option>
-          <option value="LORA">Gateway LoRaWAN</option>
-          <option value="SENSOR">Sensor Específico</option>
+          <option value="Gps">GPS (Telemetría)</option>
+          <option value="Gateway">Gateway LoRaWAN</option>
+          <option value="SubEstacion">Subestación</option>
+          <option value="Lector">Lector</option>
         </select>
       </div>
 
@@ -100,6 +113,34 @@ export function DeviceForm({ initialData, companies, onSubmit, onCancel, isLoadi
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </select>
+      </div>
+
+      {/* ── Ubicación ── */}
+      <div className="border-t border-border-100 pt-3">
+        <p className="text-sm font-semibold text-text-200 mb-3">Ubicación del Dispositivo</p>
+        <div className="grid grid-cols-2 gap-3">
+          <Input
+            label="Latitud"
+            name="latitude_current"
+            type="number"
+            step="any"
+            value={formData.latitude_current ?? ""}
+            onChange={handleChange}
+            placeholder="Ej: -33.4489"
+          />
+          <Input
+            label="Longitud"
+            name="longitude_current"
+            type="number"
+            step="any"
+            value={formData.longitude_current ?? ""}
+            onChange={handleChange}
+            placeholder="Ej: -70.6693"
+          />
+        </div>
+        <p className="text-xs text-text-300 mt-1">
+          Coordenadas geográficas del dispositivo (opcional).
+        </p>
       </div>
 
       <div className="pt-2">

@@ -1,7 +1,6 @@
-import { useState, useMemo } from "react";
-import { AreaChartWrapper } from "@/libs/recharts";
+import { useState, useMemo, useEffect } from "react";
+import { BarChartWidget } from "@/components/widgets";
 import { IconChevronDown, IconChevronUp, IconAlertOctagon, IconAlertCircle, IconClock } from "@tabler/icons-react";
-import { format } from "date-fns";
 
 interface Props {
   historyData?: { alerts?: any[] };
@@ -15,17 +14,29 @@ export default function AlertsChart({ historyData, isLoading }: Props) {
 
   const chartData = useMemo(() => {
     if (!historyData?.alerts?.length) return [];
+    const now = Date.now();
+    const rangeMs: Record<string, number> = { '1h': 3600000, '24h': 86400000, '7d': 604800000, '30d': 2592000000 };
+    const range = rangeMs[chartTimeRange];
+
     const grouped: Record<string, number> = {};
-    historyData.alerts.forEach((a: any) => {
-      const date = new Date(a.created_at);
-      const key = chartTimeRange === "1h" || chartTimeRange === "24h" ? format(date, "HH:mm") : format(date, "MM/dd");
-      grouped[key] = (grouped[key] || 0) + 1;
-    });
-    return Object.entries(grouped).map(([time, alertas]) => ({ time, alertas })).sort((a, b) => a.time.localeCompare(b.time));
-  }, [historyData, chartTimeRange]);
+    historyData.alerts
+      .filter((a: any) => a.type === chartAlertType && (range ? (now - new Date(a.created_at).getTime()) <= range : true))
+      .forEach((a: any) => {
+        const name = a.device_name || "Desconocido";
+        grouped[name] = (grouped[name] || 0) + 1;
+      });
+    return Object.entries(grouped)
+      .map(([device, alertas]) => ({ device, alertas }))
+      .sort((a, b) => b.alertas - a.alertas);
+  }, [historyData, chartAlertType, chartTimeRange]);
 
   const chartColor = chartAlertType === "critica" ? "#ef4444" : "#eab308";
   const chartLabel = chartAlertType === "critica" ? "Críticas" : "Atención";
+
+  // Forzar resize del mapa cuando el chart se expande/colapsa
+  useEffect(() => {
+    window.dispatchEvent(new Event('resize'));
+  }, [chartExpanded]);
 
   return (
     <div className="w-full shrink-0 border-t border-border/30 bg-bg-200/80 backdrop-blur-sm">
@@ -34,9 +45,9 @@ export default function AlertsChart({ historyData, isLoading }: Props) {
         className="w-full flex items-center justify-between px-3 py-1 text-[10px] text-text-300 hover:text-text-200 transition-colors"
       >
         <div className="flex items-center gap-2">
-          <span className="font-semibold uppercase tracking-wider">Alertas {chartLabel}</span>
+          <span className="font-semibold uppercase tracking-wider">Alertas por Sensor</span>
           <span className="text-text-300/60">•</span>
-          <span className="text-text-300/60">{chartData.length} registros</span>
+          <span className="text-text-300/60">{chartData.length} sensores</span>
         </div>
         {chartExpanded ? <IconChevronDown size={14} /> : <IconChevronUp size={14} />}
       </button>
@@ -67,12 +78,17 @@ export default function AlertsChart({ historyData, isLoading }: Props) {
             {isLoading ? (
               <div className="flex items-center justify-center h-20"><p className="text-xs text-text-300">Cargando...</p></div>
             ) : chartData.length === 0 ? (
-              <div className="flex items-center justify-center h-20"><p className="text-xs text-text-300">Sin datos en este período</p></div>
+              <div className="flex items-center justify-center h-20"><p className="text-xs text-text-300">Sin alertas en este período</p></div>
             ) : (
-              <AreaChartWrapper
-                data={chartData} dataKey="alertas" xAxisKey="time"
-                height={100} colors={[chartColor]}
-                showGrid={true} showLegend={false}
+              <BarChartWidget
+                data={chartData}
+                xAxisKey="device"
+                dataKey={["alertas"]}
+                colors={[chartColor]}
+                chartHeight={120}
+                showGrid={false}
+                showLegend={false}
+                compact
               />
             )}
           </div>

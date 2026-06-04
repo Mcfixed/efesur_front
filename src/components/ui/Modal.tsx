@@ -31,11 +31,11 @@ export function Modal({ isOpen, onClose, title, children, width = "max-w-md" }: 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div 
-        className={`bg-bg-100 border border-border-100 rounded-xl shadow-2xl w-full ${width} flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200`}
+        className={`bg-bg-100 border border-gray-500/30  shadow-2xl w-full ${width} flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200`}
         role="dialog"
         aria-modal="true"
       >
-        <div className="flex justify-between items-center px-6 py-4 border-b border-border-100">
+        <div className="flex justify-between items-center px-6 py-4 border-b border-gray-500/30">
           <h2 className="text-lg font-semibold text-text-100">{title}</h2>
           <button 
             onClick={onClose}

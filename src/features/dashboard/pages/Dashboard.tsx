@@ -6,7 +6,6 @@ import type { MapRef } from "react-map-gl";
 // Custom Hooks
 import { useDashboardData, useGatewayStatus, useAlertHistory, useAlertTimeline } from "../hooks/useDashboard";
 import { useCriticalAlertSound } from "../hooks/useCriticalAlertSound";
-import { useMapAutoZoom } from "../hooks/useMapAutoZoom";
 
 // Components
 import GatewayStatusBar from "../components/GatewayStatusBar";
@@ -21,6 +20,7 @@ export default function Dashboard() {
   const [isOpenRightBar, setOpenRightBar] = useState(false);
   const mapRef = useRef<MapRef | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const lastMode = useRef<'all'|'critical'|null>(null);
 
   // Data fetching
   const { data, isLoading } = useDashboardData();
@@ -31,7 +31,6 @@ export default function Dashboard() {
 
   // Side effects
   useCriticalAlertSound(data?.alerts?.critical?.length ?? 0);
-  useMapAutoZoom(mapRef, mapLoaded, data);
 
   // Global error handler para suprimir errores de Mapbox GL durante source cleanup
   useEffect(() => {
@@ -73,13 +72,58 @@ export default function Dashboard() {
     };
   }, []);
 
+  // ─── AUTO ZOOM ─────────────────────────────────────────────
+  // Lógica simple: si hay críticas → zoom a críticas, si no → zoom a todos
+  useEffect(() => {
+    if (!mapRef.current || !mapLoaded || !data) return;
+
+    // Obtener todas las coordenadas
+    const allItems = [
+      ...(data.devices || []).filter(d => d.latitude_current && d.longitude_current),
+      ...(gatewayData?.gateways || []).filter(g => g.latitude_current && g.longitude_current),
+    ];
+
+    // Obtener solo alertas críticas
+    const criticalItems = (data.alerts?.critical || []).filter(a => a.latitude_current && a.longitude_current);
+
+    // Decidir qué zoom hacer
+    const newMode = criticalItems.length > 0 ? 'critical' : 'all';
+    const itemsToZoom = newMode === 'critical' ? criticalItems : allItems;
+
+    // Solo hacer zoom si cambió el modo
+    if (newMode !== lastMode.current && itemsToZoom.length > 0) {
+      lastMode.current = newMode;
+
+      // Calcular bounds
+      let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
+      for (const item of itemsToZoom) {
+        const lng = Number(item.longitude_current);
+        const lat = Number(item.latitude_current);
+        if (lng < minLng) minLng = lng;
+        if (lng > maxLng) maxLng = lng;
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+      }
+
+      // Agregar padding
+      const padLng = Math.max((maxLng - minLng) * 0.2, 0.03);
+      const padLat = Math.max((maxLat - minLat) * 0.2, 0.03);
+
+      // Hacer zoom
+      mapRef.current.fitBounds(
+        [[minLng - padLng, minLat - padLat], [maxLng + padLng, maxLat + padLat]],
+        { padding: newMode === 'critical' ? 100 : 120, maxZoom: 15, duration: 1000 }
+      );
+    }
+  }, [data, mapLoaded, gatewayData]);
+
   const gateways = gatewayData?.gateways || [];
 
   return (
-    <div className="w-full h-full flex flex-col">
+    <div className="w-full h-full flex flex-col overflow-hidden">
       <GatewayStatusBar gateways={gateways} />
 
-      <div className={`flex-1 w-full ${isMobile ? "flex flex-row" : "grid grid-cols-12 overflow-hidden"}`}>
+      <div className={`flex-1 w-full min-h-0 ${isMobile ? "flex flex-row" : "grid grid-cols-12"} overflow-hidden`}>
         <div className={`${!isMobile && "col-span-10"} h-full flex flex-col w-full relative min-h-0 overflow-hidden`}>
           
           <MapErrorBoundary>
@@ -89,6 +133,16 @@ export default function Dashboard() {
               initialZoom={5}
             >
               <MapOverlayInfo data={data} />
+              {/* Warning rojo flotante en esquina superior derecha del mapa */}
+              {(data?.alerts?.critical?.length ?? 0) > 0 && (
+                <div className="absolute top-2 right-2 z-20 flex items-center gap-1.5 bg-red-950/80 border border-red-500/50 rounded-lg px-2.5 py-1.5 shadow-lg backdrop-blur-sm animate-pulse">
+                  <svg width="18" height="18" viewBox="-9 -9 18 18">
+                    <circle cx="0" cy="0" r="8" fill="#ef4444" />
+                    <text x="0" y="4" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold">!</text>
+                  </svg>
+                  <span className="text-[11px] font-semibold text-red-400">{data.alerts.critical.length} críticas</span>
+                </div>
+              )}
               <MapLayers data={data} gateways={gateways} />
             </BaseMap>
           </MapErrorBoundary>

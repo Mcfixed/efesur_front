@@ -382,14 +382,14 @@ const DEVICE_TYPE_OPTIONS = [
   { value: "Gps", label: "GPS (Telemetría)" },
   { value: "Gateway", label: "Gateway LoRaWAN" },
   { value: "Lector", label: "Lector" },
-  { value: "Subestacion", label: "Subestación" },
+  { value: "SubEstacion", label: "Subestación" },
 ] as const;
 
 const DEVICE_TYPE_LABELS: Record<string, string> = {
   Gps: "GPS (Telemetría)",
   Gateway: "Gateway LoRaWAN",
   Lector: "Lector",
-  Subestacion: "Subestación",
+  SubEstacion: "Subestación",
 };
 
 // ============================================================================

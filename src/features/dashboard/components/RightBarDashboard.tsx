@@ -39,7 +39,7 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
   const history = timelineData.filter((a: any) => a.priority === 2);
 
   const content = (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col" style={{ height: '100%' }}>
       <div className="flex items-center gap-1 px-1 mb-2 shrink-0">
         {ranges.map(r => (
           <button key={r.key} onClick={() => setTimelineRange(r.key)}
@@ -51,7 +51,7 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
         <span className="text-[9px] text-text-300 ml-auto">{timelineData.length}</span>
       </div>
 
-      <div className="flex-1 overflow-y-auto space-y-1.5 pb-4">
+      <div className="flex-1 overflow-y-auto min-h-0 space-y-1.5 pb-4 scrollbar-thin">
         {isLoading ? (
           <p className="text-xs text-text-300 text-center py-4">Cargando...</p>
         ) : timelineData.length === 0 ? (
@@ -117,60 +117,69 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
           </>
         )}
       </div>
+    </div>
+  );
 
-      {/* Resolve modal */}
-      {resolvingAlertId !== null && (
-        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-bg-100 border border-border/50 rounded-xl shadow-2xl p-5 w-95 max-w-[90vw]">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-text-100">Resolver Alerta Crítica</h3>
-              <button onClick={() => setResolvingAlertId(null)} className="text-text-300 hover:text-text-100 outline-none"><IconX size={18} /></button>
-            </div>
-            <p className="text-xs text-text-300 mb-3">Ingresa el motivo de resolución:</p>
-            <textarea value={resolveReason} onChange={e => setResolveReason(e.target.value)}
-              placeholder="Ej: Se realizó mantenimiento correctivo..."
-              className="w-full bg-bg-200 border border-border/50 rounded-lg px-3 py-2 text-sm text-text-100 placeholder:text-text-300 outline-none focus:border-brand-100/50 resize-none"
-              rows={3} autoFocus
-            />
-            <div className="flex items-center justify-end gap-2 mt-3">
-              <button onClick={() => setResolvingAlertId(null)} className="px-3 py-1.5 text-xs text-text-300 hover:text-text-100 bg-bg-200 hover:bg-bg-300 rounded-lg transition-colors">Cancelar</button>
-              <button onClick={handleConfirmResolve} disabled={!resolveReason.trim() || resolveMutation.isPending}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {resolveMutation.isPending ? "Resolviendo..." : "✓ Confirmar"}
-              </button>
-            </div>
-          </div>
+  // Modal de resolución
+  const resolveModal = resolvingAlertId !== null && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="bg-bg-100 border border-border/50 rounded-xl shadow-2xl p-5 w-95 max-w-[90vw]">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-bold text-text-100">Resolver Alerta Crítica</h3>
+          <button onClick={() => setResolvingAlertId(null)} className="text-text-300 hover:text-text-100 outline-none"><IconX size={18} /></button>
         </div>
-      )}
+        <p className="text-xs text-text-300 mb-3">Ingresa el motivo de resolución:</p>
+        <textarea value={resolveReason} onChange={e => setResolveReason(e.target.value)}
+          placeholder="Ej: Se realizó mantenimiento correctivo..."
+          className="w-full bg-bg-200 border border-border/50 rounded-lg px-3 py-2 text-sm text-text-100 placeholder:text-text-300 outline-none focus:border-brand-100/50 resize-none"
+          rows={3} autoFocus
+        />
+        <div className="flex items-center justify-end gap-2 mt-3">
+          <button onClick={() => setResolvingAlertId(null)} className="px-3 py-1.5 text-xs text-text-300 hover:text-text-100 bg-bg-200 hover:bg-bg-300 rounded-lg transition-colors">Cancelar</button>
+          <button onClick={handleConfirmResolve} disabled={!resolveReason.trim() || resolveMutation.isPending}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {resolveMutation.isPending ? "Resolviendo..." : "✓ Confirmar"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 
   if (isMobile && isOpen) {
     return (
-      <div className="fixed inset-0 z-50 bg-bg-100">
-        <div className="flex items-center justify-between p-2 border-b border-border/30">
-          <h2 className="text-sm font-bold text-text-100">Centro de Alertas</h2>
-          <button onClick={() => setOpen?.(false)} className="text-text-300 outline-none"><IconX size={20} /></button>
+      <>
+        <div className="fixed inset-0 z-50 bg-bg-100">
+          <div className="flex items-center justify-between p-2 border-b border-border/30">
+            <h2 className="text-sm font-bold text-text-100">Centro de Alertas</h2>
+            <button onClick={() => setOpen?.(false)} className="text-text-300 outline-none"><IconX size={20} /></button>
+          </div>
+          <div className="h-[calc(100vh-48px)] overflow-hidden">{content}</div>
         </div>
-        <div className="h-[calc(100vh-48px)] overflow-hidden">{content}</div>
-      </div>
+        {resolveModal}
+      </>
     );
   }
 
   if (isMobile && !isOpen) {
     return (
-      <button className="absolute right-0 z-50 top-[50%] rounded-s-sm bg-brand-100 p-1" onClick={() => setOpen?.(true)}>
-        <IconX size={24} stroke={1.5} className="text-white rotate-45" />
-      </button>
+      <>
+        <button className="absolute right-0 z-50 top-[50%] rounded-s-sm bg-brand-100 p-1" onClick={() => setOpen?.(true)}>
+          <IconX size={24} stroke={1.5} className="text-white rotate-45" />
+        </button>
+        {resolveModal}
+      </>
     );
   }
 
   return (
-    <div className="relative col-span-2 z-50 h-full flex flex-col">
-      <RightBar title="Centro de Alertas" subTitle="Monitoreo en tiempo real">
-        {content}
-      </RightBar>
-    </div>
+    <>
+      <div className="relative col-span-2 z-50 h-full flex flex-col">
+        <RightBar title="Centro de Alertas" subTitle="Monitoreo en tiempo real">
+          {content}
+        </RightBar>
+      </div>
+      {resolveModal}
+    </>
   );
 }
