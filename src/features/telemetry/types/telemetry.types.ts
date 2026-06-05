@@ -1,3 +1,19 @@
+export interface SensorSummary {
+  type_device: string;
+  total: number;
+  disconnected: number;
+}
+
+export interface GpsModeBreakdown {
+  mode: string;
+  count: number;
+}
+
+export interface SummaryResponse {
+  types: SensorSummary[];
+  gpsModes: GpsModeBreakdown[];
+}
+
 export interface TelemetryData {
   id: string;
   device_id: number;
@@ -10,19 +26,6 @@ export interface TelemetryStats {
   total_records: number;
   first_record: string;
   last_record: string;
-}
-
-export interface TelemetryHourlyStat {
-  hour: string;
-  record_count: number;
-  avg_temperature: number;
-  max_temperature: number;
-  min_temperature: number;
-  avg_speed: number;
-  max_speed: number;
-  avg_fuel: number;
-  min_fuel: number;
-  max_fuel: number;
 }
 
 export interface DeviceSearchResult {
