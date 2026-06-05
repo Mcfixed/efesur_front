@@ -12,6 +12,7 @@ import GatewayStatusBar from "../components/GatewayStatusBar";
 import RightBarDashboard from "../components/RightBarDashboard";
 import MapOverlayInfo from "../components/MapOverlayInfo";
 import MapLayers from "../components/MapLayers";
+import MapSearchBox from "../components/MapSearchBox";
 import AlertsChart from "../components/AlertsChart";
 import MapErrorBoundary from "../components/MapErrorBoundary";
 
@@ -133,6 +134,13 @@ export default function Dashboard() {
               initialZoom={5}
             >
               <MapOverlayInfo data={data} />
+              <MapSearchBox
+                data={data}
+                gateways={gateways}
+                onFlyTo={(lng, lat) => {
+                  mapRef.current?.flyTo({ center: [lng, lat], zoom: 15, duration: 1500 });
+                }}
+              />
               {/* Warning rojo flotante en esquina superior derecha del mapa */}
               {(data?.alerts?.critical?.length ?? 0) > 0 && (
                 <div className="absolute top-2 right-2 z-20 flex items-center gap-1.5 bg-red-950/80 border border-red-500/50 rounded-lg px-2.5 py-1.5 shadow-lg backdrop-blur-sm animate-pulse">

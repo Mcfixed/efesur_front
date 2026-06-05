@@ -312,7 +312,12 @@ export default function MapLayers({ data, gateways }: Props) {
           latitude={Number(gw.latitude_current)}
           onClick={e => { e.originalEvent.stopPropagation(); setSelectedGateway(gw); }}
         >
-          {renderGatewayIcon(gw.is_online)}
+          <div className="relative">
+            {renderGatewayIcon(gw.is_online)}
+            <span className="absolute left-full top-1/2 -translate-y-1/2 ml-1.5 text-[10px] font-semibold text-white drop-shadow-lg bg-black/50 px-1.5 py-0.5 rounded whitespace-nowrap pointer-events-none">
+              {gw.name}
+            </span>
+          </div>
         </Marker>
       ))}
 
