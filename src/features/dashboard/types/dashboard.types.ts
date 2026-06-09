@@ -11,6 +11,7 @@ export interface GpsDevice {
   accelerometers_status: string;
   operating_mode: string;
   company_name: string;
+  best_snr?: number;
 }
 
 export interface TrackingPoint {

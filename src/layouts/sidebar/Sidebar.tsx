@@ -6,6 +6,7 @@ import { Link, NavLink } from "react-router";
 import { useEffect, useState } from "react";
 import { useBreakpoint } from "@/hooks/useBreakpoints";
 import LineGradientWhite from "@/components/ui/LineGradientWhite";
+import { useBetterSession } from "@/libs/better-auth";
 
 function Sidebar({
   useCompany,
@@ -112,6 +113,10 @@ const MenuNavigation = ({
   isCollapsed: boolean;
   useConfigApp: AppConfig;
 }) => {
+  const { user } = useBetterSession();
+  // @ts-expect-error - is_superuser puede venir del backend
+  const isSuperuser = user?.is_superuser || user?.role === "admin";
+  const visibleItems = _useConfigApp.NAVIGATION_APP.filter(item => !item.superadmin || isSuperuser);
   return (
     <div
       className={` ${_isCollapsed ? "mt-4  p-1 " : "mt-4 p-1 mx-1 bg-bg-100 rounded-lg"} `}
@@ -119,7 +124,7 @@ const MenuNavigation = ({
       <div className="p-1">
         <h4 className="text-text-300 text-xs tracking-wider ">MENU</h4>
       </div>
-      {_useConfigApp.NAVIGATION_APP.map((item) => {
+      {visibleItems.map((item) => {
         const Icon = item.icon;
         return (
           <div className="relative">

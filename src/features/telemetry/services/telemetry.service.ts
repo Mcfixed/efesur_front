@@ -1,6 +1,8 @@
 import { apiClient } from "@/apis";
 import { 
   SummaryResponse,
+  DeviceListItem,
+  GpsReviewItem,
   DeviceSearchResult, 
   PaginatedResponse, 
   TelemetryData, 
@@ -24,6 +26,21 @@ export interface TelemetryParams {
 export const telemetryService = {
   getSummary: async () => {
     const response = await apiClient.get<{data: SummaryResponse}>("/telemetry/summary");
+    return response.data.data;
+  },
+
+  getDevicesList: async () => {
+    const response = await apiClient.get<{data: DeviceListItem[]}>("/telemetry/devices");
+    return response.data.data;
+  },
+
+  getGpsDailyReview: async () => {
+    const response = await apiClient.get<{data: GpsReviewItem[]}>("/telemetry/devices/gps-review");
+    return response.data.data;
+  },
+
+  getGpsDailyDetail: async (date: string) => {
+    const response = await apiClient.get<{data: { date: string; devices: any[] }}>(`/telemetry/devices/gps-review/${date}`);
     return response.data.data;
   },
 

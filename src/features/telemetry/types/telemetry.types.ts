@@ -14,6 +14,26 @@ export interface SummaryResponse {
   gpsModes: GpsModeBreakdown[];
 }
 
+export interface DeviceListItem {
+  id: number;
+  dev_eui: string;
+  name: string;
+  type_device: string;
+  is_active: boolean;
+  last_seen: string;
+  company_id: number;
+  company_name: string;
+  battery: number;
+}
+
+export interface GpsReviewItem {
+  review_date: string;
+  total: number;
+  activos: number;
+  bateria_buena: number;
+  bateria_mala: number;
+}
+
 export interface TelemetryData {
   id: string;
   device_id: number;

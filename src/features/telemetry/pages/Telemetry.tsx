@@ -1,8 +1,9 @@
 import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { ResponsiveContainer, LineChart, Line, Tooltip, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
-import { useSensorSummary, useSearchDevices, useDeviceTelemetry } from "../hooks/useTelemetry";
-import type { DeviceSearchResult } from "../types/telemetry.types";
+import { useSensorSummary, useDevicesList, useGpsDailyReview, useSearchDevices, useDeviceTelemetry } from "../hooks/useTelemetry";
+import { telemetryService } from "../services/telemetry.service";
+import type { DeviceSearchResult, DeviceListItem } from "../types/telemetry.types";
 
 const RANGES = [
   { key: "24h", label: "24H", hours: 24 },
@@ -18,10 +19,12 @@ const TYPE_COLORS: Record<string, string> = {
   Lector:      "from-blue-500/15 to-blue-500/5 border-blue-500/20 text-blue-400",
 };
 
+const DEVICE_TYPES = ["Gps", "Gateway", "SubEstacion", "Lector"];
+
 function SectionDivider({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[9px] font-semibold uppercase tracking-widest text-gray-300/60 shrink-0">{label}</span>
+      <span className="text-[9px] font-semibold uppercase tracking-widest text-text-400/60 shrink-0">{label}</span>
       <div className="h-px flex-1 bg-linear-to-r from-border/30 to-transparent" />
     </div>
   );
@@ -64,8 +67,11 @@ export default function Telemetry() {
   const [selectedType, setSelectedType] = useState("");
   const [selectedDevice, setSelectedDevice] = useState<DeviceSearchResult | null>(null);
   const [range, setRange] = useState("24h");
+  const [deviceTab, setDeviceTab] = useState("Gps");
 
   const { data: summary } = useSensorSummary();
+  const { data: allDevices } = useDevicesList();
+  const { data: gpsReview } = useGpsDailyReview();
   const { data: searchData } = useSearchDevices({ q: searchTerm, type: selectedType || undefined, limit: 10 });
   const devices = searchData?.data || [];
 
@@ -106,8 +112,73 @@ export default function Telemetry() {
 
   const types = summary?.types || [];
   const gpsModes = summary?.gpsModes || [];
-
+  const filteredDevices = (allDevices || []).filter(d => d.type_device === deviceTab);
   const axisStyle = { fontSize: 10, fill: '#9ca3af' };
+
+  // ── Cálculos revisión diaria ──
+  const review = gpsReview || [];
+
+  const exportCSV = () => {
+    const rows = telemetryData?.telemetry || [];
+    if (!rows.length) return;
+    const head = 'Fecha,Batería (V),Temperatura (°C),Movimiento,Gateways\n';
+    const body = rows.map(t => {
+      const rx = Array.isArray(t.rxinfo) ? t.rxinfo.length : 0;
+      const mov = t.object?.systemStatus?.motionFlag ? 'Sí' : 'No';
+      const bat = t.object?.voltage_mV ? (t.object.voltage_mV / 1000).toFixed(2) : '—';
+      const temp = t.object?.temperature_C != null ? t.object.temperature_C : '—';
+      return `${format(new Date(t.ts), "yyyy-MM-dd HH:mm:ss")},${bat},${temp},${mov},${rx}`;
+    }).join('\n');
+    const blob = new Blob(['\uFEFF' + head + body], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `${selectedDevice?.name || 'telemetria'}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportPDF = () => {
+    const rows = telemetryData?.telemetry || [];
+    if (!rows.length) return;
+    const title = `${selectedDevice?.name || 'Telemetría'} - ${format(new Date(), "yyyy-MM-dd")}`;
+    const tableRows = rows.map(t => {
+      const rx = Array.isArray(t.rxinfo) ? t.rxinfo.length : 0;
+      const mov = t.object?.systemStatus?.motionFlag ? 'Sí' : 'No';
+      const bat = t.object?.voltage_mV ? (t.object.voltage_mV / 1000).toFixed(2) : '—';
+      const temp = t.object?.temperature_C != null ? t.object.temperature_C : '—';
+      return `<tr><td>${format(new Date(t.ts), "yyyy-MM-dd HH:mm:ss")}</td><td>${bat}V</td><td>${temp}°C</td><td>${mov}</td><td>${rx}</td></tr>`;
+    }).join('');
+    const win = window.open('', '_blank');
+    win?.document.write(`
+      <html><head><title>${title}</title>
+      <style>body{font-family:sans-serif;padding:20px}
+      h2{margin-bottom:5px}
+      .meta{color:#666;font-size:13px;margin-bottom:15px}
+      table{width:100%;border-collapse:collapse;font-size:11px}
+      th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}
+      th{background:#f5f5f5}</style></head><body>
+      <h2>${title}</h2>
+      <p class="meta">Registros: ${rows.length}</p>
+      <table><thead><tr><th>Fecha</th><th>Batería</th><th>Temp</th><th>Movimiento</th><th>Gateways</th></tr></thead>
+      <tbody>${tableRows}</tbody></table></body></html>
+    `);
+    win?.document.close();
+    win?.print();
+  };
+
+  const exportDayCSV = async (date: string) => {
+    try {
+      const detail = await telemetryService.getGpsDailyDetail(date);
+      let csv = '\uFEFF';
+      csv += `Revisión diaria GPS - ${date}\n`;
+      csv += 'Nombre,DevEUI,Tuvo datos,Voltaje (mV),Estado batería\n';
+      csv += detail.devices.map((d: any) =>
+        `${d.name},${d.dev_eui},${d.tuvo_datos ? 'Sí' : 'No'},${d.voltage_mV ?? '—'},${d.estado_bateria}`
+      ).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `gps-${date}.csv`; a.click();
+      URL.revokeObjectURL(url);
+    } catch {}
+  };
 
   return (
     <div className="p-3 h-full flex flex-col gap-2 overflow-hidden">
@@ -164,21 +235,19 @@ export default function Telemetry() {
         {selectedDevice && (
           <button onClick={() => setSelectedDevice(null)}
             className="text-[11px] text-text-300 hover:text-text-100 px-2.5 py-1.5 rounded-lg hover:bg-bg-200 transition-colors shrink-0"
-          >
-            ✕ Limpiar
-          </button>
+          >✕ Limpiar</button>
         )}
       </div>
 
       {/* ─── SEARCH RESULTS ─── */}
       {!selectedDevice && searchTerm && devices.length > 0 && (
-        <div className="bg-bg-200/40 border border-border/20 rounded-xl overflow-hidden shadow-sm">
+        <div className="bg-bg-200/40 border border-border/20 rounded-xl overflow-hidden shadow-sm shrink-0 max-h-40 overflow-y-auto">
           {devices.map(d => (
             <button key={d.id} onClick={() => { setSelectedDevice(d); setSearchTerm(''); }}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-bg-200/60 transition-colors border-b border-border/5 last:border-0 group"
+              className="w-full flex items-center gap-3 px-4 py-2 text-left hover:bg-bg-200/60 transition-colors border-b border-border/5 last:border-0 group"
             >
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${d.is_active ? 'bg-green-400 shadow-[0_0_4px_rgba(74,222,128,0.4)]' : 'bg-red-400'}`} />
-              <span className="text-[13px] font-semibold text-text-100 truncate group-hover:text-brand-200 transition-colors">{d.name}</span>
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${d.is_active ? 'bg-green-400' : 'bg-red-400'}`} />
+              <span className="text-[13px] font-semibold text-text-100 truncate group-hover:text-brand-200">{d.name}</span>
               <span className="text-[9px] text-text-300 font-mono truncate">{d.dev_eui}</span>
               <span className="text-[10px] text-text-400 ml-auto shrink-0">{d.type_device}</span>
             </button>
@@ -186,32 +255,28 @@ export default function Telemetry() {
         </div>
       )}
 
-      {/* ─── DEVICE PANEL ─── */}
+      {/* ─── CONTENIDO PRINCIPAL ─── */}
       {selectedDevice ? (
+        /* ─── PANEL DE DISPOSITIVO SELECCIONADO ─── */
         <div className="flex-1 flex flex-col gap-2 min-h-0">
-          {/* Header device + range */}
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start justify-between gap-3 shrink-0">
             <div className="flex items-center gap-3 min-w-0 flex-1">
               <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${selectedDevice.is_active ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.5)]' : 'bg-red-400'}`} />
               <div className="min-w-0">
                 <h2 className="text-base text-text-100 truncate">{selectedDevice.name}</h2>
-                <p className="text-xs text-gray-400 font-mono truncate">{selectedDevice.dev_eui} · {selectedDevice.type_device} · {selectedDevice.company_name}</p>
+                <p className="text-xs text-gray-400 font-mono truncate">{selectedDevice.dev_eui} · {selectedDevice.type_device}</p>
               </div>
             </div>
             <div className="flex gap-1 shrink-0">
               {RANGES.map(r => (
                 <button key={r.key} onClick={() => setRange(r.key)}
                   className={`px-3 py-1 rounded-lg text-[10px] font-semibold transition-all ${range === r.key ? 'bg-brand-100/15 text-brand-200 shadow-sm' : 'bg-bg-300/50 text-text-300 hover:text-text-200 hover:bg-bg-300'}`}
-                >
-                  {r.label}
-                </button>
+                >{r.label}</button>
               ))}
             </div>
           </div>
 
-          {/* ─── INFO DEL SENSOR + ÚLTIMA TRANSMISIÓN ─── */}
-          <div className="grid grid-cols-4 gap-2">
-            {/* Dispositivo */}
+          <div className="grid grid-cols-4 gap-2 shrink-0">
             <div className="col-span-1 bg-bg-200/30 border border-gray-700 rounded p-2">
               <p className="text-[9px] font-semibold uppercase tracking-widest text-gray-300 mb-1">Dispositivo</p>
               <InfoRow label="EUI" value={selectedDevice.dev_eui} mono />
@@ -220,30 +285,16 @@ export default function Telemetry() {
               <InfoRow label="Estado" value={selectedDevice.is_active ? 'Activo' : 'Inactivo'} color={selectedDevice.is_active ? 'text-green-400' : 'text-red-400'} />
               <InfoRow label="Último reporte" value={selectedDevice.last_seen ? format(new Date(selectedDevice.last_seen), "dd MMM yyyy HH:mm") : 'Nunca'} />
             </div>
-            {/* Sistema (basado en último dato) */}
             <div className="col-span-1 bg-bg-200/30 border border-gray-700 rounded p-2">
               <p className="text-[9px] font-semibold uppercase tracking-widest text-gray-300 mb-1">
                 Sistema {lastT ? <span className="text-blue-300 font-normal normal-case">· {format(new Date(lastT.ts), "dd MMM HH:mm")}</span> : ''}
               </p>
               <InfoRow label="Modo operación" value={lastT?.object?.systemStatus?.operatingMode || '—'} />
-              <InfoRow
-                label="Movimiento"
-                value={lastT?.object?.systemStatus?.motionFlag ? 'Detectado' : 'Sin movimiento'}
-                color={lastT?.object?.systemStatus?.motionFlag ? 'text-yellow-400' : 'text-text-300'}
-              />
-              <InfoRow
-                label="Free Fall"
-                value={lastT?.object?.systemStatus?.freeFallFlag ? 'Sí' : 'No'}
-                color={lastT?.object?.systemStatus?.freeFallFlag ? 'text-red-400' : 'text-text-300'}
-              />
-              <InfoRow
-                label="Persecución"
-                value={lastT?.object?.systemStatus?.pursuitMode ? 'Activo' : 'Inactivo'}
-                color={lastT?.object?.systemStatus?.pursuitMode ? 'text-red-400' : 'text-text-300'}
-              />
+              <InfoRow label="Movimiento" value={lastT?.object?.systemStatus?.motionFlag ? 'Detectado' : 'Sin movimiento'} color={lastT?.object?.systemStatus?.motionFlag ? 'text-yellow-400' : 'text-text-300'} />
+              <InfoRow label="Free Fall" value={lastT?.object?.systemStatus?.freeFallFlag ? 'Sí' : 'No'} color={lastT?.object?.systemStatus?.freeFallFlag ? 'text-red-400' : 'text-text-300'} />
+              <InfoRow label="Persecución" value={lastT?.object?.systemStatus?.pursuitMode ? 'Activo' : 'Inactivo'} color={lastT?.object?.systemStatus?.pursuitMode ? 'text-red-400' : 'text-text-300'} />
               <InfoRow label="Acelerómetro" value={lastT?.object?.systemStatus?.accelerometerHealth || '—'} />
             </div>
-            {/* Último paquete */}
             <div className="col-span-1 bg-bg-200/30 border border-gray-700 rounded p-2">
               <p className="text-[9px] font-semibold uppercase tracking-widest text-gray-300 mb-1">Último paquete</p>
               <InfoRow label="Tipo" value={lastT?.object?.packetType || '—'} />
@@ -253,46 +304,31 @@ export default function Telemetry() {
               <InfoRow label="Timestamp" value={lastT ? format(new Date(lastT.ts), "dd MMM HH:mm:ss") : '—'} mono />
               <InfoRow label="Registros totales" value={telemetryData?.stats?.total_records ?? '—'} />
             </div>
-            {/* Gateways último dato */}
             <div className="col-span-1 bg-bg-200/30 border border-gray-700 rounded p-2">
               <p className="text-[9px] font-semibold uppercase tracking-widest text-gray-300 mb-1">Gateways último dato</p>
               {lastT && Array.isArray(lastT.rxinfo) && lastT.rxinfo.length > 0 ? (
                 lastT.rxinfo.map((gw: any, i: number) => (
-                  <div key={i} className="flex items-center gap-2 py-1 border-b border-border/5 last:border-0">
+                  <div key={i} className="flex items-center gap-2 py-0.5 border-b border-border/5 last:border-0">
                     <span className="w-1.5 h-1.5 rounded-full bg-brand-200/50 shrink-0" />
                     <div className="min-w-0 flex-1">
                       <p className="text-text-200 font-mono text-[8px] truncate">{gw.gatewayId || `GW#${i + 1}`}</p>
-                      <div className="flex gap-2 text-[9px]">
-                        <span className="text-blue-400">SNR {gw.snr ?? '—'}</span>
-                        <span className="text-pink-400">RSSI {gw.rssi ?? '—'}</span>
-                      </div>
+                      <div className="flex gap-2 text-[9px]"><span className="text-blue-400">SNR {gw.snr ?? '—'}</span><span className="text-pink-400">RSSI {gw.rssi ?? '—'}</span></div>
                     </div>
                   </div>
                 ))
-              ) : (
-                <p className="text-[9px] text-text-400 italic">Sin datos de gateway</p>
-              )}
-            </div>
-            {/* Divider entre info y transmisión */}
-            <div className="col-span-4 flex items-center gap-2">
-              <div className="h-px flex-1 bg-linear-to-r from-red-500/20 via-red-400/60 to-transparent" />
-              <span className="text-[7px] font-semibold uppercase tracking-widest text-text-400/50">Última transmisión</span>
-              <div className="h-px flex-1 bg-linear-to-l from-red-500/20 via-red-400/60 to-transparent" />
+              ) : <p className="text-[9px] text-text-400 italic">Sin datos</p>}
             </div>
           </div>
 
-          {/* ─── STATS BAR ─── */}
           {telemetryData?.stats && (
-            <div className="flex gap-4 text-[9px] text-text-300 bg-bg-200/20 rounded px-2 py-1 border border-border/5">
-              <span className="flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-brand-200" /> Registros: <strong className="text-text-200">{telemetryData.stats.total_records}</strong></span>
-              <span className="flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-text-400" /> Desde: <strong className="text-text-200">{telemetryData.stats.first_record ? format(new Date(telemetryData.stats.first_record), "dd MMM yyyy") : '-'}</strong></span>
-              <span className="flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-text-400" /> Último: <strong className="text-text-200">{telemetryData.stats.last_record ? format(new Date(telemetryData.stats.last_record), "dd MMM HH:mm") : '-'}</strong></span>
+            <div className="flex gap-4 text-[9px] text-text-300 bg-bg-200/20 rounded px-2 py-1 border border-border/5 shrink-0">
+              <span>Registros: <strong className="text-text-200">{telemetryData.stats.total_records}</strong></span>
+              <span>Desde: <strong className="text-text-200">{telemetryData.stats.first_record ? format(new Date(telemetryData.stats.first_record), "dd MMM yyyy") : '-'}</strong></span>
+              <span>Último: <strong className="text-text-200">{telemetryData.stats.last_record ? format(new Date(telemetryData.stats.last_record), "dd MMM HH:mm") : '-'}</strong></span>
             </div>
           )}
 
-          {/* ─── CHARTS + TABLE ─── */}
           <div className="flex-1 grid grid-cols-3 gap-2 min-h-0">
-            {/* Left: charts */}
             <div className="col-span-2 flex flex-col gap-2 min-h-0 overflow-y-auto pr-1 border border-gray-200/20 rounded">
               {chartData.length > 1 && (
                 <ChartCard title="Batería y Temperatura">
@@ -309,7 +345,6 @@ export default function Telemetry() {
                   </ResponsiveContainer>
                 </ChartCard>
               )}
-
               {chartData.length > 1 && gatewayNames.map(gwId => (
                 <ChartCard key={gwId} title={`Gateway ${gwId}`}>
                   <ResponsiveContainer width="100%" height={70}>
@@ -326,13 +361,13 @@ export default function Telemetry() {
                 </ChartCard>
               ))}
             </div>
-
-            {/* Right: table */}
             <div className="col-span-1 bg-bg-200/40 border border-gray-300/20 rounded overflow-hidden flex flex-col min-h-0 shadow-sm">
               <div className="flex items-center justify-between px-3 py-2 border-b border-gray-300/20 shrink-0">
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-text-300">
-                  Registros
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-[9px] font-semibold uppercase tracking-wider text-text-300">Registros</p>
+                  <button onClick={exportCSV} className="text-[8px] text-text-400 hover:text-brand-200 px-1.5 py-0.5 rounded hover:bg-bg-200 transition-colors">CSV</button>
+                  <button onClick={exportPDF} className="text-[8px] text-text-400 hover:text-brand-200 px-1.5 py-0.5 rounded hover:bg-bg-200 transition-colors">PDF</button>
+                </div>
                 <span className="text-[11px] font-bold text-text-200">{telemetryData?.telemetry?.length || 0}</span>
               </div>
               <div className="flex-1 overflow-auto">
@@ -359,23 +394,98 @@ export default function Telemetry() {
                 {!isLoading && (!telemetryData?.telemetry || telemetryData.telemetry.length === 0) && (
                   <p className="text-center text-text-300 text-xs py-10">Sin registros en este período</p>
                 )}
-                {isLoading && (
-                  <div className="flex justify-center py-6">
-                    <span className="text-[10px] text-brand-200 animate-pulse">Cargando datos...</span>
-                  </div>
-                )}
+                {isLoading && <div className="flex justify-center py-6"><span className="text-[10px] text-brand-200 animate-pulse">Cargando datos...</span></div>}
               </div>
             </div>
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <svg className="mx-auto mb-3 text-text-400" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-            <p className="text-text-300 text-sm">Busca y selecciona un sensor para ver su telemetría</p>
+        /* ─── TABLAS INICIALES ─── */
+        <div className="flex-1 grid grid-cols-5 gap-3 min-h-0">
+          {/* Columna izquierda: todos los sensores */}
+          <div className="col-span-3 bg-bg-200/30 border border-gray-300/20 rounded-sm overflow-hidden flex flex-col min-h-0">
+            <div className="flex items-center gap-1 px-3 py-2 border-b border-border/10 shrink-0">
+              {DEVICE_TYPES.map(t => (
+                /* from-blue-500/15 to-blue-500/5 border-blue-500/20 text-blue-400 */
+                <button key={t} onClick={() => setDeviceTab(t)}
+                  className={`px-2.5 py-1 rounded text-[12px] font-semibold transition-colors ${deviceTab === t ? 'bg-linear-to-br from-blue-500/15 to-blue-500/5 border border-blue-500/20 text-blue-400' : 'text-text-300 hover:text-text-200 hover:bg-bg-200'}`}
+                >{t}</button>
+              ))}
+              <span className="text-[12px] text-gray-400 ml-auto">{filteredDevices.length} sensores</span>
+            </div>
+            <div className="flex-1 overflow-auto">
+              <table className="w-full text-[12px]">
+                <thead>
+                  <tr className="text-text-300 text-[12px] uppercase tracking-wider sticky top-0 bg-bg-200/95 border-b border-border/5">
+                    <th className="text-left px-3 py-1.5 font-medium">Nombre</th>
+                    <th className="text-left px-3 py-1.5 font-medium">DevEUI</th>
+                    <th className="text-left px-3 py-1.5 font-medium">Último dato</th>
+                    <th className="text-left px-3 py-1.5 font-medium">Batería</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredDevices.map(d => (
+                    <tr key={d.id} onClick={() => setSelectedDevice(d as any)}
+                      className="border-t border-border/5 hover:bg-gray-400/30 transition-colors cursor-pointer"
+                    >
+                      <td className="px-3 py-1.5 text-text-100 font-semibold truncate max-w-30">{d.name}</td>
+                      <td className="px-3 py-1.5 text-text-300 font-mono">{d.dev_eui}</td>
+                      <td className="px-3 py-1.5 text-text-300 font-mono text-[9px]">{d.last_seen ? format(new Date(d.last_seen), "dd MMM HH:mm") : '—'}</td>
+                      <td className="px-3 py-1.5 font-mono">
+                        {d.battery != null
+                          ? <span className={d.battery > 50 ? 'text-green-400' : d.battery > 20 ? 'text-yellow-400' : 'text-red-400'}>{d.battery}%</span>
+                          : <span className="text-text-400">—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {filteredDevices.length === 0 && (
+                <p className="text-center text-text-300 text-xs py-8">Sin sensores de este tipo</p>
+              )}
+            </div>
+          </div>
+
+          {/* Columna derecha: revisión diaria GPS */}
+          <div className="col-span-2 bg-bg-200/30 border border-gray-300/20  rounded-sm overflow-hidden flex flex-col min-h-0">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border/10 shrink-0">
+              <p className="text-[12px] font-semibold uppercase tracking-widest text-gray-300">Revisión diaria GPS</p>
+            </div>
+            <div className="flex-1 overflow-auto">
+              <table className="w-full text-[12px]">
+                <thead>
+                  <tr className="text-text-300 text-[12px] uppercase tracking-wider sticky top-0 bg-bg-200/95 border-b border-border/5">
+                    <th className="text-left px-3 py-1.5 font-medium">Fecha</th>
+                    <th className="text-center px-2 py-1.5 font-medium">Revisados</th>
+                    <th className="text-center px-2 py-1.5 font-medium">Activos</th>
+                    <th className="text-center px-2 py-1.5 font-medium">Bat. buena</th>
+                    <th className="text-center px-2 py-1.5 font-medium">Bat. mala</th>
+                    <th className="text-center px-2 py-1.5 font-medium"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {review.map(r => (
+                    <tr key={r.review_date} className="border-t border-border/5 hover:bg-bg-200/40 transition-colors">
+                      <td className="px-3 py-1.5 text-text-200 font-mono">{r.review_date}</td>
+                      <td className="px-2 py-1.5 text-center text-text-200 font-bold">{r.total}</td>
+                      <td className="px-2 py-1.5 text-center"><span className="text-green-400 font-semibold">{r.activos}</span></td>
+                      <td className="px-2 py-1.5 text-center"><span className="text-green-400 font-semibold">{r.bateria_buena}</span></td>
+                      <td className="px-2 py-1.5 text-center"><span className={r.bateria_mala > 0 ? 'text-red-400 font-semibold' : 'text-gray-400'}>{r.bateria_mala}</span></td>
+                      <td className="px-2 py-1.5 text-center">
+                        <button onClick={() => exportDayCSV(r.review_date)} className="text-[8px] text-gray-400 hover:text-brand-200 px-1.5 py-0.5 rounded hover:bg-bg-200 transition-colors">CSV</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {review.length === 0 && (
+                <p className="text-center text-text-300 text-xs py-8">Sin datos de revisión</p>
+              )}
+            </div>
           </div>
         </div>
       )}
     </div>
   );
 }
+

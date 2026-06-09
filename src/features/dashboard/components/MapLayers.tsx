@@ -266,6 +266,7 @@ export default function MapLayers({ data, gateways }: Props) {
         const isAtencion = data.alerts?.atencion?.some(a => a.device_id === device.id);
         if (isCritical) return null; // Los críticos se renderizan al final
 
+        // Color del pin por tipo de dispositivo
         const typeColors: Record<string, { fill: string; stroke: string; glow: string }> = {
           Gps:         { fill: '#3b82f6', stroke: '#60a5fa', glow: 'bg-blue-500' },
           Gateway:     { fill: '#10b981', stroke: '#34d399', glow: 'bg-emerald-500' },
@@ -274,6 +275,15 @@ export default function MapLayers({ data, gateways }: Props) {
         };
         const tc = typeColors[device.type_device] || typeColors.Gps;
 
+        // Color del aura por SNR
+        const getAuraColor = () => {
+          if (device.best_snr == null) return '#3b82f6';
+          if (device.best_snr > -115) return '#22c55e';
+          if (device.best_snr >= -120) return '#f97316';
+          return '#ef4444';
+        };
+        const auraColor = getAuraColor();
+
         return (
           <Marker
             key={device.id}
@@ -281,7 +291,32 @@ export default function MapLayers({ data, gateways }: Props) {
             latitude={Number(device.latitude_current)}
             onClick={e => { e.originalEvent.stopPropagation(); setSelectedDevice(device); }}
           >
-            {isAtencion ? renderAlertIcon('atencion') : renderDeviceIcon(tc, device.type_device)}
+            {isAtencion ? renderAlertIcon('atencion') : (
+              <div className="relative flex items-center justify-center cursor-pointer group">
+                <span className="absolute w-7 h-7 rounded-full aura-ping"
+                  style={{
+                    backgroundColor: auraColor,
+                    opacity: 0.2,
+                    boxShadow: `0 0 10px 3px ${auraColor}44`,
+                  }} />
+                <div className="relative transition-all duration-200 group-hover:scale-125 hover:-translate-y-1">
+                  <svg width="24" height="30" viewBox="0 0 28 36" className="drop-shadow-md">
+                    <defs>
+                      <linearGradient id={`pin-${tc.fill.slice(1)}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor={tc.stroke} />
+                        <stop offset="100%" stopColor={tc.fill} />
+                      </linearGradient>
+                    </defs>
+                    <path d="M14 1C6.8 1 1 6.8 1 14c0 9.5 13 19.5 13 19.5S27 23.5 27 14C27 6.8 21.2 1 14 1z"
+                      fill={`url(#pin-${tc.fill.slice(1)})`} stroke={tc.fill} strokeWidth="1.3" />
+                    <circle cx="14" cy="13" r="6" fill="white" />
+                    <text x="14" y="16" textAnchor="middle" fill={tc.fill} fontSize="8" fontWeight="800" fontFamily="sans-serif">
+                      {device.type_device === 'SubEstacion' ? 'S' : device.type_device[0]}
+                    </text>
+                  </svg>
+                </div>
+              </div>
+            )}
           </Marker>
         );
       })}

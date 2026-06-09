@@ -57,13 +57,8 @@ createRoot(document.getElementById("root")!).render(
                   </ProtectedRoute>
                 }
               >
-                {/* Rutas del sistema (Sidebar) */}
                 {useConfigApp.NAVIGATION_APP.map((item) => (
-                  <Route
-                    key={item.id}
-                    path={item.link}
-                    element={<item.component />}
-                  />
+                  <Route key={item.id} path={item.link} element={<item.component />} />
                 ))}
 
                 {/* Rutas del template (Header/UserMenu) */}

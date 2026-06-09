@@ -53,6 +53,7 @@ export interface NavigationItem {
   component: React.ComponentType;
   target: boolean;
   state: boolean;
+  superadmin?: boolean;
 }
 
 export interface AppConfig {
@@ -117,6 +118,7 @@ export const configServer = () => {
       component: Configuration,
       target: false,
       state: true,
+      superadmin: true,
     }
   ];
 

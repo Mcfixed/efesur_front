@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router";
+import { useBetterSession } from "@/libs/better-auth";
 import { useCompanies, useUsers, useDevices, useRoles, useCreateCompany, useUpdateCompany, useDeleteCompany, useCreateUser, useUpdateUser, useDeleteUser, useCreateDevice, useUpdateDevice, useDeleteDevice } from "../hooks/useConfig";
 import { DataTableWidget, PieChartWidget, BarChartWidget } from "@/components/widgets";
 import { Company, User, Device } from "../types/config.types";
@@ -12,6 +14,15 @@ import { configService } from "../services/config.service";
 import { toast } from "sonner";
 
 export default function Configuration() {
+  const { user } = useBetterSession();
+  const navigate = useNavigate();
+  // @ts-expect-error - is_superuser puede venir del backend
+  const isSuperuser = user?.is_superuser || user?.role === "admin";
+
+  useEffect(() => {
+    if (!isSuperuser) navigate("/", { replace: true });
+  }, [isSuperuser]);
+
   const [activeTab, setActiveTab] = useState<"companies" | "users" | "devices">("companies");
 
   const tabs = [
