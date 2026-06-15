@@ -15,7 +15,7 @@ export function UserForm({ initialData, companies, onSubmit, onCancel, isLoading
     name: "",
     email: "",
     password: "",
-    is_superuser: false,
+    role: "visualizador",
   });
 
   const [selectedCompanies, setSelectedCompanies] = useState<number[]>([]);
@@ -25,7 +25,7 @@ export function UserForm({ initialData, companies, onSubmit, onCancel, isLoading
       setFormData({
         name: initialData.name,
         email: initialData.email,
-        is_superuser: initialData.is_superuser,
+        role: initialData.role,
       });
       // Extract assigned company IDs
       if (initialData.company_assignments) {
@@ -34,12 +34,14 @@ export function UserForm({ initialData, companies, onSubmit, onCancel, isLoading
     }
   }, [initialData]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target;
+    if (type === "checkbox") {
+      const checked = (e.target as HTMLInputElement).checked;
+      setFormData((prev) => ({ ...prev, [name]: checked }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleCompanyToggle = (companyId: number) => {
@@ -86,18 +88,24 @@ export function UserForm({ initialData, companies, onSubmit, onCancel, isLoading
       )}
       
       <div className="pt-2 pb-4 border-b border-border-100">
-        <Checkbox
-          label="Es Superadministrador"
-          name="is_superuser"
-          checked={formData.is_superuser || false}
-          onChange={handleChange}
-        />
-        <p className="text-xs text-text-300 mt-1 ml-6">
-          Los superadministradores tienen acceso a todas las empresas automáticamente.
+        <label className="text-sm font-medium text-text-200 mb-1 block">Rol</label>
+        <select name="role" value={formData.role || 'visualizador'} onChange={handleChange}
+          className="w-full bg-bg-200 border border-border/30 rounded-lg px-3 py-2 text-[13px] text-text-100 outline-none focus:border-brand-100/50"
+        >
+          <option value="visualizador">Visualizador</option>
+          <option value="admin_efe">Admin EFE</option>
+          <option value="superadmin">Superadmin</option>
+        </select>
+        <p className="text-xs text-text-300 mt-1">
+          {formData.role === 'superadmin'
+            ? 'Superadmins tienen acceso a todas las empresas automáticamente.'
+            : formData.role === 'admin_efe'
+              ? 'Admin EFE puede gestionar empresas asignadas.'
+              : 'Visualizador solo puede ver datos.'}
         </p>
       </div>
 
-      {!formData.is_superuser && (
+      {formData.role !== 'superadmin' && (
         <div className="flex flex-col gap-2">
           <label className="text-sm font-medium text-text-200">
             Empresas Asignadas

@@ -48,6 +48,7 @@ export default function DevicePopup({ device, alerts, onClose }: { device: GpsDe
         <InfoItem label="Modo" value={device.operating_mode} />
         <InfoItem label="Acelerómetro" value={device.accelerometers_status} />
         <InfoItem label="Mejor SNR" value={device.best_snr != null ? `${device.best_snr} dB` : '—'} color={device.best_snr != null && device.best_snr > -115 ? 'text-green-400' : device.best_snr != null && device.best_snr >= -120 ? 'text-yellow-400' : 'text-red-400'} />
+        {device.catenaria_linea && <InfoItem label="Línea" value={`${device.catenaria_linea} · Orden ${device.catenaria_orden ?? '—'}`} />}
         <InfoItem label="Coordenadas" value={`${Number(device.latitude_current).toFixed(4)}, ${Number(device.longitude_current).toFixed(4)}`} className="col-span-2" />
         <InfoItem label="Último reporte" value={device.last_seen ? format(new Date(device.last_seen), "yyyy/MM/dd HH:mm:ss") : 'N/A'} className="col-span-2" />
       </div>

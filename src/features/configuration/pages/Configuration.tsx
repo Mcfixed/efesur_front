@@ -16,12 +16,11 @@ import { toast } from "sonner";
 export default function Configuration() {
   const { user } = useBetterSession();
   const navigate = useNavigate();
-  // @ts-expect-error - is_superuser puede venir del backend
-  const isSuperuser = user?.is_superuser || user?.role === "admin";
+  const role = user?.role || 'visualizador';
 
   useEffect(() => {
-    if (!isSuperuser) navigate("/", { replace: true });
-  }, [isSuperuser]);
+    if (role !== 'superadmin' && role !== 'admin_efe') navigate("/", { replace: true });
+  }, [role]);
 
   const [activeTab, setActiveTab] = useState<"companies" | "users" | "devices">("companies");
 
@@ -300,14 +299,22 @@ function UsersTab() {
             { key: "name", header: "Nombre" },
             { key: "email", header: "Email" },
             { 
-              key: "is_superuser", 
-              header: "Superuser",
-              render: (val) => val
-                ? <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-brand-200/10 text-brand-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-brand-200" />
-                    Sí
-                  </span>
-                : <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-text-300/10 text-text-300">No</span>
+              key: "role", 
+              header: "Rol",
+              render: (val) => {
+                const colors: Record<string, string> = {
+                  superadmin: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+                  admin_efe: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+                  visualizador: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
+                };
+                const labels: Record<string, string> = {
+                  superadmin: 'Superadmin',
+                  admin_efe: 'Admin EFE',
+                  visualizador: 'Visualizador',
+                };
+                const c = colors[val as string] || colors.visualizador;
+                return <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${c}`}>{labels[val as string] || val}</span>;
+              }
             },
             {
               key: "company_assignments",

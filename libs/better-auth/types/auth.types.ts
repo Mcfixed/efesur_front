@@ -10,7 +10,6 @@ export interface BetterAuthUser {
   emailVerified: boolean;
   createdAt: Date;
   updatedAt: Date;
-  is_superuser?: boolean;
   role?: string;
 }
 

@@ -50,9 +50,19 @@ export default function UserProfilePanel() {
               Datos de tu cuenta y accesos
             </p>
           </div>
-          {user.is_superuser && (
+          {user.role === 'superadmin' && (
             <span className="rounded-full bg-purple-950 border border-purple-500 px-3 py-1 text-xs font-semibold text-purple-200">
-              SUPERUSUARIO
+              SUPERADMIN
+            </span>
+          )}
+          {user.role === 'admin_efe' && (
+            <span className="rounded-full bg-blue-950 border border-blue-500 px-3 py-1 text-xs font-semibold text-blue-200">
+              ADMIN
+            </span>
+          )}
+          {(!user.role || user.role === 'visualizador') && (
+            <span className="rounded-full bg-gray-800 border border-gray-500 px-3 py-1 text-xs font-semibold text-gray-300">
+              VISUALIZADOR
             </span>
           )}
         </div>

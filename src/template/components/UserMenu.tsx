@@ -32,8 +32,8 @@ export default function UserMenu() {
     signOut();
   };
 
-  // @ts-expect-error - is_superuser puede venir del backend
-  const isSuperuser = user?.is_superuser || user?.role === "admin";
+  const role = user?.role || 'visualizador';
+  const isSuperuser = role === 'superadmin' || role === 'admin_efe';
 
   return (
     <div className="relative" ref={menuRef}>

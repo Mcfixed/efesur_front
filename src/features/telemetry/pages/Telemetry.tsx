@@ -3,7 +3,12 @@ import { format } from "date-fns";
 import { ResponsiveContainer, LineChart, Line, Tooltip, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
 import { useSensorSummary, useDevicesList, useGpsDailyReview, useSearchDevices, useDeviceTelemetry } from "../hooks/useTelemetry";
 import { telemetryService } from "../services/telemetry.service";
-import type { DeviceSearchResult, DeviceListItem } from "../types/telemetry.types";
+import { generateSensorReport } from "../utils/generateReport";
+import { SectionDivider } from "../components/SectionDivider";
+import { ChartTooltip } from "../components/ChartTooltip";
+import { ChartCard } from "../components/ChartCard";
+import { InfoRow } from "../components/InfoRow";
+import type { DeviceSearchResult } from "../types/telemetry.types";
 
 const RANGES = [
   { key: "24h", label: "24H", hours: 24 },
@@ -12,6 +17,8 @@ const RANGES = [
   { key: "total", label: "Todo", hours: 0 },
 ];
 
+const DEVICE_TYPES = ["Gps", "Gateway", "SubEstacion", "Lector"];
+
 const TYPE_COLORS: Record<string, string> = {
   Gps:         "from-blue-500/15 to-blue-500/5 border-blue-500/20 text-blue-400",
   Gateway:     "from-blue-500/15 to-blue-500/5 border-blue-500/20 text-blue-400",
@@ -19,47 +26,44 @@ const TYPE_COLORS: Record<string, string> = {
   Lector:      "from-blue-500/15 to-blue-500/5 border-blue-500/20 text-blue-400",
 };
 
-const DEVICE_TYPES = ["Gps", "Gateway", "SubEstacion", "Lector"];
-
-function SectionDivider({ label }: { label: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-[9px] font-semibold uppercase tracking-widest text-text-400/60 shrink-0">{label}</span>
-      <div className="h-px flex-1 bg-linear-to-r from-border/30 to-transparent" />
-    </div>
-  );
+function exportCSV(telemetry: any[], name: string) {
+  const rows = telemetry || [];
+  if (!rows.length) return;
+  const head = 'Fecha,Batería (V),Temperatura (°C),Movimiento,Gateways\n';
+  const body = rows.map((t: any) => {
+    const rx = Array.isArray(t.rxinfo) ? t.rxinfo.length : 0;
+    const mov = t.object?.systemStatus?.motionFlag ? 'Sí' : 'No';
+    const bat = t.object?.voltage_mV ? (t.object.voltage_mV / 1000).toFixed(2) : '—';
+    const temp = t.object?.temperature_C != null ? t.object.temperature_C : '—';
+    return `${format(new Date(t.ts), "yyyy-MM-dd HH:mm:ss")},${bat},${temp},${mov},${rx}`;
+  }).join('\n');
+  const blob = new Blob(['\uFEFF' + head + body], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = `${name}.csv`; a.click();
+  URL.revokeObjectURL(url);
 }
 
-const ChartTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="bg-black/90 backdrop-blur-sm border border-white/10 rounded-xl px-3.5 py-2.5 shadow-2xl text-[11px] min-w-35">
-      <p className="text-text-400 font-mono text-[9px] mb-1.5 border-b border-white/5 pb-1.5">{label}</p>
-      {payload.map((p: any, i: number) => (
-        <p key={i} style={{ color: p.color }} className="font-semibold leading-5 text-[12px]">
-          {p.name}: <span className="text-white font-bold">{typeof p.value === 'number' ? p.value.toFixed(1) : p.value}</span>
-        </p>
-      ))}
-    </div>
-  );
-};
-
-function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="bg-bg-200/40 border border-border/10 rounded-lg p-2 shadow-sm">
-      <p className="text-[9px] font-semibold text-text-200 mb-1">{title}</p>
-      {children}
-    </div>
-  );
-}
-
-function InfoRow({ label, value, mono, color }: { label: string; value: string; mono?: boolean; color?: string }) {
-  return (
-    <div className="flex justify-between items-center gap-2 border-b border-border/5 last:border-0">
-      <span className="text-[10px] text-text-300 shrink-0">{label}</span>
-      <span className={`text-[10px] text-right truncate max-w-[60%] ${color || 'text-text-200'} ${mono ? 'font-mono' : ''}`}>{value}</span>
-    </div>
-  );
+function exportPDF(telemetry: any[], name: string) {
+  const rows = telemetry || [];
+  if (!rows.length) return;
+  const title = `${name} - ${format(new Date(), "yyyy-MM-dd")}`;
+  const tableRows = rows.map((t: any) => {
+    const rx = Array.isArray(t.rxinfo) ? t.rxinfo.length : 0;
+    const mov = t.object?.systemStatus?.motionFlag ? 'Sí' : 'No';
+    const bat = t.object?.voltage_mV ? (t.object.voltage_mV / 1000).toFixed(2) : '—';
+    const temp = t.object?.temperature_C != null ? t.object.temperature_C : '—';
+    return `<tr><td>${format(new Date(t.ts), "yyyy-MM-dd HH:mm:ss")}</td><td>${bat}V</td><td>${temp}°C</td><td>${mov}</td><td>${rx}</td></tr>`;
+  }).join('');
+  const win = window.open('', '_blank');
+  win?.document.write(`
+    <html><head><title>${title}</title>
+    <style>body{font-family:sans-serif;padding:20px}h2{margin-bottom:5px}.meta{color:#666;font-size:13px;margin-bottom:15px}table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}th{background:#f5f5f5}</style></head><body>
+    <h2>${title}</h2><p class="meta">Registros: ${rows.length}</p>
+    <table><thead><tr><th>Fecha</th><th>Batería</th><th>Temp</th><th>Movimiento</th><th>Gateways</th></tr></thead>
+    <tbody>${tableRows}</tbody></table></body></html>
+  `);
+  win?.document.close();
+  win?.print();
 }
 
 export default function Telemetry() {
@@ -88,11 +92,7 @@ export default function Telemetry() {
     if (!telemetryData?.telemetry?.length) return [];
     return telemetryData.telemetry.map(t => {
       const rx = Array.isArray(t.rxinfo) ? t.rxinfo : [];
-      const entry: any = {
-        time: format(new Date(t.ts), "MM/dd HH:mm"),
-        voltage: t.object?.voltage_mV ?? null,
-        temperature: t.object?.temperature_C ?? null,
-      };
+      const entry: any = { time: format(new Date(t.ts), "MM/dd HH:mm"), voltage: t.object?.voltage_mV ?? null, temperature: t.object?.temperature_C ?? null };
       rx.forEach((gw: any, i: number) => {
         const id = (gw.gatewayId || `gw${i}`).slice(-6);
         entry[`snr_${id}`] = gw.snr;
@@ -113,66 +113,15 @@ export default function Telemetry() {
   const types = summary?.types || [];
   const gpsModes = summary?.gpsModes || [];
   const filteredDevices = (allDevices || []).filter(d => d.type_device === deviceTab);
-  const axisStyle = { fontSize: 10, fill: '#9ca3af' };
-
-  // ── Cálculos revisión diaria ──
   const review = gpsReview || [];
-
-  const exportCSV = () => {
-    const rows = telemetryData?.telemetry || [];
-    if (!rows.length) return;
-    const head = 'Fecha,Batería (V),Temperatura (°C),Movimiento,Gateways\n';
-    const body = rows.map(t => {
-      const rx = Array.isArray(t.rxinfo) ? t.rxinfo.length : 0;
-      const mov = t.object?.systemStatus?.motionFlag ? 'Sí' : 'No';
-      const bat = t.object?.voltage_mV ? (t.object.voltage_mV / 1000).toFixed(2) : '—';
-      const temp = t.object?.temperature_C != null ? t.object.temperature_C : '—';
-      return `${format(new Date(t.ts), "yyyy-MM-dd HH:mm:ss")},${bat},${temp},${mov},${rx}`;
-    }).join('\n');
-    const blob = new Blob(['\uFEFF' + head + body], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `${selectedDevice?.name || 'telemetria'}.csv`; a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const exportPDF = () => {
-    const rows = telemetryData?.telemetry || [];
-    if (!rows.length) return;
-    const title = `${selectedDevice?.name || 'Telemetría'} - ${format(new Date(), "yyyy-MM-dd")}`;
-    const tableRows = rows.map(t => {
-      const rx = Array.isArray(t.rxinfo) ? t.rxinfo.length : 0;
-      const mov = t.object?.systemStatus?.motionFlag ? 'Sí' : 'No';
-      const bat = t.object?.voltage_mV ? (t.object.voltage_mV / 1000).toFixed(2) : '—';
-      const temp = t.object?.temperature_C != null ? t.object.temperature_C : '—';
-      return `<tr><td>${format(new Date(t.ts), "yyyy-MM-dd HH:mm:ss")}</td><td>${bat}V</td><td>${temp}°C</td><td>${mov}</td><td>${rx}</td></tr>`;
-    }).join('');
-    const win = window.open('', '_blank');
-    win?.document.write(`
-      <html><head><title>${title}</title>
-      <style>body{font-family:sans-serif;padding:20px}
-      h2{margin-bottom:5px}
-      .meta{color:#666;font-size:13px;margin-bottom:15px}
-      table{width:100%;border-collapse:collapse;font-size:11px}
-      th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}
-      th{background:#f5f5f5}</style></head><body>
-      <h2>${title}</h2>
-      <p class="meta">Registros: ${rows.length}</p>
-      <table><thead><tr><th>Fecha</th><th>Batería</th><th>Temp</th><th>Movimiento</th><th>Gateways</th></tr></thead>
-      <tbody>${tableRows}</tbody></table></body></html>
-    `);
-    win?.document.close();
-    win?.print();
-  };
+  const axisStyle = { fontSize: 10, fill: '#9ca3af' };
 
   const exportDayCSV = async (date: string) => {
     try {
       const detail = await telemetryService.getGpsDailyDetail(date);
       let csv = '\uFEFF';
-      csv += `Revisión diaria GPS - ${date}\n`;
-      csv += 'Nombre,DevEUI,Tuvo datos,Voltaje (mV),Estado batería\n';
-      csv += detail.devices.map((d: any) =>
-        `${d.name},${d.dev_eui},${d.tuvo_datos ? 'Sí' : 'No'},${d.voltage_mV ?? '—'},${d.estado_bateria}`
-      ).join('\n');
+      csv += `Revisión diaria GPS - ${date}\nNombre,DevEUI,Tuvo datos,Voltaje (mV),Estado batería\n`;
+      csv += detail.devices.map((d: any) => `${d.name},${d.dev_eui},${d.tuvo_datos ? 'Sí' : 'No'},${d.voltage_mV ?? '—'},${d.estado_bateria}`).join('\n');
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = `gps-${date}.csv`; a.click();
@@ -182,8 +131,12 @@ export default function Telemetry() {
 
   return (
     <div className="p-3 h-full flex flex-col gap-2 overflow-hidden">
-      {/* ─── SUMMARY CARDS ─── */}
-      <SectionDivider label="Resumen de sensores" />
+      {/* ─── SUMMARY ─── */}
+      <div className="flex items-center justify-between">
+        <SectionDivider label="Resumen de sensores" />
+        <button onClick={() => generateSensorReport(() => telemetryService.getDevicesFullReport())}
+          className="text-[12px] text-white hover:text-brand-200 px-2 py-1 rounded hover:bg-bg-200 transition-colors shrink-0 bg-green-600">Reporte actual de sensores</button>
+      </div>
       <div className="grid grid-cols-4 gap-2">
         {types.map(s => {
           const connected = s.total - s.disconnected;
@@ -216,26 +169,20 @@ export default function Telemetry() {
       <SectionDivider label="Buscar sensor" />
       <div className="flex gap-2 items-center">
         <div className="relative flex-1">
-          <input value={searchTerm}
-            onChange={e => { setSearchTerm(e.target.value); setSelectedDevice(null); }}
+          <input value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setSelectedDevice(null); }}
             placeholder="Nombre o EUI del dispositivo..."
-            className="w-full bg-bg-200 border border-gray-400/20 rounded-lg pl-8 pr-3 py-2 text-[13px] text-text-100 placeholder:text-text-300 outline-none focus:border-brand-100/50 transition-colors"
-          />
+            className="w-full bg-bg-200 border border-gray-400/20 rounded-lg pl-8 pr-3 py-2 text-[13px] text-text-100 placeholder:text-text-300 outline-none focus:border-brand-100/50 transition-colors" />
           <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         </div>
         <select value={selectedType} onChange={e => setSelectedType(e.target.value)}
-          className="bg-bg-200 border border-gray-400/20 rounded-lg px-3 py-2 text-[12px] text-text-100 outline-none focus:border-brand-100/50"
-        >
+          className="bg-bg-200 border border-gray-400/20 rounded-lg px-3 py-2 text-[12px] text-text-100 outline-none focus:border-brand-100/50">
           <option value="">Todos</option>
-          <option value="Gps">GPS</option>
-          <option value="Gateway">Gateway</option>
-          <option value="SubEstacion">SubEstación</option>
-          <option value="Lector">Lector</option>
+          <option value="Gps">GPS</option><option value="Gateway">Gateway</option>
+          <option value="SubEstacion">SubEstación</option><option value="Lector">Lector</option>
         </select>
         {selectedDevice && (
           <button onClick={() => setSelectedDevice(null)}
-            className="text-[11px] text-text-300 hover:text-text-100 px-2.5 py-1.5 rounded-lg hover:bg-bg-200 transition-colors shrink-0"
-          >✕ Limpiar</button>
+            className="text-[11px] text-text-300 hover:text-text-100 px-2.5 py-1.5 rounded-lg hover:bg-bg-200 transition-colors shrink-0">✕ Limpiar</button>
         )}
       </div>
 
@@ -244,8 +191,7 @@ export default function Telemetry() {
         <div className="bg-bg-200/40 border border-border/20 rounded-xl overflow-hidden shadow-sm shrink-0 max-h-40 overflow-y-auto">
           {devices.map(d => (
             <button key={d.id} onClick={() => { setSelectedDevice(d); setSearchTerm(''); }}
-              className="w-full flex items-center gap-3 px-4 py-2 text-left hover:bg-bg-200/60 transition-colors border-b border-border/5 last:border-0 group"
-            >
+              className="w-full flex items-center gap-3 px-4 py-2 text-left hover:bg-bg-200/60 transition-colors border-b border-border/5 last:border-0 group">
               <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${d.is_active ? 'bg-green-400' : 'bg-red-400'}`} />
               <span className="text-[13px] font-semibold text-text-100 truncate group-hover:text-brand-200">{d.name}</span>
               <span className="text-[9px] text-text-300 font-mono truncate">{d.dev_eui}</span>
@@ -255,10 +201,10 @@ export default function Telemetry() {
         </div>
       )}
 
-      {/* ─── CONTENIDO PRINCIPAL ─── */}
+      {/* ─── DEVICE DETAIL ─── */}
       {selectedDevice ? (
-        /* ─── PANEL DE DISPOSITIVO SELECCIONADO ─── */
         <div className="flex-1 flex flex-col gap-2 min-h-0">
+          {/* Header + range */}
           <div className="flex items-start justify-between gap-3 shrink-0">
             <div className="flex items-center gap-3 min-w-0 flex-1">
               <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${selectedDevice.is_active ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.5)]' : 'bg-red-400'}`} />
@@ -270,12 +216,12 @@ export default function Telemetry() {
             <div className="flex gap-1 shrink-0">
               {RANGES.map(r => (
                 <button key={r.key} onClick={() => setRange(r.key)}
-                  className={`px-3 py-1 rounded-lg text-[10px] font-semibold transition-all ${range === r.key ? 'bg-brand-100/15 text-brand-200 shadow-sm' : 'bg-bg-300/50 text-text-300 hover:text-text-200 hover:bg-bg-300'}`}
-                >{r.label}</button>
+                  className={`px-3 py-1 rounded-lg text-[10px] font-semibold transition-all ${range === r.key ? 'bg-brand-100/15 text-brand-200 shadow-sm' : 'bg-bg-300/50 text-text-300 hover:text-text-200 hover:bg-bg-300'}`}>{r.label}</button>
               ))}
             </div>
           </div>
 
+          {/* Info cards */}
           <div className="grid grid-cols-4 gap-2 shrink-0">
             <div className="col-span-1 bg-bg-200/30 border border-gray-700 rounded p-2">
               <p className="text-[9px] font-semibold uppercase tracking-widest text-gray-300 mb-1">Dispositivo</p>
@@ -286,9 +232,7 @@ export default function Telemetry() {
               <InfoRow label="Último reporte" value={selectedDevice.last_seen ? format(new Date(selectedDevice.last_seen), "dd MMM yyyy HH:mm") : 'Nunca'} />
             </div>
             <div className="col-span-1 bg-bg-200/30 border border-gray-700 rounded p-2">
-              <p className="text-[9px] font-semibold uppercase tracking-widest text-gray-300 mb-1">
-                Sistema {lastT ? <span className="text-blue-300 font-normal normal-case">· {format(new Date(lastT.ts), "dd MMM HH:mm")}</span> : ''}
-              </p>
+              <p className="text-[9px] font-semibold uppercase tracking-widest text-gray-300 mb-1">Sistema {lastT ? <span className="text-blue-300 font-normal normal-case">· {format(new Date(lastT.ts), "dd MMM HH:mm")}</span> : ''}</p>
               <InfoRow label="Modo operación" value={lastT?.object?.systemStatus?.operatingMode || '—'} />
               <InfoRow label="Movimiento" value={lastT?.object?.systemStatus?.motionFlag ? 'Detectado' : 'Sin movimiento'} color={lastT?.object?.systemStatus?.motionFlag ? 'text-yellow-400' : 'text-text-300'} />
               <InfoRow label="Free Fall" value={lastT?.object?.systemStatus?.freeFallFlag ? 'Sí' : 'No'} color={lastT?.object?.systemStatus?.freeFallFlag ? 'text-red-400' : 'text-text-300'} />
@@ -306,20 +250,19 @@ export default function Telemetry() {
             </div>
             <div className="col-span-1 bg-bg-200/30 border border-gray-700 rounded p-2">
               <p className="text-[9px] font-semibold uppercase tracking-widest text-gray-300 mb-1">Gateways último dato</p>
-              {lastT && Array.isArray(lastT.rxinfo) && lastT.rxinfo.length > 0 ? (
-                lastT.rxinfo.map((gw: any, i: number) => (
-                  <div key={i} className="flex items-center gap-2 py-0.5 border-b border-border/5 last:border-0">
-                    <span className="w-1.5 h-1.5 rounded-full bg-brand-200/50 shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-text-200 font-mono text-[8px] truncate">{gw.gatewayId || `GW#${i + 1}`}</p>
-                      <div className="flex gap-2 text-[9px]"><span className="text-blue-400">SNR {gw.snr ?? '—'}</span><span className="text-pink-400">RSSI {gw.rssi ?? '—'}</span></div>
-                    </div>
+              {lastT && Array.isArray(lastT.rxinfo) && lastT.rxinfo.length > 0 ? lastT.rxinfo.map((gw: any, i: number) => (
+                <div key={i} className="flex items-center gap-2 py-0.5 border-b border-border/5 last:border-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-brand-200/50 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-text-200 font-mono text-[8px] truncate">{gw.gatewayId || `GW#${i + 1}`}</p>
+                    <div className="flex gap-2 text-[9px]"><span className="text-blue-400">SNR {gw.snr ?? '—'}</span><span className="text-pink-400">RSSI {gw.rssi ?? '—'}</span></div>
                   </div>
-                ))
-              ) : <p className="text-[9px] text-text-400 italic">Sin datos</p>}
+                </div>
+              )) : <p className="text-[9px] text-text-400 italic">Sin datos</p>}
             </div>
           </div>
 
+          {/* Stats */}
           {telemetryData?.stats && (
             <div className="flex gap-4 text-[9px] text-text-300 bg-bg-200/20 rounded px-2 py-1 border border-border/5 shrink-0">
               <span>Registros: <strong className="text-text-200">{telemetryData.stats.total_records}</strong></span>
@@ -328,6 +271,7 @@ export default function Telemetry() {
             </div>
           )}
 
+          {/* Charts + table */}
           <div className="flex-1 grid grid-cols-3 gap-2 min-h-0">
             <div className="col-span-2 flex flex-col gap-2 min-h-0 overflow-y-auto pr-1 border border-gray-200/20 rounded">
               {chartData.length > 1 && (
@@ -364,9 +308,9 @@ export default function Telemetry() {
             <div className="col-span-1 bg-bg-200/40 border border-gray-300/20 rounded overflow-hidden flex flex-col min-h-0 shadow-sm">
               <div className="flex items-center justify-between px-3 py-2 border-b border-gray-300/20 shrink-0">
                 <div className="flex items-center gap-2">
-                  <p className="text-[9px] font-semibold uppercase tracking-wider text-text-300">Registros</p>
-                  <button onClick={exportCSV} className="text-[8px] text-text-400 hover:text-brand-200 px-1.5 py-0.5 rounded hover:bg-bg-200 transition-colors">CSV</button>
-                  <button onClick={exportPDF} className="text-[8px] text-text-400 hover:text-brand-200 px-1.5 py-0.5 rounded hover:bg-bg-200 transition-colors">PDF</button>
+                  <span className="text-[9px] font-semibold uppercase tracking-wider text-text-300">Registros</span>
+                  <button onClick={() => exportCSV(telemetryData?.telemetry, selectedDevice?.name)} className="text-[8px] text-text-400 hover:text-brand-200 px-1.5 py-0.5 rounded hover:bg-bg-200 transition-colors">CSV</button>
+                  <button onClick={() => exportPDF(telemetryData?.telemetry, selectedDevice?.name)} className="text-[8px] text-text-400 hover:text-brand-200 px-1.5 py-0.5 rounded hover:bg-bg-200 transition-colors">PDF</button>
                 </div>
                 <span className="text-[11px] font-bold text-text-200">{telemetryData?.telemetry?.length || 0}</span>
               </div>
@@ -391,9 +335,7 @@ export default function Telemetry() {
                     ))}
                   </tbody>
                 </table>
-                {!isLoading && (!telemetryData?.telemetry || telemetryData.telemetry.length === 0) && (
-                  <p className="text-center text-text-300 text-xs py-10">Sin registros en este período</p>
-                )}
+                {!isLoading && (!telemetryData?.telemetry || telemetryData.telemetry.length === 0) && <p className="text-center text-text-300 text-xs py-10">Sin registros en este período</p>}
                 {isLoading && <div className="flex justify-center py-6"><span className="text-[10px] text-brand-200 animate-pulse">Cargando datos...</span></div>}
               </div>
             </div>
@@ -402,14 +344,11 @@ export default function Telemetry() {
       ) : (
         /* ─── TABLAS INICIALES ─── */
         <div className="flex-1 grid grid-cols-5 gap-3 min-h-0">
-          {/* Columna izquierda: todos los sensores */}
           <div className="col-span-3 bg-bg-200/30 border border-gray-300/20 rounded-sm overflow-hidden flex flex-col min-h-0">
             <div className="flex items-center gap-1 px-3 py-2 border-b border-border/10 shrink-0">
               {DEVICE_TYPES.map(t => (
-                /* from-blue-500/15 to-blue-500/5 border-blue-500/20 text-blue-400 */
                 <button key={t} onClick={() => setDeviceTab(t)}
-                  className={`px-2.5 py-1 rounded text-[12px] font-semibold transition-colors ${deviceTab === t ? 'bg-linear-to-br from-blue-500/15 to-blue-500/5 border border-blue-500/20 text-blue-400' : 'text-text-300 hover:text-text-200 hover:bg-bg-200'}`}
-                >{t}</button>
+                  className={`px-2.5 py-1 rounded text-[12px] font-semibold transition-colors ${deviceTab === t ? 'bg-linear-to-br from-blue-500/15 to-blue-500/5 border border-blue-500/20 text-blue-400' : 'text-text-300 hover:text-text-200 hover:bg-bg-200'}`}>{t}</button>
               ))}
               <span className="text-[12px] text-gray-400 ml-auto">{filteredDevices.length} sensores</span>
             </div>
@@ -420,34 +359,28 @@ export default function Telemetry() {
                     <th className="text-left px-3 py-1.5 font-medium">Nombre</th>
                     <th className="text-left px-3 py-1.5 font-medium">DevEUI</th>
                     <th className="text-left px-3 py-1.5 font-medium">Último dato</th>
-                    <th className="text-left px-3 py-1.5 font-medium">Batería</th>
+                    <th className="text-left px-3 py-1.5 font-medium">Voltaje</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredDevices.map(d => (
-                    <tr key={d.id} onClick={() => setSelectedDevice(d as any)}
-                      className="border-t border-border/5 hover:bg-gray-400/30 transition-colors cursor-pointer"
-                    >
+                    <tr key={d.id} onClick={() => setSelectedDevice(d as any)} className="border-t border-border/5 hover:bg-gray-400/30 transition-colors cursor-pointer">
                       <td className="px-3 py-1.5 text-text-100 font-semibold truncate max-w-30">{d.name}</td>
                       <td className="px-3 py-1.5 text-text-300 font-mono">{d.dev_eui}</td>
                       <td className="px-3 py-1.5 text-text-300 font-mono text-[9px]">{d.last_seen ? format(new Date(d.last_seen), "dd MMM HH:mm") : '—'}</td>
                       <td className="px-3 py-1.5 font-mono">
-                        {d.battery != null
-                          ? <span className={d.battery > 50 ? 'text-green-400' : d.battery > 20 ? 'text-yellow-400' : 'text-red-400'}>{d.battery}%</span>
+                        {d.voltage_mv != null ? <span className={d.voltage_mv >= 3700 && d.voltage_mv <= 4100 ? 'text-green-400' : 'text-yellow-400'}>{(d.voltage_mv / 1000).toFixed(2)}V</span>
+                          : d.battery_pct != null ? <span className={d.battery_pct > 50 ? 'text-green-400' : d.battery_pct > 20 ? 'text-yellow-400' : 'text-red-400'}>{d.battery_pct}%</span>
                           : <span className="text-text-400">—</span>}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {filteredDevices.length === 0 && (
-                <p className="text-center text-text-300 text-xs py-8">Sin sensores de este tipo</p>
-              )}
+              {filteredDevices.length === 0 && <p className="text-center text-text-300 text-xs py-8">Sin sensores de este tipo</p>}
             </div>
           </div>
-
-          {/* Columna derecha: revisión diaria GPS */}
-          <div className="col-span-2 bg-bg-200/30 border border-gray-300/20  rounded-sm overflow-hidden flex flex-col min-h-0">
+          <div className="col-span-2 bg-bg-200/30 border border-gray-300/20 rounded-sm overflow-hidden flex flex-col min-h-0">
             <div className="flex items-center justify-between px-3 py-2 border-b border-border/10 shrink-0">
               <p className="text-[12px] font-semibold uppercase tracking-widest text-gray-300">Revisión diaria GPS</p>
             </div>
@@ -471,16 +404,12 @@ export default function Telemetry() {
                       <td className="px-2 py-1.5 text-center"><span className="text-green-400 font-semibold">{r.activos}</span></td>
                       <td className="px-2 py-1.5 text-center"><span className="text-green-400 font-semibold">{r.bateria_buena}</span></td>
                       <td className="px-2 py-1.5 text-center"><span className={r.bateria_mala > 0 ? 'text-red-400 font-semibold' : 'text-gray-400'}>{r.bateria_mala}</span></td>
-                      <td className="px-2 py-1.5 text-center">
-                        <button onClick={() => exportDayCSV(r.review_date)} className="text-[8px] text-gray-400 hover:text-brand-200 px-1.5 py-0.5 rounded hover:bg-bg-200 transition-colors">CSV</button>
-                      </td>
+                      <td className="px-2 py-1.5 text-center"><button onClick={() => exportDayCSV(r.review_date)} className="text-[8px] text-gray-400 hover:text-brand-200 px-1.5 py-0.5 rounded hover:bg-bg-200 transition-colors">CSV</button></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {review.length === 0 && (
-                <p className="text-center text-text-300 text-xs py-8">Sin datos de revisión</p>
-              )}
+              {review.length === 0 && <p className="text-center text-text-300 text-xs py-8">Sin datos de revisión</p>}
             </div>
           </div>
         </div>
@@ -488,4 +417,3 @@ export default function Telemetry() {
     </div>
   );
 }
-

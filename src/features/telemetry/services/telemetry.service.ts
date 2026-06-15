@@ -44,6 +44,11 @@ export const telemetryService = {
     return response.data.data;
   },
 
+  getDevicesFullReport: async () => {
+    const response = await apiClient.get<{data: any[]}>("/telemetry/devices/report");
+    return response.data.data;
+  },
+
   searchDevices: async (params: SearchParams) => {
     const response = await apiClient.get<PaginatedResponse<DeviceSearchResult>>("/telemetry/devices/search", params as Record<string, unknown>);
     return response.data;

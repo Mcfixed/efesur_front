@@ -21,7 +21,7 @@ const BACKDOOR_USER: User = {
   emailVerified: true,
   createdAt: new Date(),
   updatedAt: new Date(),
-  is_superuser: true,
+  role: "superadmin",
 };
 
 // Sesión simulada para desarrollo

@@ -23,7 +23,7 @@ export interface User {
   email: string;
   name: string;
   image: string | null;
-  is_superuser: boolean;
+  role: string;
   created_at: string;
   company_assignments?: UserCompanyAssignment[];
 }

@@ -12,6 +12,8 @@ export interface GpsDevice {
   operating_mode: string;
   company_name: string;
   best_snr?: number;
+  catenaria_linea?: string;
+  catenaria_orden?: number;
 }
 
 export interface TrackingPoint {
@@ -40,6 +42,7 @@ export interface DashboardSummary {
   totalGpsDevices: number;
   criticalAlertsCount: number;
   atencionAlertsCount: number;
+  desconexionGWCount: number;
 }
 
 export interface DashboardData {
@@ -48,6 +51,7 @@ export interface DashboardData {
   alerts: {
     critical: Alert[];
     atencion: Alert[];
+    desconexionGW: Alert[];
   };
 }
 

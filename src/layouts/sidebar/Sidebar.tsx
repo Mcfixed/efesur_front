@@ -114,8 +114,8 @@ const MenuNavigation = ({
   useConfigApp: AppConfig;
 }) => {
   const { user } = useBetterSession();
-  // @ts-expect-error - is_superuser puede venir del backend
-  const isSuperuser = user?.is_superuser || user?.role === "admin";
+  const role = user?.role || 'visualizador';
+  const isSuperuser = role === 'superadmin' || role === 'admin_efe';
   const visibleItems = _useConfigApp.NAVIGATION_APP.filter(item => !item.superadmin || isSuperuser);
   return (
     <div

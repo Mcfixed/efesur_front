@@ -1,11 +1,11 @@
 import BaseMap from "@/components/baseMap/components/BaseMap";
 import { useBreakpoint } from "@/hooks/useBreakpoints";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import type { MapRef } from "react-map-gl";
 
 // Custom Hooks
 import { useDashboardData, useGatewayStatus, useAlertHistory, useAlertTimeline } from "../hooks/useDashboard";
-import { useCriticalAlertSound } from "../hooks/useCriticalAlertSound";
+import { useAlertSound } from "../hooks/useCriticalAlertSound";
 
 // Components
 import GatewayStatusBar from "../components/GatewayStatusBar";
@@ -26,12 +26,25 @@ export default function Dashboard() {
   // Data fetching
   const { data, isLoading } = useDashboardData();
   const { data: gatewayData } = useGatewayStatus();
-  const { data: historyData } = useAlertHistory("critica", "24h");
+  const { data: criticaHistory } = useAlertHistory("critica", "total");
+  const { data: atencionHistory } = useAlertHistory("atencion", "total");
   const [timelineRange, setTimelineRange] = useState("24h");
   const { data: timelineData } = useAlertTimeline(timelineRange);
+  // Unificar historial de ambos tipos para el gráfico
+  const historyData = useMemo(() => {
+    const alerts = [
+      ...(criticaHistory?.alerts || []),
+      ...(atencionHistory?.alerts || []),
+    ];
+    return { alerts };
+  }, [criticaHistory, atencionHistory]);
 
   // Side effects
-  useCriticalAlertSound(data?.alerts?.critical?.length ?? 0);
+  useAlertSound({
+    critical: data?.alerts?.critical?.length ?? 0,
+    atencion: data?.alerts?.atencion?.length ?? 0,
+    desconexionGW: data?.alerts?.desconexionGW?.length ?? 0,
+  });
 
   // Global error handler para suprimir errores de Mapbox GL durante source cleanup
   useEffect(() => {
