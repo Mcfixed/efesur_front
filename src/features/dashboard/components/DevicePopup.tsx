@@ -13,6 +13,7 @@ export default function DevicePopup({ device, alerts, onClose }: { device: GpsDe
   const deviceAlerts = alerts ? [
     ...(alerts.critical?.filter(a => a.device_id === device.id) || []),
     ...(alerts.atencion?.filter(a => a.device_id === device.id) || []),
+    ...(alerts.movimientos_anomalos?.filter(a => a.device_id === device.id) || []),
   ] : [];
 
   const statusText = device.is_active ? (deviceAlerts.some(a => a.type === 'critica') ? 'Crítica' : 'Activo') : 'Inactivo';
@@ -58,9 +59,14 @@ export default function DevicePopup({ device, alerts, onClose }: { device: GpsDe
           <p className="text-[9px] font-semibold text-text-300 uppercase tracking-wider">Alertas activas</p>
           {deviceAlerts.map(alert => (
             <div key={alert.id} className={`text-[10px] px-1.5 py-1 rounded ${
-              alert.type === 'critica' ? 'bg-red-500/10 text-red-400' : 'bg-yellow-500/10 text-yellow-400'
+              alert.type === 'critica' ? 'bg-red-500/10 text-red-400' :
+              alert.type === 'movimientos_anomalos' ? 'bg-purple-500/10 text-purple-400' :
+              'bg-yellow-500/10 text-yellow-400'
             }`}>
-              <span className="font-semibold">{alert.type === 'critica' ? '🔴' : '🟡'} {alert.type}</span>
+              <span className="font-semibold">{
+                alert.type === 'critica' ? '🔴' :
+                alert.type === 'movimientos_anomalos' ? '🟣' : '🟡'
+              } {alert.type === 'movimientos_anomalos' ? 'mov. anómalo' : alert.type}</span>
               <span className="text-text-300 ml-1">• {format(new Date(alert.created_at), "HH:mm")}</span>
               {alert.metadata?.reason && <p className="text-[9px] text-text-300 truncate mt-0.5">{alert.metadata.reason}</p>}
             </div>

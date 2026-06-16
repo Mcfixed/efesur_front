@@ -39,8 +39,9 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
   };
 
   const criticalActive = timelineData.filter((a: any) => a.priority === 0);
-  const atencionActive = timelineData.filter((a: any) => a.priority === 1);
-  const history = timelineData.filter((a: any) => a.priority === 2);
+  const movimientosActive = timelineData.filter((a: any) => a.priority === 1);
+  const atencionActive = timelineData.filter((a: any) => a.priority === 2);
+  const history = timelineData.filter((a: any) => a.priority >= 3);
 
   const content = (
     <div className="flex flex-col" style={{ height: '100%' }}>
@@ -94,8 +95,43 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
             ))}
 
 
-            {criticalActive.length > 0 && (atencionActive.length > 0 || history.length > 0) && (
+            {criticalActive.length > 0 && (atencionActive.length > 0 || movimientosActive.length > 0 || history.length > 0) && (
               <div className="h-px bg-linear-to-r from-red-500/30 via-red-500/10 to-transparent my-2" />
+            )}
+
+            {/* Movimientos Anómalos Activos */}
+            {movimientosActive.map((alert: any) => (
+              <div key={`m-${alert.id}`} className="group relative py-1 px-3 rounded border border-purple-500/10 bg-purple-500/6 hover:bg-purple-500/10 transition-all duration-200">
+                <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-purple-400/90" />
+                <div className="flex items-start gap-2 pl-2">
+                  <span className="mt-0.5 w-4 h-4 rounded flex items-center justify-center bg-purple-500/15 text-[8px] shrink-0">
+                    <IconRadar size={10} className="text-purple-300/90" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="text-[12px] text-purple-300/90 truncate">{alert.device_name}</p>
+                      {alert.id === newestAlertId && <span className="text-[7px] font-bold uppercase tracking-[0.12em] text-brand-200 bg-brand-100/20 px-1.5 py-0.5 rounded-full border border-brand-100/20 shrink-0">Nuevo</span>}
+                      {alert.id === newestAlertId && (
+                        <span className="flex items-center gap-1 text-[7px] font-bold uppercase tracking-wide text-purple-300 bg-purple-500/15 px-1.5 py-0.5 rounded-full border border-purple-500/20 shrink-0">
+                          <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+                          15 min · Activo
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[9px] text-purple-200/45">{format(new Date(alert.created_at), "dd MMM · HH:mm")}</span>
+                      <span className="text-[7px] font-semibold uppercase tracking-wide text-purple-300/80 bg-purple-500/8 px-1.5 py-0.5 rounded">Mov. Anómalo</span>
+                    </div>
+                    {alert.metadata?.reason && (
+                      <p className="text-[9px] text-purple-300/30 mt-0.5 truncate leading-tight">{alert.metadata.reason}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {(criticalActive.length > 0 || movimientosActive.length > 0) && atencionActive.length > 0 && (
+              <div className="h-px bg-linear-to-r from-purple-500/30 via-purple-500/10 to-transparent my-2" />
             )}
 
             {atencionActive.map((alert: any) => (
@@ -122,7 +158,7 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
               </div>
             ))}
 
-            {(criticalActive.length > 0 || atencionActive.length > 0) && history.length > 0 && (
+            {(criticalActive.length > 0 || atencionActive.length > 0 || movimientosActive.length > 0) && history.length > 0 && (
               <div className="h-px bg-linear-to-r from-yellow-500/30 via-yellow-500/10 to-transparent my-2" />
             )}
 
@@ -130,8 +166,12 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
               <div key={`h-${alert.id}`} className="group relative p-3 rounded-xl border border-white/4 bg-linear-to-br from-white/3 to-white/1 hover:from-white/5 hover:to-white/2 transition-all duration-300">
                 <div className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-linear-to-b from-white/12 to-white/3" />
                 <div className="flex items-start gap-2 pl-2">
-                  <div className={`mt-0.5 w-5 h-5 rounded-full flex items-center justify-center text-[9px] shrink-0 border ${alert.type === 'critica' ? 'bg-red-500/20 border-red-500/20 text-red-400' : 'bg-yellow-500/20 border-yellow-500/20 text-yellow-400'}`}>
-                    {alert.type === 'critica' ? '!' : '⚡'}
+                  <div className={`mt-0.5 w-5 h-5 rounded-full flex items-center justify-center text-[9px] shrink-0 border ${
+                    alert.type === 'critica' ? 'bg-red-500/20 border-red-500/20 text-red-400' :
+                    alert.type === 'movimientos_anomalos' ? 'bg-purple-500/20 border-purple-500/20 text-purple-400' :
+                    'bg-yellow-500/20 border-yellow-500/20 text-yellow-400'
+                  }`}>
+                    {alert.type === 'critica' ? '!' : alert.type === 'movimientos_anomalos' ? '◈' : '⚡'}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">

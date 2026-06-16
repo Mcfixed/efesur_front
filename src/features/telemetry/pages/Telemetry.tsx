@@ -289,21 +289,40 @@ export default function Telemetry() {
                   </ResponsiveContainer>
                 </ChartCard>
               )}
-              {chartData.length > 1 && gatewayNames.map(gwId => (
-                <ChartCard key={gwId} title={`Gateway ${gwId}`}>
-                  <ResponsiveContainer width="100%" height={70}>
-                    <LineChart data={chartData}>
-                      <CartesianGrid strokeDasharray="4 4" stroke="rgba(255,255,255,0.03)" vertical={false} />
-                      <XAxis dataKey="time" tick={axisStyle} tickLine={false} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} interval="preserveStartEnd" />
-                      <YAxis tick={axisStyle} tickLine={false} axisLine={false} width={40} />
-                      <Tooltip content={<ChartTooltip />} />
-                      <Legend wrapperStyle={{ fontSize: 10, color: '#9ca3af' }} verticalAlign="top" />
-                      <Line type="monotone" dataKey={`snr_${gwId}`} stroke="#60a5fa" strokeWidth={2.5} dot={false} activeDot={{ r: 4, strokeWidth: 1, stroke: '#000', fill: '#60a5fa' }} name="SNR" />
-                      <Line type="monotone" dataKey={`rssi_${gwId}`} stroke="#fbbf24" strokeWidth={2.5} dot={false} activeDot={{ r: 4, strokeWidth: 1, stroke: '#000', fill: '#fbbf24' }} name="RSSI" />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </ChartCard>
-              ))}
+              {chartData.length > 1 && (
+                <>
+                  <ChartCard title="SNR por Gateway">
+                    <ResponsiveContainer width="100%" height={90}>
+                      <LineChart data={chartData}>
+                        <CartesianGrid strokeDasharray="4 4" stroke="rgba(255,255,255,0.03)" vertical={false} />
+                        <XAxis dataKey="time" tick={axisStyle} tickLine={false} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} interval="preserveStartEnd" />
+                        <YAxis tick={axisStyle} tickLine={false} axisLine={false} width={40} />
+                        <Tooltip content={<ChartTooltip />} />
+                        <Legend wrapperStyle={{ fontSize: 10, color: '#9ca3af' }} verticalAlign="top" />
+                        {gatewayNames.map((gwId, i) => {
+                          const colors = ['#60a5fa', '#34d399', '#fbbf24', '#f472b6', '#a78bfa', '#fb923c', '#38bdf8', '#4ade80'];
+                          return <Line key={gwId} type="monotone" dataKey={`snr_${gwId}`} stroke={colors[i % colors.length]} strokeWidth={2} dot={false} activeDot={{ r: 3 }} name={gwId} />;
+                        })}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+                  <ChartCard title="RSSI por Gateway">
+                    <ResponsiveContainer width="100%" height={90}>
+                      <LineChart data={chartData}>
+                        <CartesianGrid strokeDasharray="4 4" stroke="rgba(255,255,255,0.03)" vertical={false} />
+                        <XAxis dataKey="time" tick={axisStyle} tickLine={false} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} interval="preserveStartEnd" />
+                        <YAxis tick={axisStyle} tickLine={false} axisLine={false} width={40} />
+                        <Tooltip content={<ChartTooltip />} />
+                        <Legend wrapperStyle={{ fontSize: 10, color: '#9ca3af' }} verticalAlign="top" />
+                        {gatewayNames.map((gwId, i) => {
+                          const colors = ['#60a5fa', '#34d399', '#fbbf24', '#f472b6', '#a78bfa', '#fb923c', '#38bdf8', '#4ade80'];
+                          return <Line key={gwId} type="monotone" dataKey={`rssi_${gwId}`} stroke={colors[i % colors.length]} strokeWidth={2} dot={false} activeDot={{ r: 3 }} name={gwId} />;
+                        })}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </ChartCard>
+                </>
+              )}
             </div>
             <div className="col-span-1 bg-bg-200/40 border border-gray-300/20 rounded overflow-hidden flex flex-col min-h-0 shadow-sm">
               <div className="flex items-center justify-between px-3 py-2 border-b border-gray-300/20 shrink-0">
@@ -314,7 +333,7 @@ export default function Telemetry() {
                 </div>
                 <span className="text-[11px] font-bold text-text-200">{telemetryData?.telemetry?.length || 0}</span>
               </div>
-              <div className="flex-1 overflow-auto">
+              <div className="flex-1 overflow-auto max-h-[calc(100vh-320px)]">
                 <table className="w-full text-[10px]">
                   <thead>
                     <tr className="text-text-300 text-[8px] uppercase tracking-wider sticky top-0 bg-bg-200/95 border-b border-gray-300/20">

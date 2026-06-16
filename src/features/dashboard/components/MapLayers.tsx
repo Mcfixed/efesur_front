@@ -30,7 +30,7 @@ export default function MapLayers({ data, gateways }: Props) {
   const [selectedGateway, setSelectedGateway] = useState<GatewayDevice | null>(null);
   const [selectedTrackingAlert, setSelectedTrackingAlert] = useState<number | null>(null);
 
-  // Tracking routes
+  // Tracking routes — solo para críticas
   const trackingRoutes = useMemo(() => {
     if (!data?.alerts?.critical) return [];
     return data.alerts.critical
@@ -66,12 +66,13 @@ export default function MapLayers({ data, gateways }: Props) {
   }, [gateways]);
 
   // ─── FUNCIONES DE RENDERIZADO DE ICONOS ─────────────────────────────────
-  const renderAlertIcon = (type: 'critical' | 'atencion') => {
+  const renderAlertIcon = (type: 'critical' | 'atencion' | 'movimientos_anomalos') => {
     const isCrit = type === 'critical';
-    const color = isCrit ? '#ef4444' : '#eab308';
-    const borderColor = isCrit ? '#b91c1c' : '#a16207';
-    const size = isCrit ? 48 : 36;
-    const glowColor = isCrit ? '#ef4444' : '#eab308';
+    const isMov = type === 'movimientos_anomalos';
+    const color = isCrit ? '#ef4444' : isMov ? '#a855f7' : '#eab308';
+    const borderColor = isCrit ? '#b91c1c' : isMov ? '#7e22ce' : '#a16207';
+    const size = isCrit ? 48 : isMov ? 42 : 36;
+    const glowColor = isCrit ? '#ef4444' : isMov ? '#a855f7' : '#eab308';
 
     return (
       <div className="relative flex items-center justify-center cursor-pointer group">
@@ -94,6 +95,17 @@ export default function MapLayers({ data, gateways }: Props) {
                 {/* Signo de exclamación */}
                 <rect x="-3" y="-10" width="6" height="13" rx="2" fill="white" />
                 <circle cx="0" cy="9" r="4" fill="white" />
+              </>
+            ) : isMov ? (
+              <>
+                {/* Hexágono púrpura (movimientos anómalos) */}
+                <polygon points="0,-18 15.5,-9 15.5,9 0,18 -15.5,9 -15.5,-9" fill={color} stroke={borderColor} strokeWidth="2" strokeLinejoin="round" />
+                {/* Brillo interior */}
+                <polygon points="0,-13 11,-6.5 11,6.5 0,13 -11,6.5 -11,-6.5" fill="none" stroke="white" strokeWidth="0.8" opacity="0.25" />
+                {/* Reloj / movimiento */}
+                <circle cx="0" cy="0" r="8" fill="none" stroke="white" strokeWidth="1.8" opacity="0.9" />
+                <line x1="0" y1="0" x2="0" y2="-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
+                <line x1="0" y1="0" x2="4" y2="1" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
               </>
             ) : (
               <>
@@ -264,6 +276,7 @@ export default function MapLayers({ data, gateways }: Props) {
         if (!device.latitude_current || !device.longitude_current) return null;
         const isCritical = data.alerts?.critical?.some(a => a.device_id === device.id);
         const isAtencion = data.alerts?.atencion?.some(a => a.device_id === device.id);
+        const isMovAnomalos = data.alerts?.movimientos_anomalos?.some(a => a.device_id === device.id);
         if (isCritical) return null; // Los críticos se renderizan al final
 
         // Color del pin por tipo de dispositivo
@@ -291,7 +304,7 @@ export default function MapLayers({ data, gateways }: Props) {
             latitude={Number(device.latitude_current)}
             onClick={e => { e.originalEvent.stopPropagation(); setSelectedDevice(device); }}
           >
-            {isAtencion ? renderAlertIcon('atencion') : (
+            {isMovAnomalos ? renderAlertIcon('movimientos_anomalos') : isAtencion ? renderAlertIcon('atencion') : (
               <div className="relative flex items-center justify-center cursor-pointer group">
                 <span className="absolute w-7 h-7 rounded-full aura-ping"
                   style={{

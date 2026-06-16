@@ -64,8 +64,9 @@ export function useAlertSound(alertCounts: {
   critical: number;
   atencion: number;
   desconexionGW: number;
+  movimientos_anomalos: number;
 }) {
-  const prev = useRef({ critical: 0, atencion: 0, desconexionGW: 0 });
+  const prev = useRef({ critical: 0, atencion: 0, desconexionGW: 0, movimientos_anomalos: 0 });
   const isFirstRender = useRef(true);
 
   useEffect(() => {
@@ -76,25 +77,31 @@ export function useAlertSound(alertCounts: {
       return;
     }
 
-    // Críticas nuevas → alarma distintiva (una vez, no importa cuántas críticas nuevas)
+    // Críticas nuevas → alarma distintiva
     if (alertCounts.critical > prev.current.critical) {
       playCriticalAlarm();
     }
 
-    // Atención nuevas → beep estándar (uno por cada alerta nueva)
+    // Movimientos anómalos nuevos → beep intermedio (550Hz, tono medio)
+    const diffMov = alertCounts.movimientos_anomalos - prev.current.movimientos_anomalos;
+    for (let i = 0; i < diffMov && i < 5; i++) {
+      setTimeout(() => playBeep(550, 0.15), i * 220);
+    }
+
+    // Atención nuevas → beep estándar
     const diffAtencion = alertCounts.atencion - prev.current.atencion;
     for (let i = 0; i < diffAtencion && i < 5; i++) {
       setTimeout(() => playBeep(660, 0.12), i * 200);
     }
 
-    // Desconexión GW nuevas → beep más grave (uno por cada alerta nueva)
+    // Desconexión GW nuevas → beep más grave
     const diffDesconexion = alertCounts.desconexionGW - prev.current.desconexionGW;
     for (let i = 0; i < diffDesconexion && i < 5; i++) {
       setTimeout(() => playBeep(330, 0.2), i * 250);
     }
 
     prev.current = { ...alertCounts };
-  }, [alertCounts.critical, alertCounts.atencion, alertCounts.desconexionGW]);
+  }, [alertCounts.critical, alertCounts.atencion, alertCounts.desconexionGW, alertCounts.movimientos_anomalos]);
 }
 
 // Mantener export antiguo para compatibilidad

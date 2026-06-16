@@ -28,22 +28,25 @@ export default function Dashboard() {
   const { data: gatewayData } = useGatewayStatus();
   const { data: criticaHistory } = useAlertHistory("critica", "total");
   const { data: atencionHistory } = useAlertHistory("atencion", "total");
+  const { data: movimientosHistory } = useAlertHistory("movimientos_anomalos", "total");
   const [timelineRange, setTimelineRange] = useState("24h");
   const { data: timelineData } = useAlertTimeline(timelineRange);
-  // Unificar historial de ambos tipos para el gráfico
+  // Unificar historial de todos los tipos para el gráfico
   const historyData = useMemo(() => {
     const alerts = [
       ...(criticaHistory?.alerts || []),
       ...(atencionHistory?.alerts || []),
+      ...(movimientosHistory?.alerts || []),
     ];
     return { alerts };
-  }, [criticaHistory, atencionHistory]);
+  }, [criticaHistory, atencionHistory, movimientosHistory]);
 
   // Side effects
   useAlertSound({
     critical: data?.alerts?.critical?.length ?? 0,
     atencion: data?.alerts?.atencion?.length ?? 0,
     desconexionGW: data?.alerts?.desconexionGW?.length ?? 0,
+    movimientos_anomalos: data?.alerts?.movimientos_anomalos?.length ?? 0,
   });
 
   // Global error handler para suprimir errores de Mapbox GL durante source cleanup
@@ -133,8 +136,27 @@ export default function Dashboard() {
 
   const gateways = gatewayData?.gateways || [];
 
+  // Determinar color del parpadeo del mapa
+  const pulseColor = (data?.alerts?.critical?.length ?? 0) > 0
+    ? '255, 68, 68'   // rojo
+    : (data?.alerts?.movimientos_anomalos?.length ?? 0) > 0
+      ? '168, 85, 247' // púrpura
+      : null;
+
   return (
     <div className="w-full h-full flex flex-col overflow-hidden">
+      {/* Keyframes para el parpadeo del mapa */}
+      <style>{`
+        @keyframes map-alert-pulse {
+          0%, 100% { box-shadow: inset 0 0 0 0 rgba(${pulseColor || '0,0,0'}, 0); }
+          25% { box-shadow: inset 0 0 120px 20px rgba(${pulseColor || '0,0,0'}, 0.4); }
+          50% { box-shadow: inset 0 0 150px 30px rgba(${pulseColor || '0,0,0'}, 0.25); }
+          75% { box-shadow: inset 0 0 120px 20px rgba(${pulseColor || '0,0,0'}, 0.4); }
+        }
+        @keyframes map-alert-pulse-off {
+          0%, 100% { box-shadow: none; }
+        }
+      `}</style>
       <GatewayStatusBar gateways={gateways} />
 
       <div className={`flex-1 w-full min-h-0 ${isMobile ? "flex flex-row" : "grid grid-cols-12"} overflow-hidden`}>
@@ -146,6 +168,17 @@ export default function Dashboard() {
               initialCenter={{ longitude: -71.0, latitude: -33.0 }} 
               initialZoom={5}
             >
+              {/* Parpadeo de alerta que cubre todo el mapa */}
+              {pulseColor && (
+                <div
+                  className="absolute inset-0 z-10 pointer-events-none"
+                  style={{
+                    boxShadow: `inset 0 0 0 0 rgba(${pulseColor}, 0)`,
+                    animation: 'map-alert-pulse 2s ease-in-out infinite',
+                    borderRadius: 'inherit',
+                  }}
+                />
+              )}
               <MapOverlayInfo data={data} />
               <MapSearchBox
                 data={data}

@@ -1,9 +1,10 @@
-import { IconDeviceSdCard, IconAlertTriangle, IconAlertCircle, IconWifiOff } from "@tabler/icons-react";
+import { IconDeviceSdCard, IconAlertTriangle, IconAlertCircle, IconWifiOff, IconAlertHexagon } from "@tabler/icons-react";
 import { format } from "date-fns";
 import type { DashboardData } from "../types/dashboard.types";
 
 export default function MapOverlayInfo({ data }: { data?: DashboardData }) {
   const hasCritical = (data?.alerts?.critical?.length ?? 0) > 0;
+  const hasMovAnomalos = (data?.alerts?.movimientos_anomalos?.length ?? 0) > 0;
   const hasGwAlert = (data?.alerts?.desconexionGW?.length ?? 0) > 0;
   const isUrgent = hasCritical || hasGwAlert;
 
@@ -49,12 +50,34 @@ export default function MapOverlayInfo({ data }: { data?: DashboardData }) {
         <span>Atención: <strong className="text-yellow-400">{data?.summary?.atencionAlertsCount || 0}</strong></span>
       </div>
       <div className="flex items-center gap-2 text-[10px] text-text-200">
+        <IconAlertHexagon size={11} className="text-[#a855f7]" />
+        <span>Mov. anómalos: <strong className="text-purple-400">{data?.summary?.movimientosAnomalosCount || 0}</strong></span>
+      </div>
+      <div className="flex items-center gap-2 text-[10px] text-text-200">
         <IconWifiOff size={11} className="text-orange-400" />
         <span>GW off: <strong className="text-orange-400">{data?.summary?.desconexionGWCount || 0}</strong></span>
       </div>
 
       {/* Separador críticas */}
       {hasCritical && <div className="h-px bg-linear-to-r from-red-500/50 via-red-500/20 to-transparent my-1" />}
+
+      {/* Separador movimientos anómalos */}
+      {hasMovAnomalos && <div className="h-px bg-linear-to-r from-purple-500/40 via-purple-500/10 to-transparent my-0.5" />}
+
+      {/* Lista de alertas de movimientos anómalos */}
+      {data?.alerts?.movimientos_anomalos?.map((alert, idx) => (
+        <div
+          key={alert.id}
+          className="flex items-start gap-1.5 text-[10px] leading-tight bg-purple-500/10 border-s-2 border-purple-500 rounded-r px-1.5 py-1"
+          style={{ animation: `alert-slide 0.3s ease-out ${idx * 0.08}s both` }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse shrink-0 mt-0.5" />
+          <span className="flex-1 min-w-0">
+            <span className="font-semibold text-purple-300 truncate block leading-tight">{alert.device_name}</span>
+            <span className="text-[9px] text-purple-400/60">{format(new Date(alert.created_at), "MM/dd HH:mm")}</span>
+          </span>
+        </div>
+      ))}
 
       {/* Lista de alertas críticas activas */}
       {data?.alerts?.critical?.map((alert, idx) => (
