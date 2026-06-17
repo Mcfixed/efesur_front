@@ -101,7 +101,7 @@ export function WidgetContainer({
       ref={containerRef}
       style={containerStyle}
       className={[
-        "flex flex-col rounded-xl border border-border-200 bg-bg-200 shadow-sm overflow-hidden",
+        "flex flex-col rounded-lg border border-border/30 bg-bg-100 shadow overflow-hidden",
         isDraggable ? "cursor-grab active:cursor-grabbing select-none" : "",
         className,
       ]
@@ -111,7 +111,7 @@ export function WidgetContainer({
       {/* ── Cabecera ─────────────────────────────────────────────────────── */}
       {(title || headerActions || isDraggable) && (
         <div
-          className="flex items-center justify-between gap-3 px-4 pt-4 pb-3 border-b border-border"
+          className="flex items-center justify-between gap-3 px-4 pt-4 pb-3 border-b border-border/30"
           onMouseDown={handleMouseDown}
         >
           <div className="flex items-center gap-2 min-w-0">

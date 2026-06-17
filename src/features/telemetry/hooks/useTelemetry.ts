@@ -15,7 +15,7 @@ export const useSensorSummary = () => {
   return useQuery({
     queryKey: TELEMETRY_KEYS.summary(),
     queryFn: () => telemetryService.getSummary(),
-    refetchInterval: 60000,
+    refetchInterval: 30000,
   });
 };
 
@@ -49,6 +49,23 @@ export const useDeviceTelemetry = (deviceId: number | null, params: TelemetryPar
   return useQuery({
     queryKey: TELEMETRY_KEYS.deviceData(deviceId!, params),
     queryFn: () => telemetryService.getDeviceTelemetry(deviceId!, params),
+    enabled: !!deviceId,
+    refetchInterval: 30000,
+  });
+};
+
+export const useGatewayPositions = () => {
+  return useQuery({
+    queryKey: [...TELEMETRY_KEYS.all, "gateway-positions"] as const,
+    queryFn: () => telemetryService.getGatewayPositions(),
+    staleTime: 120_000,
+  });
+};
+
+export const useDeviceAlerts = (deviceId: number | null) => {
+  return useQuery({
+    queryKey: [...TELEMETRY_KEYS.all, "device-alerts", deviceId] as const,
+    queryFn: () => telemetryService.getDeviceAlerts(deviceId!),
     enabled: !!deviceId,
     refetchInterval: 30000,
   });

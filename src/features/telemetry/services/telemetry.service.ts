@@ -49,6 +49,11 @@ export const telemetryService = {
     return response.data.data;
   },
 
+  getLatestTelemetry: async (limit?: number) => {
+    const response = await apiClient.get<{data: any[]}>("/telemetry/devices/latest", { limit });
+    return response.data.data;
+  },
+
   searchDevices: async (params: SearchParams) => {
     const response = await apiClient.get<PaginatedResponse<DeviceSearchResult>>("/telemetry/devices/search", params as Record<string, unknown>);
     return response.data;
@@ -56,6 +61,16 @@ export const telemetryService = {
 
   getDeviceTelemetry: async (deviceId: number, params: TelemetryParams) => {
     const response = await apiClient.get<{data: { telemetry: TelemetryData[]; stats: TelemetryStats; limit: number }}>(`/telemetry/devices/${deviceId}/telemetry`, params as Record<string, unknown>);
+    return response.data.data;
+  },
+
+  getDeviceAlerts: async (deviceId: number) => {
+    const response = await apiClient.get<{data: any[]}>(`/telemetry/devices/${deviceId}/alerts`);
+    return response.data.data;
+  },
+
+  getGatewayPositions: async () => {
+    const response = await apiClient.get<{data: {id: number; dev_eui: string; name: string; latitude_current: number; longitude_current: number}[]}>("/telemetry/gateways/positions");
     return response.data.data;
   },
 };

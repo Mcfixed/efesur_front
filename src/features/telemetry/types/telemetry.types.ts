@@ -23,6 +23,8 @@ export interface DeviceListItem {
   last_seen: string;
   company_id: number;
   company_name: string;
+  latitude_current: number;
+  longitude_current: number;
   voltage_mv: number;
   battery_pct: number;
 }

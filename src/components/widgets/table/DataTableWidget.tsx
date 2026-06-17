@@ -91,13 +91,13 @@ export function DataTableWidget<T extends object>({
         <table className="w-full text-sm text-left">
           {/* ── Head ──────────────────────────────────────────────────── */}
           <thead>
-            <tr className="border-b border-border bg-bg-300">
+            <tr className="border-b border-border/30 bg-bg-100">
               {columns.map((col) => (
                 <th
                   key={String(col.key)}
                   className={[
                     cellPad,
-                    "text-xs font-semibold text-text-300 uppercase tracking-wide whitespace-nowrap",
+                    "text-xs font-semibold text-text-200 uppercase tracking-wide whitespace-nowrap",
                     "cursor-pointer select-none hover:text-text-100 transition-colors",
                   ].join(" ")}
                   style={{ width: col.width }}
@@ -134,9 +134,9 @@ export function DataTableWidget<T extends object>({
                 <tr
                   key={ri}
                   className={[
-                    "border-b border-border/50 transition-colors",
-                    striped && ri % 2 === 1 ? "bg-bg-300/40" : "",
-                    hoverable ? "hover:bg-bg-hover" : "",
+                    "border-b border-border/20 transition-colors",
+                    striped && ri % 2 === 1 ? "bg-bg-100/60" : "",
+                    hoverable ? "hover:bg-bg-100/70" : "",
                   ]
                     .filter(Boolean)
                     .join(" ")}
@@ -169,7 +169,7 @@ export function DataTableWidget<T extends object>({
             <button
               disabled={page === 0}
               onClick={() => setPage((p) => p - 1)}
-              className="p-1 rounded hover:bg-bg-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="p-1 rounded hover:bg-bg-100/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <IconChevronLeft size={14} />
             </button>
@@ -179,7 +179,7 @@ export function DataTableWidget<T extends object>({
             <button
               disabled={page >= pages - 1}
               onClick={() => setPage((p) => p + 1)}
-              className="p-1 rounded hover:bg-bg-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="p-1 rounded hover:bg-bg-100/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <IconChevronRight size={14} />
             </button>
