@@ -21,6 +21,7 @@ export interface TelemetryParams {
   from?: string;
   to?: string;
   limit?: number;
+  offset?: number;
 }
 
 export const telemetryService = {

@@ -390,12 +390,10 @@ export default function MapLayers({ data, gateways }: Props) {
               <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${selectedGateway.is_online ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.5)]' : 'bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.5)]'}`} />
               <div className="min-w-0">
                 <p className="text-sm font-bold text-text-100 truncate">{selectedGateway.name}</p>
-                <p className="text-[10px] text-text-300 font-mono truncate">{selectedGateway.dev_eui}</p>
               </div>
             </div>
             <div className="space-y-1.5 text-[11px]">
               <div className="flex justify-between"><span className="text-text-300">Estado:</span><span className={`font-medium ${selectedGateway.is_online ? 'text-green-400' : 'text-red-400'}`}>{selectedGateway.is_online ? 'Online' : 'Offline'}</span></div>
-              <div className="flex justify-between"><span className="text-text-300">Empresa:</span><span className="text-text-100 font-medium">{selectedGateway.company_name}</span></div>
               {selectedGateway.ip_internal && <div className="flex justify-between"><span className="text-text-300">IP:</span><span className="text-text-100 font-medium font-mono text-[10px]">{selectedGateway.ip_internal}</span></div>}
               {selectedGateway.firmware_version && <div className="flex justify-between"><span className="text-text-300">Firmware:</span><span className="text-text-100 font-medium">{selectedGateway.firmware_version}</span></div>}
               <div className="flex justify-between"><span className="text-text-300">Último reporte:</span><span className="text-text-100 font-medium">{selectedGateway.last_seen ? new Date(selectedGateway.last_seen).toLocaleString() : 'N/A'}</span></div>

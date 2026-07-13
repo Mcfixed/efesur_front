@@ -6,9 +6,10 @@ import type { MapRef } from "react-map-gl";
 // Custom Hooks
 import { useDashboardData, useGatewayStatus, useAlertHistory, useAlertTimeline } from "../hooks/useDashboard";
 import { useAlertSound } from "../hooks/useCriticalAlertSound";
+import { useAlertVoice } from "../hooks/useAlertVoice";
 
 // Components
-import GatewayStatusBar from "../components/GatewayStatusBar";
+import AlertTickerBanner from "../components/AlertTickerBanner";
 import RightBarDashboard from "../components/RightBarDashboard";
 import MapOverlayInfo from "../components/MapOverlayInfo";
 import MapLayers from "../components/MapLayers";
@@ -21,7 +22,7 @@ export default function Dashboard() {
   const [isOpenRightBar, setOpenRightBar] = useState(false);
   const mapRef = useRef<MapRef | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
-  const lastMode = useRef<'all'|'critical'|null>(null);
+  const lastCriticalIds = useRef<string | null>(null);
 
   // Data fetching
   const { data, isLoading } = useDashboardData();
@@ -47,6 +48,14 @@ export default function Dashboard() {
     atencion: data?.alerts?.atencion?.length ?? 0,
     desconexionGW: data?.alerts?.desconexionGW?.length ?? 0,
     movimientos_anomalos: data?.alerts?.movimientos_anomalos?.length ?? 0,
+  });
+
+  // Voz de bienvenida y anuncio de alertas
+  const { muted, toggleMute } = useAlertVoice({
+    alerts: [
+      ...(data?.alerts?.critical || []),
+      ...(data?.alerts?.atencion || []),
+    ],
   });
 
   // Global error handler para suprimir errores de Mapbox GL durante source cleanup
@@ -104,12 +113,15 @@ export default function Dashboard() {
     const criticalItems = (data.alerts?.critical || []).filter(a => a.latitude_current && a.longitude_current);
 
     // Decidir qué zoom hacer
-    const newMode = criticalItems.length > 0 ? 'critical' : 'all';
-    const itemsToZoom = newMode === 'critical' ? criticalItems : allItems;
+    const hasCritical = criticalItems.length > 0;
+    const itemsToZoom = hasCritical ? criticalItems : allItems;
 
-    // Solo hacer zoom si cambió el modo
-    if (newMode !== lastMode.current && itemsToZoom.length > 0) {
-      lastMode.current = newMode;
+    // Generar fingerprint de las alertas críticas para detectar cambios
+    const criticalFingerprint = criticalItems.length > 0 ? criticalItems.map(a => a.id).sort().join(',') : 'none';
+
+    // Solo hacer zoom si cambió el conjunto de críticas o es la primera vez (lastCriticalIds empieza null)
+    if (criticalFingerprint !== lastCriticalIds.current && itemsToZoom.length > 0) {
+      lastCriticalIds.current = criticalFingerprint;
 
       // Calcular bounds
       let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
@@ -123,13 +135,13 @@ export default function Dashboard() {
       }
 
       // Agregar padding
-      const padLng = Math.max((maxLng - minLng) * 0.2, 0.03);
-      const padLat = Math.max((maxLat - minLat) * 0.2, 0.03);
+      const padLng = Math.max((maxLng - minLng) * (hasCritical ? 0.02 : 0.1), 0.002);
+      const padLat = Math.max((maxLat - minLat) * (hasCritical ? 0.02 : 0.1), 0.002);
 
       // Hacer zoom
       mapRef.current.fitBounds(
         [[minLng - padLng, minLat - padLat], [maxLng + padLng, maxLat + padLat]],
-        { padding: newMode === 'critical' ? 100 : 120, maxZoom: 15, duration: 1000 }
+        { padding: hasCritical ? 10 : 60, maxZoom: 25, duration: 1000 }
       );
     }
   }, [data, mapLoaded, gatewayData]);
@@ -157,7 +169,17 @@ export default function Dashboard() {
           0%, 100% { box-shadow: none; }
         }
       `}</style>
-      <GatewayStatusBar gateways={gateways} />
+      <AlertTickerBanner data={data} />
+
+      {/* Botón de silenciar voz */}
+      <button
+        onClick={toggleMute}
+        className="absolute top-2 right-2 z-50 w-8 h-8 rounded-full flex items-center justify-center text-[13px] transition-all shadow-lg hover:scale-110"
+        style={{ background: muted ? "rgba(100,100,100,0.6)" : "rgba(34,197,94,0.6)" }}
+        title={muted ? "Activar voz" : "Silenciar voz"}
+      >
+        {muted ? "🔇" : "🔊"}
+      </button>
 
       <div className={`flex-1 w-full min-h-0 ${isMobile ? "flex flex-row" : "grid grid-cols-12"} overflow-hidden`}>
         <div className={`${!isMobile && "col-span-10"} h-full flex flex-col w-full relative min-h-0 overflow-hidden`}>
@@ -180,6 +202,37 @@ export default function Dashboard() {
                 />
               )}
               <MapOverlayInfo data={data} />
+
+              {/* Gateway status panel — separado debajo del resumen */}
+              {gateways.length > 0 && (
+                <div className="absolute left-2 z-10 flex flex-col gap-1.5"
+                  style={{ top: '195px' }}>
+                  <div className="flex items-center gap-2 text-[13px] text-text-100 font-bold uppercase tracking-wider bg-bg-100/80 backdrop-blur-sm border border-border/30 rounded-lg px-2.5 py-1.5 shadow-lg">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="18" r="1"/><path d="M3 9a17 17 0 0 1 18 0"/><path d="M6 13a10 10 0 0 1 12 0"/></svg>
+                    Gateways
+                    <span className="font-bold text-green-400 text-[12px] ml-1">{gateways.filter(g => g.is_online).length}/{gateways.length}</span>
+                  </div>
+                  {/* Online: puntitos con contorno */}
+                  {gateways.filter(g => g.is_online).length > 0 && (
+                    <div className="bg-bg-100/80 backdrop-blur-sm border border-border/30 rounded-lg px-2.5 py-1.5 shadow-lg inline-flex flex-wrap gap-1.5 w-fit">
+                      {gateways.filter(g => g.is_online).map(gw => (
+                        <div key={gw.id} className="w-5 h-5 rounded-full bg-green-500/15 border border-green-400/30 flex items-center justify-center" title={gw.name}>
+                          <span className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_4px_rgba(74,222,128,0.6)]" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Offline: cada uno con su propio contenedor */}
+                  {gateways.filter(g => !g.is_online).map(gw => (
+                    <div key={gw.id} className="flex items-center gap-2 text-[13px] bg-red-950/70 backdrop-blur-sm border border-red-500/30 rounded-lg px-2.5 py-1.5 shadow-lg">
+                      <span className="w-2 h-2 rounded-full shrink-0 bg-red-400 animate-pulse" />
+                      <span className="text-red-300 truncate max-w-28 font-medium">{gw.name.replace(/^Gateway\s/, 'GW ')}</span>
+                      <span className="text-[11px] font-bold text-red-400">OFF</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <MapSearchBox
                 data={data}
                 gateways={gateways}

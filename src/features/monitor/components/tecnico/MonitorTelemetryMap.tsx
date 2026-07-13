@@ -24,9 +24,7 @@ interface Props {
   devicePosition?: { lat: number; lng: number } | null;
   deviceName?: string;
   gateways?: GatewayInfo[];
-  /** gatewayId (dev_eui) seen in rxinfo for this device */
   activeGatewayIds?: string[];
-  /** sensors with SNR/RSSI data for gateway heatmap mode */
   sensors?: SensorInfo[];
   zoom?: number;
 }
@@ -45,7 +43,6 @@ const gatewayIcon = L.divIcon({
   iconAnchor: [14, 14],
 });
 
-/** Generate sensor icon with color based on RSSI */
 function sensorIcon(rssi: number | null, snr: number | null) {
   const color = rssi !== null ? (rssi < -120 ? '#ef4444' : rssi < -118 ? '#f59e0b' : '#22c55e')
     : snr !== null ? (snr >= 10 ? '#22c55e' : snr >= 5 ? '#f59e0b' : '#ef4444')
@@ -58,7 +55,7 @@ function sensorIcon(rssi: number | null, snr: number | null) {
   });
 }
 
-export default function TelemetryMap({ devicePosition, deviceName, gateways, activeGatewayIds, sensors, zoom = 14 }: Props) {
+export default function MonitorTelemetryMap({ devicePosition, deviceName, gateways, activeGatewayIds, sensors, zoom = 14 }: Props) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
@@ -69,167 +66,77 @@ export default function TelemetryMap({ devicePosition, deviceName, gateways, act
 
   useEffect(() => {
     if (!mapRef.current || mapInstance.current) return;
-
     const pos: [number, number] = devicePosition
       ? [Number(devicePosition.lat), Number(devicePosition.lng)]
       : [-33.45, -70.65];
-
-    const map = L.map(mapRef.current, {
-      center: pos,
-      zoom,
-      zoomControl: false,
-      attributionControl: false,
-    });
-
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: "&copy; <a href='https://openstreetmap.org'>OpenStreetMap</a>",
-    }).addTo(map);
-
+    const map = L.map(mapRef.current, { center: pos, zoom, zoomControl: false, attributionControl: false });
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; <a href='https://openstreetmap.org'>OpenStreetMap</a>" }).addTo(map);
     L.control.zoom({ position: "topright" }).addTo(map);
     mapInstance.current = map;
-
-    return () => {
-      map.remove();
-      mapInstance.current = null;
-    };
+    return () => { map.remove(); mapInstance.current = null; };
   }, []);
 
-  // Update markers & lines
   useEffect(() => {
     if (!mapInstance.current) return;
-
     const map = mapInstance.current;
-
-    // Clear previous marker
     if (markerRef.current) { map.removeLayer(markerRef.current); markerRef.current = null; }
-
-    // Clear previous lines
-    linesRef.current.forEach(l => map.removeLayer(l));
-    linesRef.current = [];
-
-    // Clear previous gateway markers
-    gwMarkersRef.current.forEach(m => map.removeLayer(m));
-    gwMarkersRef.current = [];
-
-    // Clear previous sensor markers
-    sensorMarkersRef.current.forEach(m => map.removeLayer(m));
-    sensorMarkersRef.current = [];
-
-    // Clear previous heat circles
-    heatCirclesRef.current.forEach(c => map.removeLayer(c));
-    heatCirclesRef.current = [];
+    linesRef.current.forEach(l => map.removeLayer(l)); linesRef.current = [];
+    gwMarkersRef.current.forEach(m => map.removeLayer(m)); gwMarkersRef.current = [];
+    sensorMarkersRef.current.forEach(m => map.removeLayer(m)); sensorMarkersRef.current = [];
+    heatCirclesRef.current.forEach(c => map.removeLayer(c)); heatCirclesRef.current = [];
 
     if (!devicePosition) return;
-
     const devLat = Number(devicePosition.lat);
     const devLng = Number(devicePosition.lng);
 
-    // Device marker
     markerRef.current = L.marker([devLat, devLng], { icon: deviceIcon }).addTo(map);
     if (deviceName) {
-      markerRef.current.bindPopup(
-        `<div style="font-size:11px;font-weight:600;font-family:sans-serif">${deviceName}</div>` +
-        `<div style="font-size:10px;color:#666">${devLat.toFixed(6)}, ${devLng.toFixed(6)}</div>`
-      );
+      markerRef.current.bindPopup(`<div style="font-size:11px;font-weight:600;font-family:sans-serif">${deviceName}</div><div style="font-size:10px;color:#666">${devLat.toFixed(6)}, ${devLng.toFixed(6)}</div>`);
     }
 
-    // Draw lines to active gateways
     if (gateways && activeGatewayIds && activeGatewayIds.length > 0) {
       const activeSet = new Set(activeGatewayIds.map(id => String(id).toLowerCase()));
-
       gateways.forEach(gw => {
         const gwEui = gw.dev_eui.toLowerCase();
         if (!activeSet.has(gwEui)) return;
-
         const gwLat = Number(gw.latitude_current);
         const gwLng = Number(gw.longitude_current);
         if (isNaN(gwLat) || isNaN(gwLng)) return;
-
-        // Dashed line from device to gateway
-        const line = L.polyline([[devLat, devLng], [gwLat, gwLng]], {
-          color: "#3b82f6",
-          weight: 1.5,
-          opacity: 0.6,
-          dashArray: "6 8",
-          lineCap: "round",
-        }).addTo(map);
+        const line = L.polyline([[devLat, devLng], [gwLat, gwLng]], { color: "#3b82f6", weight: 1.5, opacity: 0.6, dashArray: "6 8", lineCap: "round" }).addTo(map);
         linesRef.current.push(line);
-
-        // Arrow marker at 65% of the line (pointing to gateway)
         const arrowPct = 0.65;
         const aLat = devLat + (gwLat - devLat) * arrowPct;
         const aLng = devLng + (gwLng - devLng) * arrowPct;
         const angle = Math.atan2(gwLng - devLng, gwLat - devLat) * (180 / Math.PI);
-        const arrowIcon = L.divIcon({
-          html: `<div style="transform:rotate(${angle}deg)"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2 L12 7 L2 12 Z" fill="#3b82f6" opacity="0.8"/></svg></div>`,
-          className: "",
-          iconSize: [14, 14],
-          iconAnchor: [7, 7],
-        });
+        const arrowIcon = L.divIcon({ html: `<div style="transform:rotate(${angle}deg)"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2 L12 7 L2 12 Z" fill="#3b82f6" opacity="0.8"/></svg></div>`, className: "", iconSize: [14, 14], iconAnchor: [7, 7] });
         L.marker([aLat, aLng], { icon: arrowIcon, interactive: false }).addTo(map);
-
-        // Gateway marker
         const gMarker = L.marker([gwLat, gwLng], { icon: gatewayIcon }).addTo(map);
-        gMarker.bindPopup(
-          `<div style="font-size:11px;font-weight:600;font-family:sans-serif">${gw.name}</div>` +
-          `<div style="font-size:10px;color:#666">${gwLat.toFixed(6)}, ${gwLng.toFixed(6)}</div>`
-        );
+        gMarker.bindPopup(`<div style="font-size:11px;font-weight:600;font-family:sans-serif">${gw.name}</div><div style="font-size:10px;color:#666">${gwLat.toFixed(6)}, ${gwLng.toFixed(6)}</div>`);
         gwMarkersRef.current.push(gMarker);
       });
     }
 
-    // ── Draw sensors (SNR/RSSI mode for gateway panel) ──
     if (sensors && sensors.length > 0) {
       sensors.forEach(s => {
         if (!s.lat || !s.lng || isNaN(s.lat) || isNaN(s.lng)) return;
-
         const marker = L.marker([s.lat, s.lng], { icon: sensorIcon(s.rssi, s.snr) }).addTo(map);
-
-        // Connection line from gateway to sensor, colored by RSSI
         const lineColor = s.rssi !== null ? (s.rssi < -120 ? '#ef4444' : s.rssi < -118 ? '#f59e0b' : '#22c55e') : '#9ca3af';
-        const line = L.polyline([[devLat, devLng], [s.lat, s.lng]], {
-          color: lineColor,
-          weight: 1.5,
-          opacity: 0.5,
-          dashArray: "4 6",
-          lineCap: "round",
-        }).addTo(map);
+        const line = L.polyline([[devLat, devLng], [s.lat, s.lng]], { color: lineColor, weight: 1.5, opacity: 0.5, dashArray: "4 6", lineCap: "round" }).addTo(map);
         linesRef.current.push(line);
-
         const snrText = s.snr !== null ? `${s.snr.toFixed(1)} dB` : '—';
         const rssiText = s.rssi !== null ? `${s.rssi.toFixed(1)} dBm` : '—';
-        marker.bindPopup(`
-          <div style="font-size:12px;font-weight:700;font-family:sans-serif;margin-bottom:4px">${s.name}</div>
-          <div style="font-size:11px;margin-top:4px">
-            <span style="color:#3b82f6;font-weight:600">RSSI:</span> ${rssiText}
-            &nbsp;&nbsp;
-            <span style="color:#22c55e;font-weight:600">SNR:</span> ${snrText}
-          </div>
-          <div style="font-size:10px;color:#999;margin-top:2px">${new Date(s.ts).toLocaleString()}</div>
-        `);
+        marker.bindPopup(`<div style="font-size:12px;font-weight:700;font-family:sans-serif;margin-bottom:4px">${s.name}</div><div style="font-size:11px;margin-top:4px"><span style="color:#3b82f6;font-weight:600">RSSI:</span> ${rssiText}&nbsp;&nbsp;<span style="color:#22c55e;font-weight:600">SNR:</span> ${snrText}</div><div style="font-size:10px;color:#999;margin-top:2px">${new Date(s.ts).toLocaleString()}</div>`);
         sensorMarkersRef.current.push(marker);
-
-        // Heat circle based on RSSI
         if (s.rssi !== null) {
           const radius = Math.max(30, Math.min(250, 180 + s.rssi * 1.5));
           const opacity = Math.max(0.05, Math.min(0.25, (-s.rssi - 80) / 200));
           const color = s.rssi < -120 ? '#ef4444' : s.rssi < -118 ? '#f59e0b' : '#22c55e';
-          const circle = L.circle([s.lat, s.lng], {
-            radius: Math.abs(radius),
-            color,
-            color,
-            fillColor: color,
-            fillOpacity: opacity,
-            weight: 1,
-            opacity: opacity * 0.5,
-          }).addTo(map);
+          const circle = L.circle([s.lat, s.lng], { radius: Math.abs(radius), color, fillColor: color, fillOpacity: opacity, weight: 1, opacity: opacity * 0.5 }).addTo(map);
           heatCirclesRef.current.push(circle);
         }
       });
     }
 
-    // Fit bounds to show device + all sensors/gateways
     const allPoints: L.LatLng[] = [L.latLng(devLat, devLng)];
     gwMarkersRef.current.forEach(m => allPoints.push(m.getLatLng()));
     sensorMarkersRef.current.forEach(m => allPoints.push(m.getLatLng()));
@@ -238,22 +145,11 @@ export default function TelemetryMap({ devicePosition, deviceName, gateways, act
     } else {
       map.setView([devLat, devLng], zoom);
     }
-
     return () => {
-      // Cleanup circles
-      heatCirclesRef.current.forEach(c => map.removeLayer(c));
-      heatCirclesRef.current = [];
-      // Cleanup sensor markers
-      sensorMarkersRef.current.forEach(m => map.removeLayer(m));
-      sensorMarkersRef.current = [];
+      heatCirclesRef.current.forEach(c => map.removeLayer(c)); heatCirclesRef.current = [];
+      sensorMarkersRef.current.forEach(m => map.removeLayer(m)); sensorMarkersRef.current = [];
     };
   }, [devicePosition?.lat, devicePosition?.lng, gateways, activeGatewayIds, sensors]);
 
-  return (
-    <div
-      ref={mapRef}
-      className="w-full h-full rounded"
-      style={{ minHeight: "150px" }}
-    />
-  );
+  return <div ref={mapRef} className="w-full h-full rounded" style={{ minHeight: "150px" }} />;
 }

@@ -1,12 +1,14 @@
 //  Configuración de empresa
 import logoWhite from "@/assets/company/AST-LOGO_BLANCO.png";
 import logoBlack from "@/assets/company/AST-LOGO_NEGRO.png";
-import { IconLayoutDashboard } from "@tabler/icons-react";
+import { IconLayoutDashboard, IconDeviceAnalytics, IconSettings, IconStatusChange, IconHistory, IconChartBar } from "@tabler/icons-react";
 import React from "react";
 import Dashboard from "@/features/dashboard/pages/Dashboard";
 import Telemetry from "@/features/telemetry/pages/Telemetry";
 import Configuration from "@/features/configuration/pages/Configuration";
-import { IconDeviceAnalytics, IconSettings } from "@tabler/icons-react";
+import Status from "@/features/status/pages/Status";
+import AuditPage from "@/features/audit/pages/AuditPage";
+import MonitorPage from "@/features/monitor/pages/MonitorPage";
 
 // Imports del template (rutas base de la plantilla)
 import { AdminPage } from "@/template/admin";
@@ -109,9 +111,38 @@ export const configServer = () => {
       component: Telemetry,
       target: false,
       state: true,
+      superadmin: true,
     },
     {
       id: 3,
+      name: "Monitor",
+      link: "/monitor",
+      icon: IconChartBar,
+      component: MonitorPage,
+      target: false,
+      state: true,
+    },
+    {
+      id: 4,
+      name: "Status",
+      link: "/status",
+      icon: IconStatusChange,
+      component: Status,
+      target: false,
+      state: true,
+    },
+    {
+      id: 5,
+      name: "Auditoría",
+      link: "/auditoria",
+      icon: IconHistory,
+      component: AuditPage,
+      target: false,
+      state: true,
+      superadmin: true,
+    },
+    {
+      id: 6,
       name: "Configuración",
       link: "/configuration",
       icon: IconSettings,
@@ -119,8 +150,7 @@ export const configServer = () => {
       target: false,
       state: true,
       superadmin: true,
-    }
-  ];
+    },  ];
 
   // Rutas del template (aparecen en el menú de usuario del Header)
   // Estas rutas son parte de la plantilla base

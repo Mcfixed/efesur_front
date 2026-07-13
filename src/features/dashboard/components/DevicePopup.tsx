@@ -29,7 +29,6 @@ export default function DevicePopup({ device, alerts, onClose }: { device: GpsDe
       <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-border/30">
         <div className="min-w-0">
           <h3 className="text-sm font-bold text-text-100 truncate">{device.name}</h3>
-          <p className="text-[10px] text-text-300 truncate font-mono">{device.dev_eui}</p>
         </div>
         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap ml-2 ${
           deviceAlerts.some(a => a.type === 'critica')
@@ -43,7 +42,6 @@ export default function DevicePopup({ device, alerts, onClose }: { device: GpsDe
       </div>
 
       <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
-        <InfoItem label="Empresa" value={device.company_name} />
         <InfoItem label="Tipo" value={device.type_device} />
         <InfoItem label="Batería" value={`${device.battery}%`} color={batteryColor} />
         <InfoItem label="Modo" value={device.operating_mode} />

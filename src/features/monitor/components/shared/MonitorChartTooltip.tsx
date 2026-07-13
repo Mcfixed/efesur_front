@@ -1,4 +1,4 @@
-export const ChartTooltip = ({ active, payload, label }: any) => {
+export const MonitorChartTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-[#1a1d23]/90 backdrop-blur-md border border-white/10 rounded-lg px-3 py-2.5 shadow-2xl text-[11px] min-w-36">

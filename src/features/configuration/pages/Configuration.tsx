@@ -13,6 +13,8 @@ import { IconEdit, IconTrash } from "@tabler/icons-react";
 import { configService } from "../services/config.service";
 import { toast } from "sonner";
 
+import ChirpstackConfig from "@/features/chirpstack/pages/ChirpstackConfig";
+
 export default function Configuration() {
   const { user } = useBetterSession();
   const navigate = useNavigate();
@@ -22,12 +24,13 @@ export default function Configuration() {
     if (role !== 'superadmin' && role !== 'admin_efe') navigate("/", { replace: true });
   }, [role]);
 
-  const [activeTab, setActiveTab] = useState<"companies" | "users" | "devices">("companies");
+  const [activeTab, setActiveTab] = useState<"companies" | "users" | "devices" | "chirpstack">("companies");
 
   const tabs = [
     { id: "companies" as const, label: "Empresas" },
     { id: "users" as const, label: "Usuarios" },
     { id: "devices" as const, label: "Dispositivos" },
+    { id: "chirpstack" as const, label: "Config ChirpStack" },
   ];
 
   return (
@@ -69,6 +72,7 @@ export default function Configuration() {
         {activeTab === "companies" && <CompaniesTab />}
         {activeTab === "users" && <UsersTab />}
         {activeTab === "devices" && <DevicesTab />}
+        {activeTab === "chirpstack" && <ChirpstackConfig />}
       </div>
     </div>
   );
