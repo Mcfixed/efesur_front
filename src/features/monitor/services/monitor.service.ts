@@ -42,4 +42,8 @@ export const monitorService = {
     const r = await apiClient.get<{data: any[]}>(`/monitor/tracking/${alertId}`);
     return r.data.data;
   },
+  getLatestTelemetry: async (limit?: number) => {
+    const r = await apiClient.get<{data: any[]}>("/monitor/devices/latest", { limit });
+    return r.data.data;
+  },
 };

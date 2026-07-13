@@ -1,13 +1,15 @@
 import { useState } from "react";
 import MonitorResumen from "../components/resumen/MonitorResumen";
-import MonitorTelemetryView from "../components/tecnico/MonitorTelemetryView";
 import MonitorCalendario from "../components/calendario/MonitorCalendario";
-import { IconChartBar, IconDeviceAnalytics, IconCalendarEvent } from "@tabler/icons-react";
+import MonitorHeatMap from "../components/tecnico/MonitorHeatMap";
+import MonitorTelemetryView from "../components/tecnico/MonitorTelemetryView";
+import { IconChartBar, IconCalendarEvent, IconRadar, IconDeviceAnalytics } from "@tabler/icons-react";
 
 const TABS = [
   { key: "resumen", label: "Resumen", icon: IconChartBar },
-  { key: "tecnico", label: "Panel técnico", icon: IconDeviceAnalytics },
   { key: "calendario", label: "Calendario", icon: IconCalendarEvent },
+  { key: "mapa", label: "Mapa de calor", icon: IconRadar },
+  { key: "tecnico", label: "Panel técnico", icon: IconDeviceAnalytics },
 ];
 
 export default function MonitorPage() {
@@ -30,10 +32,11 @@ export default function MonitorPage() {
           );
         })}
       </div>
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
         {tab === "resumen" && <MonitorResumen />}
-        {tab === "tecnico" && <MonitorTelemetryView />}
         {tab === "calendario" && <MonitorCalendario />}
+        {tab === "mapa" && <MonitorHeatMap />}
+        {tab === "tecnico" && <MonitorTelemetryView />}
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { format } from "date-fns";
 import { useMonitorSummary, useMonitorActiveSensors, useMonitorAlertsPerDay, useMonitorDevices } from "../../hooks/useMonitor";
-import { useMonitorDeviceTelemetry, useMonitorDeviceAlerts, useMonitorGatewayPositions } from "../../hooks/useMonitor";
+import { useMonitorDeviceTelemetry, useMonitorDeviceAlerts, useMonitorGatewayPositions, useMonitorLatestTelemetry } from "../../hooks/useMonitor";
 import MonitorDeviceList from "./MonitorDeviceList";
 import MonitorDeviceDetailView from "./MonitorDeviceDetailView";
 import type { MonitorDevice } from "../../types/monitor.types";
@@ -24,7 +24,27 @@ export default function MonitorTelemetryView() {
   const PAGE_SIZE = 200;
 
   const { data: allDevices } = useMonitorDevices();
-  const filteredDevices = (allDevices || []).filter(d => d.type_device === deviceTab);
+  const { data: latestTelemetry } = useMonitorLatestTelemetry(30);
+
+  // Filtro por tipo + búsqueda (como Telemetría)
+  const filteredDevices = useMemo(() => {
+    let list = allDevices || [];
+    // Filtro por pestaña de tipo
+    list = list.filter(d => d.type_device === deviceTab);
+    // Filtro por texto de búsqueda
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase();
+      list = list.filter(d =>
+        d.name.toLowerCase().includes(q) ||
+        d.dev_eui.toLowerCase().includes(q)
+      );
+    }
+    // Filtro por tipo seleccionado en el dropdown
+    if (selectedType) {
+      list = list.filter(d => d.type_device === selectedType);
+    }
+    return list;
+  }, [allDevices, deviceTab, searchTerm, selectedType]);
 
   const { from } = useMemo(() => {
     const r = RANGES.find(r => r.key === range);
@@ -99,6 +119,7 @@ export default function MonitorTelemetryView() {
       onDeviceTabChange={setDeviceTab}
       filteredDevices={filteredDevices}
       allDevices={allDevices || []}
+      latestTelemetry={latestTelemetry || []}
       onSelectDevice={handleSelectDevice}
       expandedCard={expandedCard}
       onToggleCard={setExpandedCard}
