@@ -4,6 +4,8 @@ import { ResponsiveContainer, AreaChart, Area, Tooltip, XAxis, YAxis, CartesianG
 import { useMonitorDeviceTelemetry, useMonitorDeviceAlerts, useMonitorGatewayPositions } from "../../../hooks/useMonitor";
 import MonitorTelemetryMap from "../MonitorTelemetryMap";
 import { MonitorChartTooltip } from "../../shared/MonitorChartTooltip";
+import { formatBattery, batteryColor } from "../../../utils/battery";
+import MonitorBatteryPopup from "../../shared/MonitorBatteryPopup";
 
 interface Props {
   deviceId: number;
@@ -58,7 +60,7 @@ export default function MonitorGpsDetailPanel({
               <thead>
                 <tr className="text-[10px] uppercase tracking-wider sticky top-0 bg-bg-100 border-b border-border/20">
                   <th className="text-left px-3 py-1.5 font-semibold text-text-300">Fecha</th>
-                  <th className="text-left px-3 py-1.5 font-semibold text-text-300">Bat</th>
+                  <th className="text-left px-3 py-1.5 font-semibold text-text-300"><MonitorBatteryPopup><span className="flex items-center gap-1 cursor-help">Bat<svg className="w-3 h-3 text-text-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span></MonitorBatteryPopup></th>
                   <th className="text-left px-3 py-1.5 font-semibold text-text-300">°C</th>
                   <th className="text-left px-3 py-1.5 font-semibold text-text-300">Mov</th>
                   <th className="text-left px-3 py-1.5 font-semibold text-text-300">Gateways</th>
@@ -68,7 +70,7 @@ export default function MonitorGpsDetailPanel({
                 {telemetryData?.telemetry?.map((t: any) => (
                   <tr key={t.id} className="border-t border-border/10 hover:bg-bg-100/60 transition-colors">
                     <td className="px-3 py-1.5 text-text-200 font-mono whitespace-nowrap">{format(new Date(t.ts), "dd HH:mm")}</td>
-                    <td className="px-3 py-1.5 font-mono">{t.object?.voltage_mV ? <span>{(t.object.voltage_mV / 1000).toFixed(1)}V</span> : <span>—</span>}</td>
+                    <td className="px-3 py-1.5 font-mono">{formatBattery(t.object?.voltage_mV)}</td>
                     <td className="px-3 py-1.5 font-mono">{t.object?.temperature_C != null ? <span>{t.object.temperature_C}°</span> : <span className="text-text-300">—</span>}</td>
                     <td className="px-3 py-1.5">
                       {t.object?.systemStatus?.freeFallFlag ? <span className="text-red-400" title="Caída libre">●</span>

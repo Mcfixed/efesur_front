@@ -1,12 +1,10 @@
 //  Configuración de empresa
 import logoWhite from "@/assets/company/AST-LOGO_BLANCO.png";
 import logoBlack from "@/assets/company/AST-LOGO_NEGRO.png";
-import { IconLayoutDashboard, IconDeviceAnalytics, IconSettings, IconStatusChange, IconHistory, IconChartBar } from "@tabler/icons-react";
+import { IconLayoutDashboard, IconChartBar, IconSettings, IconHistory } from "@tabler/icons-react";
 import React from "react";
 import Dashboard from "@/features/dashboard/pages/Dashboard";
-import Telemetry from "@/features/telemetry/pages/Telemetry";
 import Configuration from "@/features/configuration/pages/Configuration";
-import Status from "@/features/status/pages/Status";
 import AuditPage from "@/features/audit/pages/AuditPage";
 import MonitorPage from "@/features/monitor/pages/MonitorPage";
 
@@ -105,16 +103,6 @@ export const configServer = () => {
     },
     {
       id: 2,
-      name: "Telemetría",
-      link: "/telemetry",
-      icon: IconDeviceAnalytics,
-      component: Telemetry,
-      target: false,
-      state: true,
-      superadmin: true,
-    },
-    {
-      id: 3,
       name: "Monitor",
       link: "/monitor",
       icon: IconChartBar,
@@ -123,16 +111,7 @@ export const configServer = () => {
       state: true,
     },
     {
-      id: 4,
-      name: "Status",
-      link: "/status",
-      icon: IconStatusChange,
-      component: Status,
-      target: false,
-      state: true,
-    },
-    {
-      id: 5,
+      id: 3,
       name: "Auditoría",
       link: "/auditoria",
       icon: IconHistory,

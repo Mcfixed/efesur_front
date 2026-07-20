@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { MonitorSectionDivider } from "../shared/MonitorSectionDivider";
-import { IconSearch, IconServer, IconWifi, IconMapPin, IconDatabase, IconCloud, IconAlertTriangle, IconWifi as IconData } from "@tabler/icons-react";
+import { IconSearch, IconServer, IconWifi, IconMapPin, IconDatabase, IconCloud, IconAlertTriangle, IconWifi as IconData, IconFileReport } from "@tabler/icons-react";
 import { format } from "date-fns";
+import { formatBattery, batteryColor } from "../../utils/battery";
+import MonitorBatteryPopup from "../shared/MonitorBatteryPopup";
+import MonitorReportModal from "./MonitorReportModal";
 import type { MonitorDevice } from "../../types/monitor.types";
 
-const DEVICE_TYPES = ["Gps", "Gateway", "SubEstacion", "Lector"];
+const DEVICE_TYPES = ["Gps", "Gateway", "SubEstacion", "Lector", "lector_asignado"];
 
 const MINI_TABS = [
   { key: "sistema", label: "Datos y estado del sistema" },
@@ -34,6 +37,7 @@ export default function MonitorDeviceList({
   expandedCard, onToggleCard,
 }: Props) {
   const [miniTab, setMiniTab] = useState("sistema");
+  const [reportOpen, setReportOpen] = useState(false);
 
   return (
     <div className="p-3 flex-1 flex flex-col gap-2 overflow-hidden min-h-0">
@@ -42,7 +46,13 @@ export default function MonitorDeviceList({
           <h1 className="text-lg font-bold text-text-100">Panel técnico</h1>
           <p className="text-[11px] text-text-300 mt-0.5">Búsqueda y detalle de dispositivos</p>
         </div>
+        <button onClick={() => setReportOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors shadow-sm">
+          <IconFileReport size={14} /> Reporte
+        </button>
       </div>
+
+      {reportOpen && <MonitorReportModal onClose={() => setReportOpen(false)} />}
 
       {/* ─── MINI TABS ─── */}
       <div className="shrink-0 flex gap-1 bg-bg-300/20 p-0.5 rounded-lg self-start">
@@ -142,16 +152,16 @@ export default function MonitorDeviceList({
             <div className="flex items-baseline gap-1">
               <span className="text-[28px] font-bold text-blue-400 leading-none tracking-tight">{allDevices.filter(d => d.type_device === 'Gps').length}</span>
               <span className="text-[13px] text-text-300 ml-auto flex items-center gap-1.5">
-                <span className="text-green-400 font-semibold">{allDevices.filter(d => d.type_device === 'Gps' && (d as any).voltage_mV != null).length}</span>
+                <span className="text-green-400 font-semibold">{allDevices.filter(d => d.type_device === 'Gps' && (d as any).last_value != null).length}</span>
                 <span className="mx-0.5 text-text-300">/</span>
-                <span className={(allDevices.filter(d => d.type_device === 'Gps' && (d as any).voltage_mV == null).length > 0 ? 'text-yellow-400' : 'text-text-300') + ' font-semibold'}>
-                  {allDevices.filter(d => d.type_device === 'Gps' && (d as any).voltage_mV == null).length}
+                <span className={(allDevices.filter(d => d.type_device === 'Gps' && (d as any).last_value == null).length > 0 ? 'text-yellow-400' : 'text-text-300') + ' font-semibold'}>
+                  {allDevices.filter(d => d.type_device === 'Gps' && (d as any).last_value == null).length}
                 </span>
-                <IconAlertTriangle size={14} className={allDevices.filter(d => d.type_device === 'Gps' && (d as any).voltage_mV == null).length > 0 ? 'text-yellow-400' : 'text-text-300'} />
+                <IconAlertTriangle size={14} className={allDevices.filter(d => d.type_device === 'Gps' && (d as any).last_value == null).length > 0 ? 'text-yellow-400' : 'text-text-300'} />
               </span>
             </div>
             <div className="mt-2 h-1 bg-bg-300/40 rounded-full overflow-hidden">
-              {(() => { const total = allDevices.filter(d => d.type_device === 'Gps').length; const act = allDevices.filter(d => d.type_device === 'Gps' && (d as any).voltage_mV != null).length; const pct = total > 0 ? (act / total) * 100 : 0; return <div className="h-full bg-blue-400 rounded-full" style={{ width: `${pct}%` }} />; })()}
+              {(() => { const total = allDevices.filter(d => d.type_device === 'Gps').length; const act = allDevices.filter(d => d.type_device === 'Gps' && (d as any).last_value != null).length; const pct = total > 0 ? (act / total) * 100 : 0; return <div className="h-full bg-blue-400 rounded-full" style={{ width: `${pct}%` }} />; })()}
             </div>
             {expandedCard === 'Gps' && (
               <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-bg-100 border border-border/30 rounded-lg shadow-lg max-h-48 overflow-y-auto">
@@ -159,7 +169,7 @@ export default function MonitorDeviceList({
                   {allDevices.filter(d => d.type_device === 'Gps').map(d => (
                     <div key={d.id} onClick={() => { onSelectDevice(d); onToggleCard(null); }}
                       className="flex items-center gap-2 px-2 py-1.5 rounded text-[11px] hover:bg-bg-100/60 cursor-pointer transition-colors">
-                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${(d as any).voltage_mV != null ? 'bg-green-400' : 'bg-yellow-400'}`} />
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${(d as any).last_value != null ? 'bg-green-400' : 'bg-yellow-400'}`} />
                       <span className="font-medium text-text-100 truncate">{d.name}</span>
                       <span className="text-[10px] text-text-200 ml-2">{d.last_seen ? format(new Date(d.last_seen), "dd/MM HH:mm") : '—'}</span>
                       <span className="text-[10px] font-mono text-text-300 ml-auto">{d.dev_eui}</span>
@@ -284,7 +294,7 @@ export default function MonitorDeviceList({
                   <th className="text-left px-2.5 py-1.5 font-medium text-text-300">Hora</th>
                   <th className="text-left px-2.5 py-1.5 font-medium text-text-300">Dispositivo</th>
                   <th className="text-left px-2.5 py-1.5 font-medium text-text-300">Tipo</th>
-                  <th className="text-left px-2.5 py-1.5 font-medium text-text-300">Batería</th>
+                  <th className="text-left px-2.5 py-1.5 font-medium text-text-300"><MonitorBatteryPopup><span className="flex items-center gap-1 cursor-help">Batería<svg className="w-3 h-3 text-text-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span></MonitorBatteryPopup></th>
                   <th className="text-left px-2.5 py-1.5 font-medium text-text-300">Temperatura</th>
                   <th className="text-left px-2.5 py-1.5 font-medium text-text-300">Mov</th>
                   <th className="text-left px-2.5 py-1.5 font-medium text-text-300">Gateways</th>
@@ -297,9 +307,7 @@ export default function MonitorDeviceList({
                     <td className="px-2.5 py-1.5 truncate max-w-28">{t.device_name}</td>
                     <td className="px-2.5 py-1.5">{t.type_device}</td>
                     <td className="px-2.5 py-1.5">
-                      {t.object?.voltage_mV != null
-                        ? <span className={t.object.voltage_mV >= 3700 && t.object.voltage_mV <= 4100 ? 'text-green-400' : 'text-yellow-400'}>{(t.object.voltage_mV / 1000).toFixed(2)}V</span>
-                        : <span className="text-text-300">—</span>}
+                      {formatBattery(t.object?.voltage_mV)}
                     </td>
                     <td className="px-2.5 py-1.5 font-mono">
                       {t.object?.temperature_C != null
@@ -354,7 +362,7 @@ export default function MonitorDeviceList({
                   {DEVICE_TYPES.map(tab => (
                     <button key={tab} onClick={() => onDeviceTabChange(tab)}
                       className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase transition-all ${deviceTab === tab ? 'bg-white/10 text-text-100 shadow-sm' : 'text-text-300 hover:text-text-100'}`}>
-                      {tab === 'SubEstacion' ? 'SubEst.' : tab}
+                      {tab === 'SubEstacion' ? 'SubEst.' : tab === 'lector_asignado' ? 'Lector asignado' : tab}
                     </button>
                   ))}
                 </div>
@@ -367,20 +375,19 @@ export default function MonitorDeviceList({
                   <tr className="text-[10px] uppercase tracking-wider sticky top-0 bg-bg-100 border-b border-border/30">
                     <th className="text-left px-3 py-1.5 font-medium text-text-300">Nombre</th>
                     <th className="text-left px-3 py-1.5 font-medium text-text-300">DevEUI</th>
-                    <th className="text-left px-3 py-1.5 font-medium text-text-300">Batería</th>
+                    <th className="text-left px-3 py-1.5 font-medium text-text-300"><MonitorBatteryPopup><span className="flex items-center gap-1 cursor-help">Batería<svg className="w-3 h-3 text-text-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span></MonitorBatteryPopup></th>
                     <th className="text-left px-3 py-1.5 font-medium text-text-300">Último dato</th>
                   </tr>
                 </thead>
                 <tbody className="text-text-200">
                   {filteredDevices.map(d => {
-                    const voltage = (d as any).voltage_mV;
-                    const batColor = voltage == null ? 'text-gray-500' : voltage >= 3700 && voltage <= 4100 ? 'text-green-400' : voltage >= 3500 ? 'text-yellow-400' : 'text-red-400';
+                    const voltage = (d as any).last_value ? Number((d as any).last_value) : null;
                     return (
                       <tr key={d.id} onClick={() => onSelectDevice(d)}
                         className="border-t bg-bg-100 border-border/30 hover:bg-bg-200/60 transition-colors cursor-pointer">
                         <td className="px-3 py-2 truncate max-w-36">{d.name}</td>
                         <td className="px-3 py-2 text-[12px]">{d.dev_eui}</td>
-                        <td className={`px-3 py-2 text-[12px] ${batColor}`}>{voltage != null ? `${(voltage / 1000).toFixed(2)}V` : '—'}</td>
+                        <td className={`px-3 py-2 text-[12px] ${batteryColor(voltage)}`}>{formatBattery(voltage)}</td>
                         <td className="px-3 py-2 text-[11px]">{d.last_seen ? format(new Date(d.last_seen), "dd MMM HH:mm") : '—'}</td>
                       </tr>
                     );

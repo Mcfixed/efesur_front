@@ -1,4 +1,6 @@
 import { format } from "date-fns";
+import { formatBattery, batteryColor } from "../../utils/battery";
+import MonitorBatteryPopup from "./MonitorBatteryPopup";
 import type { MonitorDevice } from "../../types/monitor.types";
 
 interface Props {
@@ -64,10 +66,12 @@ export default function MonitorDeviceDetailHeader({ device, onBack, lastTs, reco
           <>
             <span className="w-px h-4 bg-border/20 shrink-0" />
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] uppercase tracking-wider text-text-300">Bat</span>
-              <span className={`font-bold font-mono text-[14px] ${lastVoltage >= 3700 && lastVoltage <= 4100 ? 'text-green-400' : 'text-yellow-400'}`}>
-                {(lastVoltage / 1000).toFixed(2)}V
-              </span>
+              <MonitorBatteryPopup>
+                <span className="text-[10px] uppercase tracking-wider text-text-300 flex items-center gap-1 cursor-help">Bat
+                  <svg className="w-3 h-3 text-text-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                </span>
+              </MonitorBatteryPopup>
+              <span className={`font-bold font-mono text-[14px] ${batteryColor(lastVoltage)}`}>{formatBattery(lastVoltage)}</span>
             </div>
           </>
         )}

@@ -2,10 +2,10 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { ResponsiveContainer, AreaChart, Area } from "recharts";
-import { useMonitorDeviceTelemetry, useMonitorDeviceAlerts, useMonitorDevices, useMonitorGatewayPositions } from "../../../hooks/useMonitor";
-import { monitorService } from "../../../services/monitor.service";
-import { IconAntennaBars3, IconWifi, IconSolarPanel, IconBattery } from "@tabler/icons-react";
+import { useMonitorDeviceTelemetry, useMonitorDeviceAlerts, useMonitorDevices, useMonitorGatewayPositions, useMonitorLatestTelemetry } from "../../../hooks/useMonitor";
+import { IconAntennaBars3, IconWifi, IconSolarPanel, IconBattery, IconPlug, IconDoor, IconEye, IconCheck, IconX, IconAlertTriangle } from "@tabler/icons-react";
 import MonitorTelemetryMap from "../MonitorTelemetryMap";
+import { formatBattery, voltageToPercent } from "../../../utils/battery";
 
 interface Props {
   deviceId: number;
@@ -21,12 +21,7 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
   const { data: deviceAlerts } = useMonitorDeviceAlerts(deviceId);
   const { data: allDevices } = useMonitorDevices();
   const { data: gatewayPositions } = useMonitorGatewayPositions();
-
-  const { data: latestTelemetry } = useQuery({
-    queryKey: ['monitor', 'latest', 'gateway', deviceId],
-    queryFn: () => monitorService.getDeviceTelemetry(deviceId, { limit: 100 }),
-    refetchInterval: 30000,
-  });
+  const { data: latestTelemetry } = useMonitorLatestTelemetry(100);
 
   const connectedDeviceEuis = useMemo(() => {
     const devEuiSet = new Set<string>();
@@ -132,7 +127,7 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
       const alertStart = new Date(alert.created_at).getTime();
       const alertEnd = alert.resolved_at
         ? new Date(alert.resolved_at).getTime()
-        : currentlyOnline ? rangeStart : now;
+        : now;
       if (alertEnd <= alertStart) continue;
       const effectiveStart = Math.max(cursor, alertStart);
       if (effectiveStart >= alertEnd) continue;
@@ -187,10 +182,11 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
     }));
   }, [latestTelemetry, deviceEui, deviceName]);
 
-  const [activeTab, setActiveTab] = useState<"resumen" | "mapa">("resumen");
+  const [activeTab, setActiveTab] = useState<"resumen" | "mapa" | "lector_asignado">("resumen");
   const tabs = [
     { key: "resumen" as const, label: "Resumen" },
     { key: "mapa" as const, label: "Cobertura" },
+    { key: "lector_asignado" as const, label: "Lector asignado" },
   ];
 
   return (
@@ -248,7 +244,7 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
                 <div className="flex-1 min-h-0 flex flex-col">
                   <div className="flex items-center justify-between mb-0.5">
                     <span className="text-[9px] text-text-300 font-medium flex items-center gap-1"><IconBattery size={10} className="text-green-400" /> Batería</span>
-                    <span className="text-[9px] font-bold font-mono text-green-400">{solarChartData.length > 0 && solarChartData[solarChartData.length - 1].volt !== null ? `${solarChartData[solarChartData.length - 1].volt}V` : '—'}</span>
+                    <span className="text-[9px] font-bold font-mono text-green-400">{solarChartData.length > 0 && solarChartData[solarChartData.length - 1].volt !== null ? formatBattery(solarChartData[solarChartData.length - 1].volt * 1000) : '—'}</span>
                   </div>
                   <div className="flex-1 min-h-0">
                     {solarChartData.some(d => d.volt !== null) ? (
@@ -379,6 +375,10 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
         </div>
       )}
 
+      {activeTab === "lector_asignado" && (
+        <LectorAsignadoContent deviceId={deviceId} />
+      )}
+
       {activeTab === "mapa" && (
         <div className="flex-1 min-h-0">
           <div className="bg-bg-100 border border-border/30 rounded-lg overflow-hidden flex flex-col h-full shadow">
@@ -417,6 +417,126 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════
+// LECTOR ASIGNADO CONTENT
+// ═══════════════════════════════════════════
+function LectorAsignadoContent({ deviceId }: { deviceId: number }) {
+  const { data: allDevices } = useMonitorDevices();
+  const { data: latestTelemetry } = useMonitorLatestTelemetry(5000);
+
+  const lectores = useMemo(() => {
+    if (!allDevices) return [];
+    return allDevices.filter((d: any) => d.type_device === 'Lector');
+  }, [allDevices]);
+
+  if (lectores.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-text-400 text-[13px] min-h-50">
+        <IconAlertTriangle size={18} className="mr-2 opacity-50" />
+        No hay lectores en el sistema
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
+      <div className="flex items-center gap-2 mb-2">
+        <IconPlug size={15} className="text-amber-400" />
+        <span className="text-[10px] font-bold text-text-200 uppercase tracking-wider">
+          Lectores ({lectores.length})
+        </span>
+      </div>
+      {lectores.map((lector: any) => {
+        const tel = (latestTelemetry || []).filter((t: any) =>
+          t.dev_eui?.toLowerCase() === lector.dev_eui.toLowerCase() || t.device_id === lector.id
+        );
+        const lastT = tel?.[0];
+        const obj = lastT?.object || {};
+        const hasMppt = obj.mppt && Object.keys(obj.mppt).length > 0;
+        const hasSalida220 = obj.salida_220 && Object.keys(obj.salida_220).length > 0;
+        const hasDevices = obj.devices && Object.keys(obj.devices).length > 0;
+
+        return (
+          <div key={lector.id} className="bg-bg-100 border border-border/20 rounded-xl p-3 shadow-sm">
+            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border/10">
+              <IconPlug size={14} className="text-amber-400" />
+              <span className="text-[12px] font-bold text-text-200">{lector.name}</span>
+              <span className="text-[9px] text-text-400 font-mono">{lector.dev_eui}</span>
+              {lastT?.ts && <span className="text-[9px] text-text-400 ml-auto">{format(new Date(lastT.ts), "dd/MM HH:mm")}</span>}
+            </div>
+            {hasMppt || hasSalida220 || hasDevices ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                {hasMppt && <MpptMini data={obj.mppt} />}
+                {hasSalida220 && <Salida220Mini data={obj.salida_220} />}
+                {hasDevices && <DevicesMini data={obj.devices} />}
+              </div>
+            ) : (
+              <p className="text-[11px] text-text-400 text-center py-3">
+                {tel.length > 0 ? 'ℹ️ Datos disponibles sin campos MPPT/220V/Sensores' : '⏳ Sin datos de telemetría'}
+              </p>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Mini cards ───
+function MpptMini({ data }: { data: any }) {
+  const soc = data.state_of_charge ?? 0;
+  const socColors = ['#6b7280','#ef4444','#f97316','#22c55e','#3b82f6'];
+  const socLabels = ['—','Fault','Carga inicial','Absorción','Flotación'];
+  return (
+    <div className="bg-bg-200/30 rounded-lg p-2.5 border border-border/20">
+      <p className="text-[9px] font-bold text-yellow-400 uppercase tracking-wider mb-2">🔆 MPPT</p>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
+        <span className="text-text-400">Batería:</span><span className="font-bold font-mono text-green-400 text-right">{data.voltaje_bateria?.toFixed(2)}V</span>
+        <span className="text-text-400">Panel:</span><span className="font-bold font-mono text-yellow-400 text-right">{data.voltaje_panel?.toFixed(1)}V</span>
+        <span className="text-text-400">Potencia:</span><span className="font-bold font-mono text-yellow-400 text-right">{data.potencia_panel}W</span>
+        <span className="text-text-400">Carga:</span><span className="font-bold font-mono text-right" style={{color: data.estado_carga === 'ON' ? '#22c55e' : '#ef4444'}}>{data.estado_carga || 'OFF'}</span>
+        <span className="text-text-400">Salida:</span><span className="font-bold font-mono text-right" style={{color: data.estado_salida_carga === 'ON' ? '#22c55e' : '#6b7280'}}>{data.estado_salida_carga || 'OFF'}</span>
+        <span className="text-text-400">SOC:</span><span className="font-bold font-mono text-right" style={{color: socColors[soc] || '#6b7280'}}>{socLabels[soc] || '—'}</span>
+      </div>
+    </div>
+  );
+}
+
+function Salida220Mini({ data }: { data: any }) {
+  const hasErr = data.error && data.error !== 'no error';
+  return (
+    <div className="bg-bg-200/30 rounded-lg p-2.5 border border-border/20">
+      <p className="text-[9px] font-bold text-blue-400 uppercase tracking-wider mb-2">🔌 220V</p>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
+        <span className="text-text-400">Estado:</span><span className="font-bold font-mono text-right" style={{color: data.estado === 'ALMACENAMIENTO' ? '#22c55e' : '#f97316'}}>{data.estado || '—'}</span>
+        <span className="text-text-400">Batería:</span><span className="font-bold font-mono text-blue-400 text-right">{data.bateria_220_v?.toFixed(1)}V</span>
+        <span className="text-text-400">Corriente:</span><span className="font-bold font-mono text-cyan-400 text-right">{data.corriente_220_v?.toFixed(2)}A</span>
+        {hasErr && <><span className="text-text-400">Error:</span><span className="font-bold font-mono text-red-400 text-right">{data.error}</span></>}
+      </div>
+    </div>
+  );
+}
+
+function DevicesMini({ data }: { data: any }) {
+  const door = data.estado_sensor_puerta === 1;
+  const prox = data.estado_sensor_proximidad === 1;
+  return (
+    <div className="bg-bg-200/30 rounded-lg p-2.5 border border-border/20">
+      <p className="text-[9px] font-bold text-purple-400 uppercase tracking-wider mb-2">👁 Sensores</p>
+      <div className="flex gap-2">
+        <div className={`flex-1 rounded-lg p-2 text-center ${door ? 'bg-red-500/10' : 'bg-green-500/10'}`}>
+          <span className="block text-lg mb-0.5">🚪</span>
+          <span className="text-[10px] font-bold" style={{color: door ? '#ef4444' : '#22c55e'}}>{door ? 'Abierta' : 'Cerrada'}</span>
+        </div>
+        <div className={`flex-1 rounded-lg p-2 text-center ${prox ? 'bg-yellow-500/10' : 'bg-gray-500/10'}`}>
+          <span className="block text-lg mb-0.5">📡</span>
+          <span className="text-[10px] font-bold" style={{color: prox ? '#eab308' : '#6b7280'}}>{prox ? 'Detectado' : 'Inactivo'}</span>
+        </div>
+      </div>
     </div>
   );
 }

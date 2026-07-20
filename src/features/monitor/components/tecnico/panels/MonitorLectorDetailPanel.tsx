@@ -2,6 +2,8 @@ import { useMemo } from "react";
 import { format } from "date-fns";
 import { useMonitorDeviceTelemetry, useMonitorDeviceAlerts } from "../../../hooks/useMonitor";
 import { IconDatabase, IconBattery, IconCalendarTime } from "@tabler/icons-react";
+import { formatBattery, voltageToPercent } from "../../../utils/battery";
+import MonitorBatteryPopup from "../../shared/MonitorBatteryPopup";
 
 interface Props {
   deviceId: number;
@@ -33,7 +35,7 @@ export default function MonitorLectorDetailPanel({ deviceId, deviceName, lastTs 
         </div>
         <div className="bg-bg-100 border border-border/30 rounded-lg flex flex-col items-center justify-center shadow min-h-0 p-4">
           <IconBattery size={28} className={`mb-2 ${avgBattery != null && avgBattery >= 3700 ? 'text-green-400' : 'text-yellow-400'}`} />
-          <span className="text-2xl font-bold text-text-100">{avgBattery != null ? `${(avgBattery / 1000).toFixed(2)}V` : '—'}</span>
+          <span className="text-2xl font-bold text-text-100">{avgBattery != null ? formatBattery(avgBattery) : '—'}</span>
           <span className="text-[10px] text-text-300 mt-1">Batería promedio</span>
         </div>
         <div className="bg-bg-100 border border-border/30 rounded-lg flex flex-col items-center justify-center shadow min-h-0 p-4">
@@ -52,14 +54,14 @@ export default function MonitorLectorDetailPanel({ deviceId, deviceName, lastTs 
             <table className="w-full text-xs">
               <thead><tr className="text-[10px] uppercase tracking-wider sticky top-0 bg-bg-100 border-b border-border/20">
                 <th className="text-left px-3 py-1.5 font-semibold text-text-300">Fecha</th>
-                <th className="text-left px-3 py-1.5 font-semibold text-text-300">Batería</th>
+                <th className="text-left px-3 py-1.5 font-semibold text-text-300"><MonitorBatteryPopup><span className="flex items-center gap-1 cursor-help">Batería<svg className="w-3 h-3 text-text-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span></MonitorBatteryPopup></th>
                 <th className="text-left px-3 py-1.5 font-semibold text-text-300">GW</th>
               </tr></thead>
               <tbody>
                 {telemetryData?.telemetry?.slice(0, 50).map((t: any) => (
                   <tr key={t.id} className="border-t border-border/10 hover:bg-bg-100/60 transition-colors">
                     <td className="px-3 py-1.5 text-text-200 font-mono whitespace-nowrap">{format(new Date(t.ts), "dd HH:mm")}</td>
-                    <td className="px-3 py-1.5 font-mono">{t.object?.voltage_mV ? <span className={t.object.voltage_mV >= 3700 ? 'text-green-400/80' : 'text-yellow-400/80'}>{(t.object.voltage_mV / 1000).toFixed(2)}V</span> : <span>—</span>}</td>
+                    <td className="px-3 py-1.5 font-mono">{formatBattery(t.object?.voltage_mV)}</td>
                     <td className="px-2 py-1">{Array.isArray(t.rxinfo) ? t.rxinfo.length : '—'}</td>
                   </tr>
                 ))}

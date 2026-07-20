@@ -46,4 +46,40 @@ export const monitorService = {
     const r = await apiClient.get<{data: any[]}>("/monitor/devices/latest", { limit });
     return r.data.data;
   },
+  getReport: async (params: { deviceIds: number[]; from?: string; to?: string }) => {
+    const r = await apiClient.post<{data: { telemetry: any[]; alerts: any[]; total: number }}>("/monitor/report", params);
+    return r.data.data;
+  },
+  getReportBattery: async (params: { deviceIds: number[]; from?: string; to?: string }) => {
+    const r = await apiClient.post<{data: { telemetry: any[]; devices: any[]; total: number }}>("/monitor/report/battery", params);
+    return r.data.data;
+  },
+  getReportConnectivity: async (params: { deviceIds: number[]; from?: string; to?: string }) => {
+    const r = await apiClient.post<{data: { telemetry: any[]; gateways: any[]; total: number }}>("/monitor/report/connectivity", params);
+    return r.data.data;
+  },
+  getReportExecutive: async () => {
+    const r = await apiClient.get<{data: any}>("/monitor/report/executive");
+    return r.data.data;
+  },
+  getReportAlerts: async (params: { deviceIds: number[]; from?: string; to?: string }) => {
+    const r = await apiClient.post<{data: any}>("/monitor/report/alerts", params);
+    return r.data.data;
+  },
+  getReportTemperature: async (params: { deviceIds: number[]; from?: string; to?: string }) => {
+    const r = await apiClient.post<{data: any}>("/monitor/report/temperature", params);
+    return r.data.data;
+  },
+  getReportGps: async (params: { deviceIds: number[]; from?: string; to?: string }) => {
+    const r = await apiClient.post<{data: any}>("/monitor/report/gps", params);
+    return r.data.data;
+  },
+  getReportGateway: async () => {
+    const r = await apiClient.get<{data: any}>("/monitor/report/gateway");
+    return r.data.data;
+  },
+  getReportComparative: async (params: { deviceIds: number[]; period1Start: string; period1End: string; period2Start: string; period2End: string }) => {
+    const r = await apiClient.post<{data: any}>("/monitor/report/comparative", params);
+    return r.data.data;
+  },
 };

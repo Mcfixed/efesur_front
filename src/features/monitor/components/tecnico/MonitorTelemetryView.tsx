@@ -4,6 +4,7 @@ import { useMonitorSummary, useMonitorActiveSensors, useMonitorAlertsPerDay, use
 import { useMonitorDeviceTelemetry, useMonitorDeviceAlerts, useMonitorGatewayPositions, useMonitorLatestTelemetry } from "../../hooks/useMonitor";
 import MonitorDeviceList from "./MonitorDeviceList";
 import MonitorDeviceDetailView from "./MonitorDeviceDetailView";
+import MonitorLectorAsignadoView from "./MonitorLectorAsignadoView";
 import type { MonitorDevice } from "../../types/monitor.types";
 
 const RANGES = [
@@ -29,8 +30,12 @@ export default function MonitorTelemetryView() {
   // Filtro por tipo + búsqueda (como Telemetría)
   const filteredDevices = useMemo(() => {
     let list = allDevices || [];
-    // Filtro por pestaña de tipo
-    list = list.filter(d => d.type_device === deviceTab);
+  // Filtro por pestaña de tipo
+    if (deviceTab === 'lector_asignado') {
+      // No filtrar — se muestra la vista especial
+    } else {
+      list = list.filter(d => d.type_device === deviceTab);
+    }
     // Filtro por texto de búsqueda
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase();
@@ -107,6 +112,10 @@ export default function MonitorTelemetryView() {
         lastT={lastT}
       />
     );
+  }
+
+  if (deviceTab === 'lector_asignado') {
+    return <MonitorLectorAsignadoView />;
   }
 
   return (
