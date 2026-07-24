@@ -9,6 +9,7 @@ import {
   AuthProvider,
   ProtectedRoute,
   PublicOnlyRoute,
+  RoleRoute,
 } from "@/libs/better-auth";
 import { QueryProvider } from "@/libs/tanstack-query";
 import { ToastProvider } from "@/libs/sonner";
@@ -58,7 +59,9 @@ createRoot(document.getElementById("root")!).render(
                 }
               >
                 {useConfigApp.NAVIGATION_APP.map((item) => (
-                  <Route key={item.id} path={item.link} element={<item.component />} />
+                  <Route key={item.id} path={item.link} element={
+                    <RoleRoute roles={item.roles}>{<item.component />}</RoleRoute>
+                  } />
                 ))}
 
                 {/* Rutas del template (Header/UserMenu) */}

@@ -423,6 +423,7 @@ function DevicesTab() {
   const { data: devices, isLoading } = useDevices(
     activeDeviceType ? { type: activeDeviceType } : undefined
   );
+  const { data: lectors } = useDevices({ type: 'Lector' });
   const { data: companies } = useCompanies();
   
   const createMutation = useCreateDevice();
@@ -572,6 +573,7 @@ function DevicesTab() {
         <DeviceForm 
           initialData={editingDevice}
           companies={safeCompanies}
+          lectors={lectors || []}
           onSubmit={handleSubmit} 
           onCancel={() => setIsModalOpen(false)}
           isLoading={createMutation.isPending || updateMutation.isPending}

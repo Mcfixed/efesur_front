@@ -26,7 +26,7 @@ export default function MonitorDeviceDetailView({
   hasMore, onLoadMore, lastT,
 }: Props) {
   return (
-    <div className="p-2 h-screen flex flex-col min-h-0 overflow-hidden">
+    <div className="p-2 h-full flex flex-col min-h-0 overflow-hidden">
       <MonitorDeviceDetailHeader
         device={device}
         onBack={onBack}

@@ -53,7 +53,7 @@ export interface NavigationItem {
   component: React.ComponentType;
   target: boolean;
   state: boolean;
-  superadmin?: boolean;
+  roles?: string[];
 }
 
 export interface AppConfig {
@@ -100,6 +100,7 @@ export const configServer = () => {
       component: Dashboard,
       target: false,
       state: true,
+      roles: ['superadmin', 'admin_efe', 'visualizador'],
     },
     {
       id: 2,
@@ -109,6 +110,7 @@ export const configServer = () => {
       component: MonitorPage,
       target: false,
       state: true,
+      roles: ['superadmin', 'admin_efe'],
     },
     {
       id: 3,
@@ -118,7 +120,7 @@ export const configServer = () => {
       component: AuditPage,
       target: false,
       state: true,
-      superadmin: true,
+      roles: ['superadmin'],
     },
     {
       id: 6,
@@ -128,7 +130,7 @@ export const configServer = () => {
       component: Configuration,
       target: false,
       state: true,
-      superadmin: true,
+      roles: ['superadmin'],
     },  ];
 
   // Rutas del template (aparecen en el menú de usuario del Header)

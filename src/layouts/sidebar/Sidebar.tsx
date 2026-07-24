@@ -34,7 +34,7 @@ function Sidebar({
   }, [isCollapsed, isHovered, setCollapsed]);
 
   return !isMobile ? (
-    <aside className={`relative bg-bg-100 min-h-screen w-19 z-10 `}>
+    <aside className={`relative bg-bg-100 h-screen w-19 z-10 `}>
       <div
         className={`absolute top-0 left-0 h-full border-e border-border      
           ${
@@ -115,8 +115,7 @@ const MenuNavigation = ({
 }) => {
   const { user } = useBetterSession();
   const role = user?.role || 'visualizador';
-  const isSuperuser = role === 'superadmin' || role === 'admin_efe';
-  const visibleItems = _useConfigApp.NAVIGATION_APP.filter(item => !item.superadmin || isSuperuser);
+  const visibleItems = _useConfigApp.NAVIGATION_APP.filter(item => !item.roles || item.roles.includes(role));
   return (
     <div
       className={` ${_isCollapsed ? "mt-4  p-1 " : "mt-4 p-1 mx-1 bg-bg-100 rounded-lg"} `}

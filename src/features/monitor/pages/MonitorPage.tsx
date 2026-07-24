@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import MonitorResumen from "../components/resumen/MonitorResumen";
 import MonitorCalendario from "../components/calendario/MonitorCalendario";
 import MonitorHeatMap from "../components/tecnico/MonitorHeatMap";
 import MonitorTelemetryView from "../components/tecnico/MonitorTelemetryView";
+import { useBetterSession } from "@/libs/better-auth";
 import { IconChartBar, IconCalendarEvent, IconRadar, IconDeviceAnalytics } from "@tabler/icons-react";
 
-const TABS = [
+const ALL_TABS = [
   { key: "resumen", label: "Resumen", icon: IconChartBar },
   { key: "calendario", label: "Calendario", icon: IconCalendarEvent },
   { key: "mapa", label: "Mapa de calor", icon: IconRadar },
@@ -13,6 +14,12 @@ const TABS = [
 ];
 
 export default function MonitorPage() {
+  const { user } = useBetterSession();
+  const role = user?.role || 'visualizador';
+  const TABS = useMemo(() => {
+    if (role === 'admin_efe') return ALL_TABS.filter(t => t.key !== 'tecnico');
+    return ALL_TABS;
+  }, [role]);
   const [tab, setTab] = useState("resumen");
 
   return (

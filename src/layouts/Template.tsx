@@ -10,7 +10,7 @@ function Template() {
   const [isOpenSidebar, setOpenSidebar] = useState(false);
   return (
     <DropdownProvider>
-      <div className="min-h-screen w-screen flex overflow-hidden">
+      <div className="h-screen w-screen flex overflow-hidden">
         <Sidebar
           useCompany={useCompany}
           useConfigApp={useConfigApp}

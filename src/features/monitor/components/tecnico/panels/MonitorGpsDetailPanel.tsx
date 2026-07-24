@@ -249,6 +249,8 @@ export default function MonitorGpsDetailPanel({
                 const typeColors: Record<string, { bg: string; border: string; dot: string; text: string; label: string }> = {
                   critica:            { bg: 'bg-red-500/8', border: 'border-red-500/40', dot: 'bg-red-500', text: 'text-red-300', label: 'Crítica' },
                   atencion:           { bg: 'bg-yellow-500/8', border: 'border-yellow-500/40', dot: 'bg-yellow-500', text: 'text-yellow-300', label: 'Atención' },
+                  apertura:           { bg: 'bg-red-500/8', border: 'border-red-500/40', dot: 'bg-red-500', text: 'text-red-300', label: 'Apertura' },
+                  presencia:          { bg: 'bg-yellow-500/8', border: 'border-yellow-500/40', dot: 'bg-yellow-500', text: 'text-yellow-300', label: 'Presencia' },
                   movimientos_anomalos: { bg: 'bg-purple-500/8', border: 'border-purple-500/40', dot: 'bg-purple-500', text: 'text-purple-300', label: 'Mov. anómalo' },
                   desconexionGW:      { bg: 'bg-orange-500/8', border: 'border-orange-500/40', dot: 'bg-orange-500', text: 'text-orange-300', label: 'GW desconectado' },
                 };

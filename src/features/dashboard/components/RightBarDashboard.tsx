@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { IconX, IconCheck, IconRadar } from "@tabler/icons-react";
+import { IconX, IconCheck, IconRadar, IconAlertTriangle, IconAlertCircle, IconDoor, IconUser, IconWifiOff } from "@tabler/icons-react";
 import { format } from "date-fns";
 import RightBar from "@/components/bars/RightBar";
 import { useResolveAlert } from "../hooks/useDashboard";
@@ -39,9 +39,18 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
   };
 
   const criticalActive = timelineData.filter((a: any) => a.priority === 0);
-  const movimientosActive = timelineData.filter((a: any) => a.priority === 1);
-  const atencionActive = timelineData.filter((a: any) => a.priority === 2);
-  const history = timelineData.filter((a: any) => a.priority >= 3);
+  const allAlerts = timelineData;
+
+  const ALERT_CONFIG: Record<string, { border: string; bg: string; bar: string; textColor: string; label: string; Icon: any; iconColor: string }> = {
+    critica:            { border: '1px solid rgba(239,68,68,1)', bg: 'linear-gradient(135deg, rgba(239,68,68,0.20), rgba(239,68,68,0.06))', bar: 'linear-gradient(180deg, rgba(239,68,68,0.90), rgba(239,68,68,0.30))', textColor: '#fca5a5', label: 'Crítica', Icon: IconAlertTriangle, iconColor: '#ef4444' },
+    apertura:           { border: '1px solid rgba(239,68,68,0.15)', bg: 'linear-gradient(135deg, rgba(239,68,68,0.06), rgba(239,68,68,0.01))', bar: 'linear-gradient(180deg, rgba(239,68,68,0.60), rgba(239,68,68,0.15))', textColor: '#fca5a5', label: 'Apertura', Icon: IconDoor, iconColor: '#ef4444' },
+    presencia:          { border: '1px solid rgba(239,68,68,0.15)', bg: 'linear-gradient(135deg, rgba(239,68,68,0.06), rgba(239,68,68,0.01))', bar: 'linear-gradient(180deg, rgba(239,68,68,0.60), rgba(239,68,68,0.15))', textColor: '#fca5a5', label: 'Presencia', Icon: IconUser, iconColor: '#ef4444' },
+    atencion:           { border: '1px solid rgba(234,179,8,0.10)', bg: 'linear-gradient(135deg, rgba(234,179,8,0.05), rgba(234,179,8,0.01))', bar: 'linear-gradient(180deg, rgba(253,224,71,0.80), rgba(234,179,8,0.15))', textColor: '#fde047', label: 'Atención', Icon: IconAlertCircle, iconColor: '#eab308' },
+    desconexionGW:      { border: '1px solid rgba(249,115,22,0.15)', bg: 'linear-gradient(135deg, rgba(249,115,22,0.06), rgba(249,115,22,0.01))', bar: 'linear-gradient(180deg, rgba(249,115,22,0.60), rgba(249,115,22,0.15))', textColor: '#fdba74', label: 'GW Off', Icon: IconWifiOff, iconColor: '#f97316' },
+    desconexionGPS:     { border: '1px solid rgba(249,115,22,0.15)', bg: 'linear-gradient(135deg, rgba(249,115,22,0.06), rgba(249,115,22,0.01))', bar: 'linear-gradient(180deg, rgba(249,115,22,0.60), rgba(249,115,22,0.15))', textColor: '#fdba74', label: 'GPS Off', Icon: IconWifiOff, iconColor: '#f97316' },
+    movimientos_anomalos: { border: '1px solid rgba(168,85,247,0.12)', bg: 'linear-gradient(135deg, rgba(168,85,247,0.06), rgba(168,85,247,0.01))', bar: 'linear-gradient(180deg, rgba(192,132,252,0.80), rgba(168,85,247,0.15))', textColor: '#d8b4fe', label: 'Mov. Anómalo', Icon: IconRadar, iconColor: '#a855f7' },
+  };
+  const getAlertCfg = (type: string) => ALERT_CONFIG[type] || { border: '1px solid rgba(255,255,255,0.08)', bg: 'linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))', bar: 'linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.03))', textColor: '#9ca3af', label: type, Icon: IconAlertCircle, iconColor: '#6b7280' };
 
   const content = (
     <div className="flex flex-col" style={{ height: '100%' }}>
@@ -56,144 +65,91 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
         <span className="text-[9px] text-text-300 ml-auto">{timelineData.length}</span>
       </div>
 
-      <div className="flex-1 overflow-y-auto min-h-0 space-y-1.5 pb-4 scrollbar-thin">
+      <div className="flex-1 overflow-y-auto min-h-0 space-y-1 pb-4 scrollbar-thin">
         {isLoading ? (
           <p className="text-xs text-text-300 text-center py-4">Cargando...</p>
         ) : timelineData.length === 0 ? (
           <p className="text-xs text-text-300 text-center py-4">Sin alertas en este período</p>
         ) : (
           <>
-            {criticalActive.map((alert: any) => (
-              <div key={`c-${alert.id}`} className="group relative py-2 px-3 rounded-lg border border-red-500/20 bg-linear-to-br from-red-500/8 to-red-500/2 hover:from-red-500/12 hover:to-red-500/4 transition-all duration-200">
-                {/* Barra lateral decorativa */}
-                <div className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full bg-linear-to-b from-red-500/80 to-red-500/20" />
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1 pl-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="relative flex w-1.5 h-1.5 shrink-0">
-                        <span className="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-75" />
-                        <span className="relative w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_4px_rgba(239,68,68,0.6)]" />
-                      </span>
-                      <span className="text-[11px] font-bold text-red-300 truncate tracking-wide">{alert.device_name}</span>
-                      {alert.id === newestAlertId && <span className="text-[7px] font-bold uppercase tracking-[0.12em] text-brand-200 bg-brand-100/20 px-1.5 py-0.5 rounded-full border border-brand-100/20 shrink-0">Nuevo</span>}
+            {/* ── PINNED: Active critical alerts ── */}
+            {criticalActive.length > 0 && (
+              <div className="mb-2">
+                <p className="text-[8px] font-bold uppercase tracking-widest text-red-400/70 px-1 mb-1.5">⚠ Críticas activas</p>
+                {criticalActive.map((alert: any) => {
+                  const cfg = getAlertCfg(alert.type);
+                  const Icon = cfg.Icon;
+                  return (
+                    <div key={`p-${alert.id}`} className="group relative py-2.5 px-3 rounded-lg transition-all duration-200 mb-1.5"
+                      style={{ border: '1px solid rgba(239,68,68,0.30)', background: 'linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05))', boxShadow: '0 0 12px rgba(239,68,68,0.08)' }}>
+                      <div className="absolute left-0 top-2 bottom-2 w-1 rounded-full" style={{ background: 'linear-gradient(180deg, rgba(239,68,68,0.90), rgba(239,68,68,0.30))' }} />
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1 pl-3">
+                          <div className="flex items-center gap-2">
+                            <span className="relative flex w-2 h-2 shrink-0">
+                              <span className="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-75" />
+                              <span className="relative w-2 h-2 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.8)]" />
+                            </span>
+                            <span className="text-[13px] font-bold truncate tracking-wide" style={{ color: '#fca5a5' }}>{alert.device_name}</span>
+                            {alert.id === newestAlertId && <span className="text-[7px] font-bold uppercase tracking-[0.12em] text-brand-200 bg-brand-100/20 px-1.5 py-0.5 rounded-full border border-brand-100/20 shrink-0">Nuevo</span>}
+                          </div>
+                          <div className="flex items-center gap-2 mt-1.5">
+                            <Icon size={12} color={cfg.iconColor} />
+                            <span className="text-[10px] font-mono" style={{ color: 'rgba(252,165,165,0.6)' }}>{format(new Date(alert.created_at), "dd/MM HH:mm")}</span>
+                            <span className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#fca5a5' }}>{cfg.label}</span>
+                          </div>
+                          {alert.metadata?.reason && <p className="text-[10px] leading-tight truncate mt-1" style={{ color: 'rgba(252,165,165,0.5)' }}>{alert.metadata.reason}</p>}
+                        </div>
+                        {alert.type === 'critica' && (
+                          <button onClick={() => handleOpenResolve(alert.id)} disabled={resolveMutation.isPending}
+                            className="shrink-0 flex items-center gap-1 bg-red-500/15 hover:bg-red-500/25 active:bg-red-500/35 text-[8px] font-semibold text-red-400 px-1.5 py-0.5 rounded-lg transition-all duration-200 opacity-70 group-hover:opacity-100"
+                          ><IconCheck size={9} /> Resolver</button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[9px] font-mono text-red-300/60">{format(new Date(alert.created_at), "dd MMM · HH:mm")}</span>
-                      <span className="text-[7px] font-semibold uppercase tracking-wide text-red-400/50 bg-red-500/10 px-1.5 py-0.5 rounded-full">Crítica</span>
-                    </div>
-                    {alert.metadata?.reason && (
-                      <p className="text-[9px] text-red-300/50 leading-tight truncate mt-0.5">{alert.metadata.reason}</p>
-                    )}
-                  </div>
-                  <button onClick={() => handleOpenResolve(alert.id)} disabled={resolveMutation.isPending}
-                    className="shrink-0 flex items-center gap-1 bg-red-500/10 hover:bg-red-500/20 active:bg-red-500/30 text-[8px] font-semibold text-red-400 px-1.5 py-0.5 rounded-lg transition-all duration-200 opacity-70 group-hover:opacity-100"
-                  >
-                    <IconCheck size={9} /> Resolver
-                  </button>
-                </div>
+                  );
+                })}
+                <div className="h-px bg-linear-to-r from-red-500/40 via-red-500/15 to-transparent my-2.5" />
               </div>
-            ))}
-
-
-            {criticalActive.length > 0 && (atencionActive.length > 0 || movimientosActive.length > 0 || history.length > 0) && (
-              <div className="h-px bg-linear-to-r from-red-500/30 via-red-500/10 to-transparent my-2" />
             )}
 
-            {/* Movimientos Anómalos Activos */}
-            {movimientosActive.map((alert: any) => (
-              <div key={`m-${alert.id}`} className="group relative py-1 px-3 rounded border border-purple-500/10 bg-purple-500/6 hover:bg-purple-500/10 transition-all duration-200">
-                <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-purple-400/90" />
-                <div className="flex items-start gap-2 pl-2">
-                  <span className="mt-0.5 w-4 h-4 rounded flex items-center justify-center bg-purple-500/15 text-[8px] shrink-0">
-                    <IconRadar size={10} className="text-purple-300/90" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <p className="text-[12px] text-purple-300/90 truncate">{alert.device_name}</p>
-                      {alert.id === newestAlertId && <span className="text-[7px] font-bold uppercase tracking-[0.12em] text-brand-200 bg-brand-100/20 px-1.5 py-0.5 rounded-full border border-brand-100/20 shrink-0">Nuevo</span>}
-                      {alert.id === newestAlertId && (
-                        <span className="flex items-center gap-1 text-[7px] font-bold uppercase tracking-wide text-purple-300 bg-purple-500/15 px-1.5 py-0.5 rounded-full border border-purple-500/20 shrink-0">
-                          <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
-                          15 min · Activo
+            {/* ── ALL alerts in chronological order ── */}
+            {allAlerts.map((alert: any) => {
+              const cfg = getAlertCfg(alert.type);
+              const Icon = cfg.Icon;
+              return (
+                <div key={`a-${alert.id}`} className="group relative py-2 px-3 rounded transition-all duration-200"
+                  style={{ border: cfg.border, background: cfg.bg }}>
+                  <div className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full" style={{ background: cfg.bar }} />
+                  <div className="flex items-center gap-2.5 pl-2.5">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+                      style={{ background: `${cfg.iconColor}18`, border: `1px solid ${cfg.iconColor}30` }}>
+                      <Icon size={13} color={cfg.iconColor} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-[12px] font-semibold truncate tracking-wide" style={{ color: cfg.textColor }}>
+                          {alert.device_name}
+                        </p>
+                        {alert.id === newestAlertId && <span className="text-[7px] font-bold uppercase tracking-[0.12em] text-brand-200 bg-brand-100/20 px-1.5 py-0.5 rounded-full border border-brand-100/20 shrink-0">Nuevo</span>}
+                      </div>
+                      <div className="flex items-center gap-2.5 mt-1">
+                        <span className="text-[10px] font-mono" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                          {format(new Date(alert.created_at), "dd/MM HH:mm")}
                         </span>
+                        <span className="text-[8px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
+                          style={{ backgroundColor: `${cfg.iconColor}20`, color: cfg.textColor }}>
+                          {cfg.label}
+                        </span>
+                      </div>
+                      {alert.metadata?.reason && (
+                        <p className="text-[9px] leading-tight truncate mt-1" style={{ color: 'rgba(255,255,255,0.35)' }}>{alert.metadata.reason}</p>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[9px] text-purple-200/45">{format(new Date(alert.created_at), "dd MMM · HH:mm")}</span>
-                      <span className="text-[7px] font-semibold uppercase tracking-wide text-purple-300/80 bg-purple-500/8 px-1.5 py-0.5 rounded">Mov. Anómalo</span>
-                    </div>
-                    {alert.metadata?.reason && (
-                      <p className="text-[9px] text-purple-300/30 mt-0.5 truncate leading-tight">{alert.metadata.reason}</p>
-                    )}
                   </div>
                 </div>
-              </div>
-            ))}
-
-            {(criticalActive.length > 0 || movimientosActive.length > 0) && atencionActive.length > 0 && (
-              <div className="h-px bg-linear-to-r from-purple-500/30 via-purple-500/10 to-transparent my-2" />
-            )}
-
-            {atencionActive.map((alert: any) => (
-              <div key={`a-${alert.id}`} className="group relative py-1 px-3 rounded border border-yellow-500/5 bg-yellow-500/4 hover:bg-yellow-500/7 transition-all duration-200">
-                <div className="absolute left-0 top-0 bottom-0 w-0.5 rounded-full bg-yellow-300/90" />
-                <div className="flex items-start gap-2 pl-2">
-                  <span className="mt-0.5 w-4 h-4 rounded flex items-center justify-center bg-yellow-500/15 text-[8px] shrink-0">
-                    <IconRadar size={10} className="text-yellow-300/90" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <p className="text-[12px]  text-yellow-300/90 truncate">{alert.device_name}</p>
-                      {alert.id === newestAlertId && <span className="text-[7px] font-bold uppercase tracking-[0.12em] text-brand-200 bg-brand-100/20 px-1.5 py-0.5 rounded-full border border-brand-100/20 shrink-0">Nuevo</span>}
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[9px]  text-yellow-200/45">{format(new Date(alert.created_at), "dd MMM · HH:mm")}</span>
-                      <span className="text-[7px] font-semibold uppercase tracking-wide text-yellow-300/80 bg-yellow-500/8 px-1.5 py-0.5 rounded">Movimiento</span>
-                    </div>
-                    {alert.metadata?.reason && (
-                      <p className="text-[9px] text-yellow-300/30 mt-0.5 truncate leading-tight">{alert.metadata.reason}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            {(criticalActive.length > 0 || atencionActive.length > 0 || movimientosActive.length > 0) && history.length > 0 && (
-              <div className="h-px bg-linear-to-r from-yellow-500/30 via-yellow-500/10 to-transparent my-2" />
-            )}
-
-            {history.map((alert: any) => (
-              <div key={`h-${alert.id}`} className="group relative p-3 rounded-xl border border-white/4 bg-linear-to-br from-white/3 to-white/1 hover:from-white/5 hover:to-white/2 transition-all duration-300">
-                <div className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-linear-to-b from-white/12 to-white/3" />
-                <div className="flex items-start gap-2 pl-2">
-                  <div className={`mt-0.5 w-5 h-5 rounded-full flex items-center justify-center text-[9px] shrink-0 border ${
-                    alert.type === 'critica' ? 'bg-red-500/20 border-red-500/20 text-red-400' :
-                    alert.type === 'movimientos_anomalos' ? 'bg-purple-500/20 border-purple-500/20 text-purple-400' :
-                    'bg-yellow-500/20 border-yellow-500/20 text-yellow-400'
-                  }`}>
-                    {alert.type === 'critica' ? '!' : alert.type === 'movimientos_anomalos' ? '◈' : '⚡'}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <p className="text-[12px] font-bold text-text-300/60 truncate tracking-wide line-through decoration-white/6">
-                        {alert.device_name}
-                      </p>
-                      <span className="text-[7px] font-semibold uppercase tracking-[0.08em] text-text-400/40 bg-white/4 px-1.5 py-0.5 rounded-full border border-white/5">Resuelta</span>
-                      {alert.id === newestAlertId && <span className="text-[7px] font-bold uppercase tracking-[0.12em] text-brand-200 bg-brand-100/20 px-1.5 py-0.5 rounded-full border border-brand-100/20 shrink-0">Nuevo</span>}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1.5">
-                      <span className="text-[10px] font-mono text-text-400/50">{format(new Date(alert.created_at), "dd MMM yyyy · HH:mm")}</span>
-                    </div>
-                    {alert.user_reason && (
-                      <div className="mt-1.5 flex items-start gap-1">
-                        <span className="text-[9px] text-text-400/30 mt-0.5">└</span>
-                        <p className="text-[10px] text-text-400/40 leading-tight line-clamp-2 italic">{alert.user_reason}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </>
         )}
       </div>

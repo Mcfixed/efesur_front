@@ -1,11 +1,9 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { ResponsiveContainer, AreaChart, Area } from "recharts";
-import { useMonitorDeviceTelemetry, useMonitorDeviceAlerts, useMonitorDevices, useMonitorGatewayPositions, useMonitorLatestTelemetry } from "../../../hooks/useMonitor";
-import { IconAntennaBars3, IconWifi, IconSolarPanel, IconBattery, IconPlug, IconDoor, IconEye, IconCheck, IconX, IconAlertTriangle } from "@tabler/icons-react";
+import { useMonitorDevices, useMonitorLatestTelemetry, useMonitorDeviceAlerts, useMonitorGatewayPositions } from "../../../hooks/useMonitor";
+import { IconAntennaBars3, IconWifi, IconAlertTriangle } from "@tabler/icons-react";
 import MonitorTelemetryMap from "../MonitorTelemetryMap";
-import { formatBattery, voltageToPercent } from "../../../utils/battery";
+import MonitorLectorDashboard from "./MonitorLectorDashboard";
 
 interface Props {
   deviceId: number;
@@ -17,11 +15,23 @@ interface Props {
   onRangeChange?: (range: string) => void;
 }
 
+// ═══════════════════════════════════════════
+// COMPONENTE PRINCIPAL
+// ═══════════════════════════════════════════
 export default function MonitorGatewayDetailPanel({ deviceId, deviceName, deviceEui, lastSeen, lastTs, range = '7d', onRangeChange }: Props) {
   const { data: deviceAlerts } = useMonitorDeviceAlerts(deviceId);
   const { data: allDevices } = useMonitorDevices();
   const { data: gatewayPositions } = useMonitorGatewayPositions();
-  const { data: latestTelemetry } = useMonitorLatestTelemetry(100);
+  const { data: latestTelemetry } = useMonitorLatestTelemetry(5000);
+
+  // Lector device ID asociado al gateway
+  const lectorDeviceId = useMemo(() => {
+    if (!allDevices) return null;
+    const gw = allDevices.find((d: any) => d.id === deviceId);
+    return gw?.id_device_father || null;
+  }, [allDevices, deviceId]);
+
+  const { data: lectorAlerts } = useMonitorDeviceAlerts(lectorDeviceId);
 
   const connectedDeviceEuis = useMemo(() => {
     const devEuiSet = new Set<string>();
@@ -117,7 +127,7 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
     const rangeStart = rangeHours > 0 ? now - rangeHours * 3600000 : 0;
     const desconexiones = (deviceAlerts || []).filter((a: any) => a.type === 'desconexionGW')
       .filter((a: any) => rangeHours === 0 || new Date(a.created_at).getTime() >= rangeStart);
-    const currentlyOnline = !!lastSeen && (now - new Date(lastSeen).getTime() < 86400000);
+    const currentlyOnline = !!lastSeen && (now - new Date(lastSeen).getTime() < 300000);
     const segments: { start: number; end: number; online: boolean }[] = [];
     let cursor = rangeStart;
     const sorted = [...desconexiones].sort((a: any, b: any) =>
@@ -182,6 +192,48 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
     }));
   }, [latestTelemetry, deviceEui, deviceName]);
 
+  // ── Lector asignado (vía id_device_father) ──
+  const lectorData = useMemo(() => {
+    if (!allDevices || !latestTelemetry) return null;
+    const telemetry = Array.isArray(latestTelemetry) ? latestTelemetry : (latestTelemetry as any)?.telemetry || [];
+    // Find this gateway device
+    const gwDevice = allDevices.find((d: any) => d.id === deviceId);
+    if (!gwDevice?.id_device_father) return null;
+    // Find the lector device
+    const lector = allDevices.find((d: any) => d.id === gwDevice.id_device_father);
+    if (!lector) return null;
+    // Filter telemetry for this lector
+    const tel = telemetry.filter((t: any) =>
+      t.dev_eui?.toLowerCase() === lector.dev_eui.toLowerCase() || t.device_id === lector.id
+    );
+    if (!tel.length) return null;
+    const lastT = tel.find((t: any) => t.object?.mppt) || tel[0];
+    const obj = lastT?.object || {};
+    const mppt = obj.mppt || {};
+    return {
+      lectorName: lector.name,
+      lectorEui: lector.dev_eui,
+      vBat: mppt.batteryVoltage_V ?? null,
+      pPan: mppt.panelPower_W ?? null,
+      iBat: mppt.batteryCurrent_A ?? null,
+      temp: mppt.temp ?? null,
+      sensores: obj.sensores || {},
+      charger220: obj.charger220 || {},
+      loadState: mppt.loadState ?? null,
+      batPct: mppt.batteryVoltage_V != null ? Math.max(0, Math.min(100, ((mppt.batteryVoltage_V - 11) / (15 - 11)) * 100)) : null,
+      lastTs: lastT?.ts || null,
+    };
+  }, [allDevices, latestTelemetry, deviceId]);
+
+  // Merge gateway alerts + lector alerts
+  const mergedAlerts = useMemo(() => {
+    const gw = Array.isArray(deviceAlerts) ? deviceAlerts : [];
+    const lec = Array.isArray(lectorAlerts) ? lectorAlerts : [];
+    const all = [...gw, ...lec];
+    all.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return all;
+  }, [deviceAlerts, lectorAlerts]);
+
   const [activeTab, setActiveTab] = useState<"resumen" | "mapa" | "lector_asignado">("resumen");
   const tabs = [
     { key: "resumen" as const, label: "Resumen" },
@@ -236,43 +288,79 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
             <div className="bg-bg-100 border border-border/30 rounded-lg overflow-hidden flex flex-col shadow min-h-0">
               <div className="border-b border-border/30 shrink-0 px-3 py-1.5">
                 <div className="flex items-center gap-2">
-                  <IconSolarPanel size={14} className="text-yellow-400" />
-                  <span className="text-[10px] font-bold text-text-100 uppercase tracking-wider">Panel Solar</span>
+                  <span className={`w-2 h-2 rounded-full ${lastSeen && Date.now() - new Date(lastSeen).getTime() < 300000 ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
+                  <span className="text-[10px] font-bold text-text-100 uppercase tracking-wider">Estado del Sistema</span>
                 </div>
               </div>
-              <div className="flex-1 p-2 flex flex-col gap-1.5 min-h-0">
-                <div className="flex-1 min-h-0 flex flex-col">
-                  <div className="flex items-center justify-between mb-0.5">
-                    <span className="text-[9px] text-text-300 font-medium flex items-center gap-1"><IconBattery size={10} className="text-green-400" /> Batería</span>
-                    <span className="text-[9px] font-bold font-mono text-green-400">{solarChartData.length > 0 && solarChartData[solarChartData.length - 1].volt !== null ? formatBattery(solarChartData[solarChartData.length - 1].volt * 1000) : '—'}</span>
-                  </div>
-                  <div className="flex-1 min-h-0">
-                    {solarChartData.some(d => d.volt !== null) ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={solarChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                          <defs><linearGradient id="solarBat" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#22c55e" stopOpacity={0.3} /><stop offset="100%" stopColor="#22c55e" stopOpacity={0} /></linearGradient></defs>
-                          <Area type="monotone" dataKey="volt" stroke="#22c55e" strokeWidth={1.5} fill="url(#solarBat)" dot={false} isAnimationActive={false} />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    ) : <div className="flex items-center justify-center h-full text-[9px] text-text-300">Sin datos</div>}
-                  </div>
-                </div>
-                <div className="flex-1 min-h-0 flex flex-col">
-                  <div className="flex items-center justify-between mb-0.5">
-                    <span className="text-[9px] text-text-300 font-medium">Temperatura</span>
-                    <span className="text-[9px] font-bold font-mono text-cyan-400">{solarChartData.length > 0 && solarChartData[solarChartData.length - 1].temp !== null ? `${solarChartData[solarChartData.length - 1].temp}°C` : '—'}</span>
-                  </div>
-                  <div className="flex-1 min-h-0">
-                    {solarChartData.some(d => d.temp !== null) ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={solarChartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                          <defs><linearGradient id="solarTemp" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#2dd4bf" stopOpacity={0.3} /><stop offset="100%" stopColor="#2dd4bf" stopOpacity={0} /></linearGradient></defs>
-                          <Area type="monotone" dataKey="temp" stroke="#2dd4bf" strokeWidth={1.5} fill="url(#solarTemp)" dot={false} isAnimationActive={false} />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    ) : <div className="flex items-center justify-center h-full text-[9px] text-text-300">Sin datos</div>}
-                  </div>
-                </div>
+              <div className="flex-1 p-2 flex items-center justify-center min-h-0">
+                <svg width="100%" height="100%" viewBox="0 0 260 180" preserveAspectRatio="xMidYMid meet" style={{ maxHeight: '100%' }}>
+                  <style>{`@keyframes gwFlow{to{stroke-dashoffset:-16}}`}</style>
+
+                  {/* Gateway UG65 */}
+                  <g transform="translate(80, 6)">
+                    <rect x="0" y="0" width="100" height="36" rx="6" fill="none" stroke={lastSeen && Date.now() - new Date(lastSeen).getTime() < 300000 ? '#22c55e' : '#ef4444'} strokeWidth="1.5" />
+                    <line x1="50" y1="0" x2="50" y2="-8" stroke="#888" strokeWidth="1.5" />
+                    <line x1="46" y1="-4" x2="54" y2="-4" stroke="#888" strokeWidth="1" />
+                    <circle cx="12" cy="10" r="3" fill={lastSeen && Date.now() - new Date(lastSeen).getTime() < 300000 ? '#22c55e' : '#ef4444'} />
+                    <text x="50" y="15" textAnchor="middle" fill="#e0e0e0" fontSize="9" fontWeight="bold">UG65</text>
+                    <text x="50" y="27" textAnchor="middle" fill="#888" fontSize="6">GATEWAY</text>
+                    <text x="80" y="46" textAnchor="middle" fill={lastSeen && Date.now() - new Date(lastSeen).getTime() < 300000 ? '#22c55e' : '#ef4444'} fontSize="7" fontWeight="bold">
+                      {lastSeen && Date.now() - new Date(lastSeen).getTime() < 300000 ? '● ONLINE' : '● OFFLINE'}
+                    </text>
+                  </g>
+
+                  {/* Battery card — lector */}
+                  <g transform="translate(12, 68)">
+                    <rect x="0" y="0" width="110" height="44" rx="5" fill="none" stroke="#555" strokeWidth="0.8" opacity="0.5" />
+                    <text x="55" y="10" textAnchor="middle" fill="#888" fontSize="6" fontWeight="bold">BATERÍA {lectorData ? `· ${lectorData.lectorName}` : ''}</text>
+                    {/* Battery icon */}
+                    <rect x="8" y="16" width="20" height="12" rx="2" fill="none" stroke={lectorData?.vBat != null ? (lectorData.vBat >= 12.5 ? '#22c55e' : lectorData.vBat >= 11.8 ? '#f97316' : '#ef4444') : '#555'} strokeWidth="1" />
+                    <rect x="28" y="19" width="3" height="6" rx="0.5" fill={lectorData?.vBat != null ? (lectorData.vBat >= 12.5 ? '#22c55e' : lectorData.vBat >= 11.8 ? '#f97316' : '#ef4444') : '#555'} />
+                    <rect x="10" y="18" width={lectorData?.batPct != null ? `${Math.min(lectorData.batPct, 100) * 0.16}` : 0} height="8" rx="1" fill={lectorData?.vBat != null ? (lectorData.vBat >= 12.5 ? '#22c55e' : lectorData.vBat >= 11.8 ? '#f97316' : '#ef4444') : '#555'} opacity="0.35" />
+                    <text x="46" y="24" textAnchor="middle" fill="#e0e0e0" fontSize="8" fontFamily="monospace" fontWeight="bold">
+                      {lectorData?.batPct != null ? `${Math.round(lectorData.batPct)}%` : '—'}
+                    </text>
+                    <text x="46" y="36" textAnchor="middle" fill="#aaa" fontSize="6" fontFamily="monospace">
+                      {lectorData?.vBat != null ? `${lectorData.vBat.toFixed(2)}V` : 'Sin datos'}
+                    </text>
+                  </g>
+
+                  {/* Power source + temp card — lector */}
+                  <g transform="translate(138, 68)">
+                    <rect x="0" y="0" width="110" height="44" rx="5" fill="none" stroke="#555" strokeWidth="0.8" opacity="0.5" />
+                    <text x="55" y="10" textAnchor="middle" fill="#888" fontSize="6" fontWeight="bold">ALIMENTACIÓN</text>
+                    {/* Charger 220V indicator */}
+                    <circle cx="20" cy="22" r="4" fill={lectorData?.charger220?.State ? '#22c55e' : '#3b82f6'} opacity={lectorData?.charger220?.State ? 0.8 : 0.5} />
+                    <text x="20" y="22" textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">~</text>
+                    <text x="32" y="25" textAnchor="middle" fill={lectorData?.charger220?.State ? '#22c55e' : '#aaa'} fontSize="6">
+                      {lectorData?.charger220?.State || 'CA 220V'}
+                    </text>
+                    {/* Temperature */}
+                    <text x="55" y="37" textAnchor="middle" fill="#aaa" fontSize="6">
+                      Temp:{lectorData?.temp != null
+                        ? ` ${lectorData.temp.toFixed(1)}°C`
+                        : solarChartData.length > 0 && solarChartData[solarChartData.length - 1].temp != null
+                          ? ` ${solarChartData[solarChartData.length - 1].temp.toFixed(1)}°C`
+                          : ' —'}
+                    </text>
+                  </g>
+
+                  {/* Sensors card — lector + gateway */}
+                  <g transform="translate(12, 120)">
+                    <rect x="0" y="0" width="236" height="28" rx="5" fill="none" stroke="#555" strokeWidth="0.8" opacity="0.5" />
+                    <text x="118" y="10" textAnchor="middle" fill="#888" fontSize="6" fontWeight="bold">SENSORES</text>
+                    {/* Door sensor */}
+                    <rect x="14" y="14" width="8" height="10" rx="1" fill="none" stroke={lectorData?.sensores?.openingDoorSensor === 1 ? '#ef4444' : '#22c55e'} strokeWidth="0.8" />
+                    <circle cx="18" cy="19" r="1.5" fill={lectorData?.sensores?.openingDoorSensor === 1 ? '#ef4444' : '#22c55e'} />
+                    <text x="26" y="22" fill="#aaa" fontSize="6">Puerta: {lectorData?.sensores?.openingDoorSensor === 1 ? 'OPEN' : lectorData?.sensores?.openingDoorSensor === 0 ? 'CLOSED' : '—'}</text>
+                    {/* Proximity sensor */}
+                    <circle cx="100" cy="19" r="4" fill="none" stroke={lectorData?.sensores?.presenseSensor === 1 ? '#eab308' : '#6b7280'} strokeWidth="0.8" />
+                    <circle cx="100" cy="19" r="1.5" fill={lectorData?.sensores?.presenseSensor === 1 ? '#eab308' : '#6b7280'} />
+                    <text x="108" y="22" fill="#aaa" fontSize="6">Prox: {lectorData?.sensores?.presenseSensor === 1 ? 'DET' : lectorData?.sensores?.presenseSensor === 0 ? 'CLEAR' : '—'}</text>
+                    {/* Uptime */}
+                    <text x="190" y="22" fill="#888" fontSize="6">{uptimePct}% uptime</text>
+                  </g>
+                </svg>
               </div>
             </div>
             <div className="bg-bg-100 border border-border/30 rounded-lg overflow-hidden flex flex-col shadow min-h-0">
@@ -338,17 +426,21 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
                   <p className="text-xs font-bold text-text-100 uppercase tracking-wider flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" /> Alertas
                   </p>
-                  <span className="text-sm font-bold text-text-100">{deviceAlerts?.filter((a: any) => rangeHours === 0 || new Date(a.created_at).getTime() >= (Date.now() - rangeHours * 3600000)).length || 0}</span>
+                  <span className="text-sm font-bold text-text-100">{mergedAlerts.filter((a: any) => rangeHours === 0 || new Date(a.created_at).getTime() >= (Date.now() - rangeHours * 3600000)).length || 0}</span>
                 </div>
               </div>
               <div className="flex-1 overflow-y-auto p-1.5 space-y-1 min-h-0">
-                {deviceAlerts && deviceAlerts.length > 0 ? (
-                  deviceAlerts.filter((a: any) => rangeHours === 0 || new Date(a.created_at).getTime() >= (Date.now() - rangeHours * 3600000))
+                {mergedAlerts.length > 0 ? (
+                  mergedAlerts.filter((a: any) => rangeHours === 0 || new Date(a.created_at).getTime() >= (Date.now() - rangeHours * 3600000))
                     .map((alert: any) => {
-                      const c = ({ critica: { bg: 'bg-red-500/8', border: 'border-red-500/40', dot: 'bg-red-500', text: 'text-red-300', label: 'Crítica' },
+                      const alertTypeMap: Record<string, { bg: string; border: string; dot: string; text: string; label: string }> = {
+                        critica: { bg: 'bg-red-500/8', border: 'border-red-500/40', dot: 'bg-red-500', text: 'text-red-300', label: 'Crítica' },
                         atencion: { bg: 'bg-yellow-500/8', border: 'border-yellow-500/40', dot: 'bg-yellow-500', text: 'text-yellow-300', label: 'Atención' },
+                        apertura: { bg: 'bg-red-500/8', border: 'border-red-500/40', dot: 'bg-red-500', text: 'text-red-300', label: 'Apertura' },
+                        presencia: { bg: 'bg-yellow-500/8', border: 'border-yellow-500/40', dot: 'bg-yellow-500', text: 'text-yellow-300', label: 'Presencia' },
                         desconexionGW: { bg: 'bg-orange-500/8', border: 'border-orange-500/40', dot: 'bg-orange-500', text: 'text-orange-300', label: 'Desconexión' },
-                      }[alert.type] || { bg: 'bg-border/10', border: 'border-border/30', dot: 'bg-border', text: 'text-text-300', label: alert.type });
+                      };
+                      const c = alertTypeMap[alert.type] || { bg: 'bg-border/10', border: 'border-border/30', dot: 'bg-border', text: 'text-text-300', label: alert.type };
                       const isResolved = alert.status === 'resolved' || alert.status_system === 'resolved';
                       return <div key={alert.id} className={`flex items-start gap-1.5 text-[11px] leading-tight rounded px-1.5 py-1 border-s-2 ${c.border} ${c.bg} ${isResolved ? 'opacity-50' : ''}`}>
                         <span className={`w-2 h-2 rounded-full ${c.dot} ${isResolved ? '' : 'animate-pulse'} shrink-0 mt-0.5`} />
@@ -360,13 +452,14 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
                               <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${alert.resolved_at ? 'text-green-300 bg-green-500/10' : 'text-red-300 bg-red-500/10'}`}>{alert.resolved_at ? format(new Date(alert.resolved_at), "dd/MM HH:mm") : 'Activo'}</span></>}
                           </div>
                           {alert.metadata?.reason && <p className="text-[10px] leading-tight mt-0.5 text-text-300">{alert.metadata.reason}</p>}
+                          {alert.device_name && alert.type !== 'desconexionGW' && <p className="text-[9px] text-text-400 mt-0.5">{alert.device_name}</p>}
                         </div>
                       </div>;
                     })
                 ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-[13px]">Sin alertas</p>
-                    <p className="text-[10px] mt-1">No hay eventos registrados</p>
+                  <div className="flex items-center justify-center h-full flex-col">
+                    <p className="text-[13px] text-text-300">Sin alertas</p>
+                    <p className="text-[10px] mt-1 text-text-400">No hay eventos registrados</p>
                   </div>
                 )}
               </div>
@@ -376,7 +469,7 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
       )}
 
       {activeTab === "lector_asignado" && (
-        <LectorAsignadoContent deviceId={deviceId} />
+        <MonitorLectorDashboard lectorDeviceId={allDevices?.find((d: any) => d.id === deviceId)?.id_device_father} />
       )}
 
       {activeTab === "mapa" && (
@@ -417,126 +510,6 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════
-// LECTOR ASIGNADO CONTENT
-// ═══════════════════════════════════════════
-function LectorAsignadoContent({ deviceId }: { deviceId: number }) {
-  const { data: allDevices } = useMonitorDevices();
-  const { data: latestTelemetry } = useMonitorLatestTelemetry(5000);
-
-  const lectores = useMemo(() => {
-    if (!allDevices) return [];
-    return allDevices.filter((d: any) => d.type_device === 'Lector');
-  }, [allDevices]);
-
-  if (lectores.length === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-text-400 text-[13px] min-h-50">
-        <IconAlertTriangle size={18} className="mr-2 opacity-50" />
-        No hay lectores en el sistema
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
-      <div className="flex items-center gap-2 mb-2">
-        <IconPlug size={15} className="text-amber-400" />
-        <span className="text-[10px] font-bold text-text-200 uppercase tracking-wider">
-          Lectores ({lectores.length})
-        </span>
-      </div>
-      {lectores.map((lector: any) => {
-        const tel = (latestTelemetry || []).filter((t: any) =>
-          t.dev_eui?.toLowerCase() === lector.dev_eui.toLowerCase() || t.device_id === lector.id
-        );
-        const lastT = tel?.[0];
-        const obj = lastT?.object || {};
-        const hasMppt = obj.mppt && Object.keys(obj.mppt).length > 0;
-        const hasSalida220 = obj.salida_220 && Object.keys(obj.salida_220).length > 0;
-        const hasDevices = obj.devices && Object.keys(obj.devices).length > 0;
-
-        return (
-          <div key={lector.id} className="bg-bg-100 border border-border/20 rounded-xl p-3 shadow-sm">
-            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border/10">
-              <IconPlug size={14} className="text-amber-400" />
-              <span className="text-[12px] font-bold text-text-200">{lector.name}</span>
-              <span className="text-[9px] text-text-400 font-mono">{lector.dev_eui}</span>
-              {lastT?.ts && <span className="text-[9px] text-text-400 ml-auto">{format(new Date(lastT.ts), "dd/MM HH:mm")}</span>}
-            </div>
-            {hasMppt || hasSalida220 || hasDevices ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                {hasMppt && <MpptMini data={obj.mppt} />}
-                {hasSalida220 && <Salida220Mini data={obj.salida_220} />}
-                {hasDevices && <DevicesMini data={obj.devices} />}
-              </div>
-            ) : (
-              <p className="text-[11px] text-text-400 text-center py-3">
-                {tel.length > 0 ? 'ℹ️ Datos disponibles sin campos MPPT/220V/Sensores' : '⏳ Sin datos de telemetría'}
-              </p>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ─── Mini cards ───
-function MpptMini({ data }: { data: any }) {
-  const soc = data.state_of_charge ?? 0;
-  const socColors = ['#6b7280','#ef4444','#f97316','#22c55e','#3b82f6'];
-  const socLabels = ['—','Fault','Carga inicial','Absorción','Flotación'];
-  return (
-    <div className="bg-bg-200/30 rounded-lg p-2.5 border border-border/20">
-      <p className="text-[9px] font-bold text-yellow-400 uppercase tracking-wider mb-2">🔆 MPPT</p>
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
-        <span className="text-text-400">Batería:</span><span className="font-bold font-mono text-green-400 text-right">{data.voltaje_bateria?.toFixed(2)}V</span>
-        <span className="text-text-400">Panel:</span><span className="font-bold font-mono text-yellow-400 text-right">{data.voltaje_panel?.toFixed(1)}V</span>
-        <span className="text-text-400">Potencia:</span><span className="font-bold font-mono text-yellow-400 text-right">{data.potencia_panel}W</span>
-        <span className="text-text-400">Carga:</span><span className="font-bold font-mono text-right" style={{color: data.estado_carga === 'ON' ? '#22c55e' : '#ef4444'}}>{data.estado_carga || 'OFF'}</span>
-        <span className="text-text-400">Salida:</span><span className="font-bold font-mono text-right" style={{color: data.estado_salida_carga === 'ON' ? '#22c55e' : '#6b7280'}}>{data.estado_salida_carga || 'OFF'}</span>
-        <span className="text-text-400">SOC:</span><span className="font-bold font-mono text-right" style={{color: socColors[soc] || '#6b7280'}}>{socLabels[soc] || '—'}</span>
-      </div>
-    </div>
-  );
-}
-
-function Salida220Mini({ data }: { data: any }) {
-  const hasErr = data.error && data.error !== 'no error';
-  return (
-    <div className="bg-bg-200/30 rounded-lg p-2.5 border border-border/20">
-      <p className="text-[9px] font-bold text-blue-400 uppercase tracking-wider mb-2">🔌 220V</p>
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
-        <span className="text-text-400">Estado:</span><span className="font-bold font-mono text-right" style={{color: data.estado === 'ALMACENAMIENTO' ? '#22c55e' : '#f97316'}}>{data.estado || '—'}</span>
-        <span className="text-text-400">Batería:</span><span className="font-bold font-mono text-blue-400 text-right">{data.bateria_220_v?.toFixed(1)}V</span>
-        <span className="text-text-400">Corriente:</span><span className="font-bold font-mono text-cyan-400 text-right">{data.corriente_220_v?.toFixed(2)}A</span>
-        {hasErr && <><span className="text-text-400">Error:</span><span className="font-bold font-mono text-red-400 text-right">{data.error}</span></>}
-      </div>
-    </div>
-  );
-}
-
-function DevicesMini({ data }: { data: any }) {
-  const door = data.estado_sensor_puerta === 1;
-  const prox = data.estado_sensor_proximidad === 1;
-  return (
-    <div className="bg-bg-200/30 rounded-lg p-2.5 border border-border/20">
-      <p className="text-[9px] font-bold text-purple-400 uppercase tracking-wider mb-2">👁 Sensores</p>
-      <div className="flex gap-2">
-        <div className={`flex-1 rounded-lg p-2 text-center ${door ? 'bg-red-500/10' : 'bg-green-500/10'}`}>
-          <span className="block text-lg mb-0.5">🚪</span>
-          <span className="text-[10px] font-bold" style={{color: door ? '#ef4444' : '#22c55e'}}>{door ? 'Abierta' : 'Cerrada'}</span>
-        </div>
-        <div className={`flex-1 rounded-lg p-2 text-center ${prox ? 'bg-yellow-500/10' : 'bg-gray-500/10'}`}>
-          <span className="block text-lg mb-0.5">📡</span>
-          <span className="text-[10px] font-bold" style={{color: prox ? '#eab308' : '#6b7280'}}>{prox ? 'Detectado' : 'Inactivo'}</span>
-        </div>
-      </div>
     </div>
   );
 }

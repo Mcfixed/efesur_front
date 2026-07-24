@@ -307,7 +307,7 @@ export default function MonitorReportModal({ onClose }: Props) {
               <div style="column-count:3;column-gap:16px;column-rule:1px solid #f3f4f6">
                 ${devAlerts.map((a: any) => `
                   <div style="font-size:10px;padding:3px 0;border-bottom:1px solid #f3f4f6;display:flex;align-items:center;gap:6px;break-inside:avoid">
-                    <span style="color:${a.type === 'critica' ? '#ef4444' : '#f59e0b'};font-weight:600;flex-shrink:0">●</span>
+                    <span style="color:${a.type === 'critica' || a.type === 'apertura' ? '#ef4444' : '#f59e0b'};font-weight:600;flex-shrink:0">●</span>
                     <span style="font-weight:600;color:#333;flex-shrink:0">${a.type}</span>
                     <span style="color:#888;flex-shrink:0">${format(new Date(a.created_at), "dd/MM HH:mm")}</span>
                     ${a.metadata?.reason ? `<span style="color:#999;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.metadata.reason}</span>` : ''}
@@ -631,7 +631,7 @@ export default function MonitorReportModal({ onClose }: Props) {
         <div style="text-align:center;padding:40px 20px"><h1 style="font-size:24px;color:#111;margin:0 0 6px">Reporte Ejecutivo</h1><p style="font-size:12px;color:#666">${format(new Date(), "MMMM yyyy")}</p></div>
         <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">
           <div style="flex:1;min-width:100px;background:#f0fdf4;border-radius:8px;padding:14px;text-align:center;border:1px solid #bbf7d0"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Sensores activos</p><p style="font-size:22px;font-weight:700;color:#16a34a;margin:4px 0 0">${activeToday} / ${activeDevices}</p></div>
-          <div style="flex:1;min-width:100px;background:#fef2f2;border-radius:8px;padding:14px;text-align:center;border:1px solid #fecaca"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Alertas críticas</p><p style="font-size:22px;font-weight:700;color:#ef4444;margin:4px 0 0">${(alertsByType || []).find((a: any) => a.type === 'critica')?.total || 0}</p></div>
+          <div style="flex:1;min-width:100px;background:#fef2f2;border-radius:8px;padding:14px;text-align:center;border:1px solid #fecaca"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Alertas críticas</p><p style="font-size:22px;font-weight:700;color:#ef4444;margin:4px 0 0">${((alertsByType || []).find((a: any) => a.type === 'critica')?.total || 0) + ((alertsByType || []).find((a: any) => a.type === 'apertura')?.total || 0)}</p></div>
           <div style="flex:1;min-width:100px;background:#fffbeb;border-radius:8px;padding:14px;text-align:center;border:1px solid #fde68a"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Gateways online</p><p style="font-size:22px;font-weight:700;color:#d97706;margin:4px 0 0">${gwOnline} / ${(gateways || []).length}</p></div>
           <div style="flex:1;min-width:100px;background:#f9fafb;border-radius:8px;padding:14px;text-align:center;border:1px solid #e5e7eb"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Cobertura</p><p style="font-size:22px;font-weight:700;color:#111;margin:4px 0 0">${activeDevices > 0 ? Math.round(activeToday / activeDevices * 100) : 0}%</p></div>
         </div>
@@ -656,8 +656,8 @@ export default function MonitorReportModal({ onClose }: Props) {
       const title = `Alertas - ${format(new Date(), "yyyy-MM-dd")}`;
       const alerts = data.alerts || [];
       const resTimes = data.resolutionTimes || [];
-      const criticals = alerts.filter((a: any) => a.type === 'critica');
-      const attentions = alerts.filter((a: any) => a.type === 'atencion');
+      const criticals = alerts.filter((a: any) => a.type === 'critica' || a.type === 'apertura');
+      const attentions = alerts.filter((a: any) => a.type === 'atencion' || a.type === 'apertura' || a.type === 'presencia');
 
       const sections = [`<div style="font-family:Arial,sans-serif;padding:30px">
         <div style="text-align:center;padding:30px 20px"><h1 style="font-size:22px;color:#111;margin:0 0 6px">Reporte de Alertas</h1><p style="font-size:12px;color:#666">${fromDate} → ${toDate} · ${alerts.length} alertas</p></div>
@@ -669,7 +669,7 @@ export default function MonitorReportModal({ onClose }: Props) {
         </div>
         ${resTimes.length ? `<h2 style="font-size:13px;color:#333;margin:0 0 8px">Tiempo de resolución por tipo</h2><table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:16px"><thead><tr style="background:#f3f4f6"><th style="padding:6px 8px;text-align:left;border:1px solid #e5e7eb">Tipo</th><th style="padding:6px 8px;text-align:left;border:1px solid #e5e7eb">Promedio (horas)</th></tr></thead><tbody>${resTimes.map((r: any) => `<tr><td style="padding:5px 8px;border:1px solid #e5e7eb">${r.type}</td><td style="padding:5px 8px;border:1px solid #e5e7eb;font-weight:700">${Number(r.avg_hours).toFixed(1)}h</td></tr>`).join('')}</tbody></table>` : ''}
         <h2 style="font-size:13px;color:#333;margin:0 0 8px">Últimas alertas (${Math.min(alerts.length, 30)})</h2>
-        <table style="width:100%;border-collapse:collapse;font-size:10px"><thead><tr style="background:#f3f4f6"><th style="padding:4px 6px;text-align:left;border:1px solid #e5e7eb">Dispositivo</th><th style="padding:4px 6px;text-align:left;border:1px solid #e5e7eb">Tipo</th><th style="padding:4px 6px;text-align:left;border:1px solid #e5e7eb">Fecha</th></tr></thead><tbody>${alerts.slice(0, 30).map((a: any) => `<tr><td style="padding:4px 6px;border:1px solid #e5e7eb;font-weight:600">${a.device_name}</td><td style="padding:4px 6px;border:1px solid #e5e7eb"><span style="color:${a.type === 'critica' ? '#ef4444' : '#f59e0b'}">${a.type}</span></td><td style="padding:4px 6px;border:1px solid #e5e7eb;color:#888">${format(new Date(a.created_at), "dd/MM HH:mm")}</td></tr>`).join('')}</tbody></table>
+        <table style="width:100%;border-collapse:collapse;font-size:10px"><thead><tr style="background:#f3f4f6"><th style="padding:4px 6px;text-align:left;border:1px solid #e5e7eb">Dispositivo</th><th style="padding:4px 6px;text-align:left;border:1px solid #e5e7eb">Tipo</th><th style="padding:4px 6px;text-align:left;border:1px solid #e5e7eb">Fecha</th></tr></thead><tbody>${alerts.slice(0, 30).map((a: any) => `<tr><td style="padding:4px 6px;border:1px solid #e5e7eb;font-weight:600">${a.device_name}</td><td style="padding:4px 6px;border:1px solid #e5e7eb"><span style="color:${a.type === 'critica' || a.type === 'apertura' ? '#ef4444' : '#f59e0b'}">${a.type}</span></td><td style="padding:4px 6px;border:1px solid #e5e7eb;color:#888">${format(new Date(a.created_at), "dd/MM HH:mm")}</td></tr>`).join('')}</tbody></table>
       </div>`];
 
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>@page{margin:12mm 10mm}body{font-family:Arial,sans-serif;color:#222;background:#fff;margin:0;padding:0}</style></head><body>${sections.join('\n')}</body></html>`;
@@ -810,8 +810,8 @@ export default function MonitorReportModal({ onClose }: Props) {
       const resTimes = data.resolutionTimes || [];
       const totalAlerts = alerts.length;
       const resolvedCount = alerts.filter((a: any) => a.resolved_at).length;
-      const criticalCount = alerts.filter((a: any) => a.type === 'critica').length;
-      const resolvedCritical = alerts.filter((a: any) => a.type === 'critica' && a.resolved_at).length;
+      const criticalCount = alerts.filter((a: any) => a.type === 'critica' || a.type === 'apertura').length;
+      const resolvedCritical = alerts.filter((a: any) => (a.type === 'critica' || a.type === 'apertura') && a.resolved_at).length;
       const avgResTime = resTimes.length > 0 ? (resTimes.reduce((s: number, r: any) => s + Number(r.avg_hours), 0) / resTimes.length) : 0;
       const slaCritical = criticalCount > 0 ? (resolvedCritical / criticalCount * 100) : 100;
       const coverage = execData?.activeDevices > 0 ? Math.round((execData.activeToday || 0) / execData.activeDevices * 100) : 0;

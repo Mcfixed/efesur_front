@@ -66,13 +66,14 @@ export default function MapLayers({ data, gateways }: Props) {
   }, [gateways]);
 
   // ─── FUNCIONES DE RENDERIZADO DE ICONOS ─────────────────────────────────
-  const renderAlertIcon = (type: 'critical' | 'atencion' | 'movimientos_anomalos') => {
+  const renderAlertIcon = (type: 'critical' | 'atencion' | 'movimientos_anomalos' | 'apertura' | 'presencia') => {
     const isCrit = type === 'critical';
     const isMov = type === 'movimientos_anomalos';
-    const color = isCrit ? '#ef4444' : isMov ? '#a855f7' : '#eab308';
-    const borderColor = isCrit ? '#b91c1c' : isMov ? '#7e22ce' : '#a16207';
-    const size = isCrit ? 48 : isMov ? 42 : 36;
-    const glowColor = isCrit ? '#ef4444' : isMov ? '#a855f7' : '#eab308';
+    const isRed = type === 'apertura' || type === 'presencia';
+    const color = isCrit ? '#ef4444' : isRed ? '#ef4444' : isMov ? '#a855f7' : '#eab308';
+    const borderColor = isCrit ? '#b91c1c' : isRed ? '#b91c1c' : isMov ? '#7e22ce' : '#a16207';
+    const size = isCrit ? 48 : isRed ? 42 : isMov ? 42 : 36;
+    const glowColor = isCrit ? '#ef4444' : isRed ? '#ef4444' : isMov ? '#a855f7' : '#eab308';
 
     return (
       <div className="relative flex items-center justify-center cursor-pointer group">
@@ -88,13 +89,31 @@ export default function MapLayers({ data, gateways }: Props) {
           <svg width={size} height={size} viewBox="-24 -24 48 48">
             {isCrit ? (
               <>
-                {/* Romboide rojo */}
+                {/* Romboide rojo intenso */}
                 <polygon points="0,-20 20,0 0,20 -20,0" fill={color} stroke={borderColor} strokeWidth="2" strokeLinejoin="round" />
-                {/* Brillo interior */}
                 <polygon points="0,-15 14,0 0,15 -14,0" fill="none" stroke="white" strokeWidth="0.8" opacity="0.25" />
-                {/* Signo de exclamación */}
                 <rect x="-3" y="-10" width="6" height="13" rx="2" fill="white" />
                 <circle cx="0" cy="9" r="4" fill="white" />
+              </>
+            ) : isRed ? (
+              <>
+                {/* Romboide rojo (apertura/presencia) */}
+                <polygon points="0,-18 18,0 0,18 -18,0" fill={color} stroke={borderColor} strokeWidth="2" strokeLinejoin="round" />
+                <polygon points="0,-13 12,0 0,13 -12,0" fill="none" stroke="white" strokeWidth="0.8" opacity="0.2" />
+                {type === 'apertura' ? (
+                  <>
+                    {/* Icono puerta abierta (rectángulo con línea) */}
+                    <rect x="-5" y="-6" width="10" height="12" rx="1" fill="none" stroke="white" strokeWidth="1.8" />
+                    <line x1="5" y1="-6" x2="5" y2="6" stroke="white" strokeWidth="1.8" />
+                    <circle cx="2" cy="0" r="1" fill="white" />
+                  </>
+                ) : (
+                  <>
+                    {/* Icono persona (círculo + triángulo) */}
+                    <circle cx="0" cy="-5" r="4" fill="none" stroke="white" strokeWidth="1.8" />
+                    <path d="M-6 6 Q0 -1 6 6" fill="none" stroke="white" strokeWidth="1.8" />
+                  </>
+                )}
               </>
             ) : isMov ? (
               <>
@@ -122,40 +141,30 @@ export default function MapLayers({ data, gateways }: Props) {
     );
   };
 
-  const renderDeviceIcon = (tc: { fill: string; stroke: string; glow: string }, name: string) => {
-    return (
-      <div className="relative flex items-center justify-center cursor-pointer group">
-        <span className="absolute w-12 h-12 rounded-full aura-ping"
-          style={{
-            backgroundColor: tc.fill,
-            opacity: 0.2,
-            boxShadow: `0 0 12px 4px ${tc.fill}44`,
-          }} />
-        <div className="relative transition-all duration-200 group-hover:scale-125 hover:-translate-y-1">
-          <svg width="28" height="36" viewBox="0 0 28 36" className="drop-shadow-md">
-            <defs>
-              <linearGradient id={`pin-${tc.fill.slice(1)}`} x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor={tc.stroke} />
-                <stop offset="100%" stopColor={tc.fill} />
-              </linearGradient>
-            </defs>
-            {/* Pin Google Maps style */}
-            <path d="M14 1C6.8 1 1 6.8 1 14c0 9.5 13 19.5 13 19.5S27 23.5 27 14C27 6.8 21.2 1 14 1z"
-              fill={`url(#pin-${tc.fill.slice(1)})`} stroke={tc.fill} strokeWidth="1.3" />
-            {/* Círculo interior blanco */}
-            <circle cx="14" cy="13" r="6" fill="white" />
-            {/* Letra inicial del tipo */}
-            <text x="14" y="16" textAnchor="middle" fill={tc.fill} fontSize="8" fontWeight="800" fontFamily="sans-serif">
-              {name === 'SubEstacion' ? 'S' : name[0]}
-            </text>
-          </svg>
-        </div>
-      </div>
-    );
-  };
+  // Mapa de alertas de lector por gateway (vía gateway_id)
+  const gatewayAlertMap = useMemo(() => {
+    const map = new Map<number, { apertura: boolean; presencia: boolean }>();
+    const now = Date.now();
+    const thirtyMin = 30 * 60 * 1000;
+    (data?.alerts?.apertura || []).forEach(a => {
+      if (a.gateway_id && (now - new Date(a.created_at).getTime()) < thirtyMin) {
+        if (!map.has(a.gateway_id)) map.set(a.gateway_id, { apertura: false, presencia: false });
+        map.get(a.gateway_id)!.apertura = true;
+      }
+    });
+    (data?.alerts?.presencia || []).forEach(a => {
+      if (a.gateway_id && (now - new Date(a.created_at).getTime()) < thirtyMin) {
+        if (!map.has(a.gateway_id)) map.set(a.gateway_id, { apertura: false, presencia: false });
+        map.get(a.gateway_id)!.presencia = true;
+      }
+    });
+    return map;
+  }, [data?.alerts?.apertura, data?.alerts?.presencia]);
 
-  const renderGatewayIcon = (isOnline: boolean) => {
-    const color = isOnline ? '#22c55e' : '#ef4444';
+  const renderGatewayIcon = (isOnline: boolean, gatewayId?: number) => {
+    const lectorAlert = gatewayId ? gatewayAlertMap.get(gatewayId) : undefined;
+    const hasLectorAlert = lectorAlert && (lectorAlert.apertura || lectorAlert.presencia);
+    const color = hasLectorAlert ? '#ef4444' : (isOnline ? '#22c55e' : '#ef4444');
 
     return (
       <div className="relative flex items-center justify-center group cursor-default">
@@ -163,23 +172,49 @@ export default function MapLayers({ data, gateways }: Props) {
           style={{
             animation: 'aura-ping 3s ease-out infinite',
             backgroundColor: color,
-            opacity: 0.15,
+            opacity: hasLectorAlert ? 0.25 : 0.15,
             boxShadow: `0 0 14px 5px ${color}44`,
           }} />
         <div className="relative drop-shadow-xl transition-transform group-hover:scale-125">
-          <svg width="34" height="34" viewBox="0 0 34 34">
-            <defs>
-              <linearGradient id={`gw-${isOnline ? 'on' : 'off'}`} x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor={color} stopOpacity="0.9" />
-                <stop offset="100%" stopColor={color} stopOpacity="0.5" />
-              </linearGradient>
-            </defs>
-            {/* Icono WiFi - 3 arcos + punto */}
-            <path d="M7 12 Q11 7 17 7 Q23 7 27 12" fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" />
-            <path d="M10 16 Q13 12 17 12 Q21 12 24 16" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
-            <path d="M13 20 Q15 17 17 17 Q19 17 21 20" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" />
-            <circle cx="17" cy="24" r="3" fill={color} />
-          </svg>
+          {hasLectorAlert ? (
+            <svg width="38" height="38" viewBox="-19 -19 38 38">
+              {/* Círculo rojo de alerta alrededor */}
+              <circle cx="0" cy="0" r="17" fill="none" stroke="#ef4444" strokeWidth="2.5" opacity="0.6" />
+              <circle cx="0" cy="0" r="15" fill="none" stroke="#ef4444" strokeWidth="1" opacity="0.3" strokeDasharray="3 3" />
+              {/* Icono WiFi */}
+              <path d="M-9 -4 Q-5 -8 0 -8 Q5 -8 9 -4" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" />
+              <path d="M-6 0 Q-3 -4 0 -4 Q3 -4 6 0" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
+              <path d="M-3 4 Q-1.5 1 0 1 Q1.5 1 3 4" fill="none" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" />
+              <circle cx="0" cy="7" r="2.5" fill="#ef4444" />
+              {/* Iconos pequeños de alerta arriba-derecha */}
+              {lectorAlert?.apertura && (
+                <g transform="translate(10,-13)">
+                  <rect x="-4" y="-4" width="8" height="9" rx="1" fill="none" stroke="#ef4444" strokeWidth="1.5" />
+                  <line x1="4" y1="-4" x2="4" y2="5" stroke="#ef4444" strokeWidth="1.5" />
+                  <circle cx="1.5" cy="1" r="0.8" fill="#ef4444" />
+                </g>
+              )}
+              {lectorAlert?.presencia && (
+                <g transform={`translate(${lectorAlert?.apertura ? 16 : 10},-13)`}>
+                  <circle cx="0" cy="-3" r="3" fill="none" stroke="#ef4444" strokeWidth="1.2" />
+                  <path d="M-5 5 Q0 -1 5 5" fill="none" stroke="#ef4444" strokeWidth="1.2" />
+                </g>
+              )}
+            </svg>
+          ) : (
+            <svg width="34" height="34" viewBox="0 0 34 34">
+              <defs>
+                <linearGradient id={`gw-${isOnline ? 'on' : 'off'}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor={color} stopOpacity="0.9" />
+                  <stop offset="100%" stopColor={color} stopOpacity="0.5" />
+                </linearGradient>
+              </defs>
+              <path d="M7 12 Q11 7 17 7 Q23 7 27 12" fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" />
+              <path d="M10 16 Q13 12 17 12 Q21 12 24 16" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
+              <path d="M13 20 Q15 17 17 17 Q19 17 21 20" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" />
+              <circle cx="17" cy="24" r="3" fill={color} />
+            </svg>
+          )}
         </div>
       </div>
     );
@@ -277,6 +312,8 @@ export default function MapLayers({ data, gateways }: Props) {
         const isCritical = data.alerts?.critical?.some(a => a.device_id === device.id);
         const isAtencion = data.alerts?.atencion?.some(a => a.device_id === device.id);
         const isMovAnomalos = data.alerts?.movimientos_anomalos?.some(a => a.device_id === device.id);
+        const isApertura = data.alerts?.apertura?.some(a => a.device_id === device.id);
+        const isPresencia = data.alerts?.presencia?.some(a => a.device_id === device.id);
         if (isCritical) return null; // Los críticos se renderizan al final
 
         // Color del pin por tipo de dispositivo
@@ -304,7 +341,7 @@ export default function MapLayers({ data, gateways }: Props) {
             latitude={Number(device.latitude_current)}
             onClick={e => { e.originalEvent.stopPropagation(); setSelectedDevice(device); }}
           >
-            {isMovAnomalos ? renderAlertIcon('movimientos_anomalos') : isAtencion ? renderAlertIcon('atencion') : (
+            {isMovAnomalos ? renderAlertIcon('movimientos_anomalos') : isApertura ? renderAlertIcon('apertura') : isPresencia ? renderAlertIcon('presencia') : isAtencion ? renderAlertIcon('atencion') : (
               <div className="relative flex items-center justify-center cursor-pointer group">
                 <span className="absolute w-7 h-7 rounded-full aura-ping"
                   style={{
@@ -352,7 +389,43 @@ export default function MapLayers({ data, gateways }: Props) {
         );
       })}
 
-      {/* Gateway markers */}
+      {/* Gateway markers + symbol layer para nombres */}
+      {/* Fuente GeoJSON para nombres de gateways */}
+      {(() => {
+        const validGws = gateways.filter(gw => gw.latitude_current && gw.longitude_current);
+        if (!validGws.length) return null;
+        const geojson: any = {
+          type: "FeatureCollection",
+          features: validGws.map(gw => ({
+            type: "Feature",
+            properties: { name: gw.name, id: gw.id },
+            geometry: { type: "Point", coordinates: [Number(gw.longitude_current), Number(gw.latitude_current)] },
+          })),
+        };
+        return (
+          <Source id="gateway-names-source" type="geojson" data={geojson}>
+            <Layer
+              id="gateway-names"
+              type="symbol"
+              source="gateway-names-source"
+              layout={{
+                "text-field": ["get", "name"],
+                "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+                "text-size": 11,
+                "text-offset": [1.8, 0],
+                "text-anchor": "left",
+                "text-optional": true,
+              }}
+              paint={{
+                "text-color": "#22d3ee",
+                "text-halo-color": "rgba(0,0,0,0.85)",
+                "text-halo-width": 3,
+              }}
+            />
+          </Source>
+        );
+      })()}
+
       {gateways.filter(gw => gw.latitude_current && gw.longitude_current).map(gw => (
         <Marker
           key={`gw-${gw.id}`}
@@ -360,12 +433,7 @@ export default function MapLayers({ data, gateways }: Props) {
           latitude={Number(gw.latitude_current)}
           onClick={e => { e.originalEvent.stopPropagation(); setSelectedGateway(gw); }}
         >
-          <div className="relative">
-            {renderGatewayIcon(gw.is_online)}
-            <span className="absolute left-full top-1/2 -translate-y-1/2 ml-1.5 text-[10px] font-semibold text-white drop-shadow-lg bg-black/50 px-1.5 py-0.5 rounded whitespace-nowrap pointer-events-none">
-              {gw.name}
-            </span>
-          </div>
+          {renderGatewayIcon(gw.is_online, gw.id)}
         </Marker>
       ))}
 

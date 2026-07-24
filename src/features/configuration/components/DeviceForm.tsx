@@ -5,17 +5,19 @@ import { Button, Input, Checkbox } from "@/components/ui";
 interface DeviceFormProps {
   initialData?: Device | null;
   companies: Company[];
+  lectors: Device[];
   onSubmit: (data: Partial<Device>) => Promise<void>;
   onCancel: () => void;
   isLoading?: boolean;
 }
 
-export function DeviceForm({ initialData, companies, onSubmit, onCancel, isLoading }: DeviceFormProps) {
+export function DeviceForm({ initialData, companies, lectors, onSubmit, onCancel, isLoading }: DeviceFormProps) {
   const [formData, setFormData] = useState<Partial<Device>>({
     dev_eui: "",
     name: "",
     type_device: "Gps",
     company_id: companies.length > 0 ? companies[0].id : undefined,
+    id_device_father: null,
     is_active: true,
     latitude_current: null,
     longitude_current: null,
@@ -28,6 +30,7 @@ export function DeviceForm({ initialData, companies, onSubmit, onCancel, isLoadi
         name: initialData.name,
         type_device: initialData.type_device,
         company_id: initialData.company_id,
+        id_device_father: initialData.id_device_father,
         is_active: initialData.is_active,
         latitude_current: initialData.latitude_current,
         longitude_current: initialData.longitude_current,
@@ -53,12 +56,15 @@ export function DeviceForm({ initialData, companies, onSubmit, onCancel, isLoadi
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const payload = { ...formData };
-    // Limpiar lat/lng vacíos para que el backend los trate como opcionales
+    // Limpiar campos nulos para que el backend los trate como opcionales
     if (payload.latitude_current === "" || payload.latitude_current === null) {
       delete payload.latitude_current;
     }
     if (payload.longitude_current === "" || payload.longitude_current === null) {
       delete payload.longitude_current;
+    }
+    if (payload.id_device_father === null || payload.id_device_father === undefined) {
+      delete payload.id_device_father;
     }
     await onSubmit(payload);
   };
@@ -98,6 +104,33 @@ export function DeviceForm({ initialData, companies, onSubmit, onCancel, isLoadi
           <option value="Lector">Lector</option>
         </select>
       </div>
+
+      {/* Lector asociado (solo para Gateways) */}
+      {formData.type_device === "Gateway" && (
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-medium text-text-200">Dispositivo Lector Asociado</label>
+          <select
+            name="id_device_father"
+            value={formData.id_device_father ?? ""}
+            onChange={(e) => {
+              const val = e.target.value;
+              setFormData((prev) => ({
+                ...prev,
+                id_device_father: val ? parseInt(val) : null,
+              }));
+            }}
+            className="w-full px-3 py-2 bg-bg-200 border border-border-200 rounded-lg focus:outline-none focus:border-brand-200 text-text-100 transition-colors"
+          >
+            <option value="">Sin lector asociado</option>
+            {lectors
+              .filter(l => l.company_id === formData.company_id || !formData.company_id)
+              .map((l) => (
+                <option key={l.id} value={l.id}>{l.name} ({l.dev_eui})</option>
+              ))}
+          </select>
+          <p className="text-xs text-text-300">Selecciona el dispositivo Lector que este gateway supervisa. Los datos del lector (batería, panel solar) aparecerán en el tab "Lector asignado".</p>
+        </div>
+      )}
 
       <div className="flex flex-col gap-1.5">
         <label className="text-sm font-medium text-text-200">Empresa Asignada</label>

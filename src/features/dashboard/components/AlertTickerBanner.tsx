@@ -13,6 +13,8 @@ export default function AlertTickerBanner({ data }: Props) {
     (data?.alerts?.atencion || []).forEach(a => items.push({ device_name: a.device_name, type: 'Atención', icon: <IconAlertCircle size={13} />, color: '#eab308', bg: 'bg-yellow-500/8' }));
     (data?.alerts?.desconexionGW || []).forEach(a => items.push({ device_name: a.device_name, type: 'GW Off', icon: <IconWifiOff size={13} />, color: '#f97316', bg: 'bg-orange-500/8' }));
     (data?.alerts?.movimientos_anomalos || []).forEach(a => items.push({ device_name: a.device_name, type: 'Mov.', icon: <IconRadar size={13} />, color: '#a855f7', bg: 'bg-purple-500/8' }));
+    (data?.alerts?.apertura || []).forEach(a => items.push({ device_name: a.device_name, type: 'Apertura', icon: <IconAlertTriangle size={13} />, color: '#ef4444', bg: 'bg-red-500/10' }));
+    (data?.alerts?.presencia || []).forEach(a => items.push({ device_name: a.device_name, type: 'Presencia', icon: <IconAlertCircle size={13} />, color: '#eab308', bg: 'bg-yellow-500/8' }));
     return items;
   }, [data]);
 

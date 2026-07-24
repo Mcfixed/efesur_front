@@ -9,7 +9,7 @@ interface Props {
 
 export default function AlertsChart({ historyData, isLoading }: Props) {
   const [chartExpanded, setChartExpanded] = useState(true);
-  const [chartAlertType, setChartAlertType] = useState<"critica" | "atencion" | "movimientos_anomalos">("critica");
+  const [chartAlertType, setChartAlertType] = useState<"critica" | "atencion" | "movimientos_anomalos" | "apertura" | "presencia">("critica");
   const [chartTimeRange, setChartTimeRange] = useState<"1h" | "24h" | "7d" | "30d" | "total">("24h");
 
   const chartData = useMemo(() => {
@@ -61,6 +61,12 @@ export default function AlertsChart({ historyData, isLoading }: Props) {
               </button>
               <button onClick={() => setChartAlertType("movimientos_anomalos")} className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium transition-colors ${chartAlertType === "movimientos_anomalos" ? "bg-purple-500/15 text-purple-400" : "bg-bg-300/50 text-text-300 hover:text-text-200"}`}>
                 <IconAlertHexagon size={10} /> Mov. Anómalos
+              </button>
+              <button onClick={() => setChartAlertType("apertura")} className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium transition-colors ${chartAlertType === "apertura" ? "bg-red-500/15 text-red-400" : "bg-bg-300/50 text-text-300 hover:text-text-200"}`}>
+                <IconAlertOctagon size={10} /> Apertura
+              </button>
+              <button onClick={() => setChartAlertType("presencia")} className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium transition-colors ${chartAlertType === "presencia" ? "bg-yellow-500/15 text-yellow-400" : "bg-bg-300/50 text-text-300 hover:text-text-200"}`}>
+                <IconAlertCircle size={10} /> Presencia
               </button>
               <button onClick={() => setChartAlertType("atencion")} className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium transition-colors ${chartAlertType === "atencion" ? "bg-yellow-500/15 text-yellow-400" : "bg-bg-300/50 text-text-300 hover:text-text-200"}`}>
                 <IconAlertCircle size={10} /> Atención

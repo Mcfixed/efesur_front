@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { MonitorSectionDivider } from "../shared/MonitorSectionDivider";
-import { IconSearch, IconServer, IconWifi, IconMapPin, IconDatabase, IconCloud, IconAlertTriangle, IconWifi as IconData, IconFileReport } from "@tabler/icons-react";
+import { IconSearch, IconServer, IconWifi, IconMapPin, IconDatabase, IconCloud, IconAlertTriangle, IconFileReport } from "@tabler/icons-react";
 import { format } from "date-fns";
 import { formatBattery, batteryColor } from "../../utils/battery";
 import MonitorBatteryPopup from "../shared/MonitorBatteryPopup";
 import MonitorReportModal from "./MonitorReportModal";
 import type { MonitorDevice } from "../../types/monitor.types";
 
-const DEVICE_TYPES = ["Gps", "Gateway", "SubEstacion", "Lector", "lector_asignado"];
+const DEVICE_TYPES = ["Gps", "Gateway", "SubEstacion", "Lector"];
 
 const MINI_TABS = [
   { key: "sistema", label: "Datos y estado del sistema" },
@@ -40,11 +40,10 @@ export default function MonitorDeviceList({
   const [reportOpen, setReportOpen] = useState(false);
 
   return (
-    <div className="p-3 flex-1 flex flex-col gap-2 overflow-hidden min-h-0">
+    <div className="p-1.5 flex-1 flex flex-col gap-1 overflow-hidden min-h-0">
       <div className="shrink-0 flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-bold text-text-100">Panel técnico</h1>
-          <p className="text-[11px] text-text-300 mt-0.5">Búsqueda y detalle de dispositivos</p>
+          <h1 className="text-base font-bold text-text-100">Panel técnico</h1>
         </div>
         <button onClick={() => setReportOpen(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors shadow-sm">
@@ -64,10 +63,9 @@ export default function MonitorDeviceList({
         ))}
       </div>
 
-      {/* ─── MINI TAB: DATOS Y ESTADO DEL SISTEMA ─── */}
       {miniTab === "sistema" && (
-        <div className="relative grid grid-cols-5 gap-3 shrink-0">
-          <div className="relative rounded-lg bg-linear-to-br from-teal-900/20 via-bg-100 to-bg-200 shadow-lg border border-teal-500/20 px-4 py-3">
+        <div className="relative grid grid-cols-5 gap-1.5 text-[10px]">
+          <div className="relative rounded-lg bg-linear-to-br from-teal-900/20 via-bg-100 to-bg-200 shadow border border-teal-500/20 px-3 py-2">
             <div className="absolute left-1/2 -translate-x-1/2 top-0 w-2/3 h-px" style={{ background: 'linear-gradient(to left, transparent, #14b8a6, transparent)' }} />
             <div className="absolute -top-6 -right-6 w-16 h-16 bg-teal-500/5 rounded-full blur-xl" />
             <div className="absolute -bottom-6 -left-6 w-12 h-12 bg-teal-500/3 rounded-full blur-xl" />
@@ -279,13 +277,13 @@ export default function MonitorDeviceList({
 
       {/* ─── MINI TAB: ÚLTIMOS DATOS ENTRANTES ─── */}
       {miniTab === "entrantes" && (
-        <div className="flex flex-col min-h-0" style={{ maxHeight: 'calc(100vh - 280px)' }}>
-          <div className="bg-bg-100/60 border border-border/30 rounded-t-lg shrink-0 px-3 py-2 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <IconData size={14} className="text-blue-400" />
-              <p className="text-[13px] font-bold text-text-100 flex items-center gap-2">Últimos datos entrantes <span className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.6)] animate-pulse" /></p>
+        <div className="flex flex-col min-h-0 flex-1">
+          <div className="bg-bg-100/60 border border-border/30 rounded-t-lg shrink-0 px-2 py-1 flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <IconWifi size={10} className="text-blue-400" />
+              <p className="text-[11px] font-bold text-text-100 flex items-center gap-1.5">Últimos datos entrantes <span className="w-1 h-1 rounded-full bg-green-400 animate-pulse" /></p>
             </div>
-            <span className="text-[11px] text-text-300">{latestTelemetry?.length || 0} registros</span>
+            <span className="text-[10px] text-text-300">{latestTelemetry?.length || 0} registros</span>
           </div>
           <div className="overflow-auto border-x border-b border-border/30 rounded-b-lg bg-bg-100/60 flex-1">
             <table className="w-full text-[12px]">
@@ -362,7 +360,7 @@ export default function MonitorDeviceList({
                   {DEVICE_TYPES.map(tab => (
                     <button key={tab} onClick={() => onDeviceTabChange(tab)}
                       className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase transition-all ${deviceTab === tab ? 'bg-white/10 text-text-100 shadow-sm' : 'text-text-300 hover:text-text-100'}`}>
-                      {tab === 'SubEstacion' ? 'SubEst.' : tab === 'lector_asignado' ? 'Lector asignado' : tab}
+                      {tab === 'SubEstacion' ? 'SubEst.' : tab}
                     </button>
                   ))}
                 </div>

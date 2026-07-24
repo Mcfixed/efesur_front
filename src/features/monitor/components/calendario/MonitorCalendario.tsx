@@ -12,6 +12,8 @@ import MonitorTrackingModal from "../shared/MonitorTrackingModal";
 const TYPE_LABELS: Record<string, { label: string; color: string; icon: any }> = {
   critica:            { label: "Crítica",       color: "text-red-400 bg-red-500/10", icon: IconAlertTriangle },
   atencion:           { label: "Atención",       color: "text-yellow-400 bg-yellow-500/10", icon: IconAlertCircle },
+  apertura:           { label: "Apertura",       color: "text-red-400 bg-red-500/10", icon: IconAlertTriangle },
+  presencia:          { label: "Presencia",      color: "text-yellow-400 bg-yellow-500/10", icon: IconAlertCircle },
   movimientos_anomalos: { label: "Mov. Anómalo", color: "text-orange-400 bg-orange-500/10", icon: IconMoodSearch },
   desconexionGW:      { label: "Desconexión GW", color: "text-red-400 bg-red-500/10", icon: IconWifiOff },
   desconexionGPS:     { label: "Desconexión GPS", color: "text-red-400 bg-red-500/10", icon: IconWifiOff },
@@ -20,6 +22,8 @@ const TYPE_LABELS: Record<string, { label: string; color: string; icon: any }> =
 const TYPE_BG: Record<string, string> = {
   critica: "bg-red-500",
   atencion: "bg-yellow-500",
+  apertura: "bg-red-500",
+  presencia: "bg-yellow-500",
   movimientos_anomalos: "bg-orange-500",
   desconexionGW: "bg-red-500",
 };
@@ -121,7 +125,7 @@ export default function MonitorCalendario() {
 
               let severity = "none";
               if (hasAlerts) {
-                if (dayData!.criticas > 0 || dayData!.desconexion > 0) severity = "critical";
+                if (dayData!.criticas > 0 || dayData!.apertura > 0 || dayData!.presencia > 0 || dayData!.desconexion > 0) severity = "critical";
                 else if (dayData!.atencion > 0 || dayData!.movimientos > 0) severity = "warning";
               }
 
@@ -138,6 +142,8 @@ export default function MonitorCalendario() {
                   {hasAlerts && (
                     <div className="mt-0.5 space-y-[2px]">
                       {dayData!.criticas > 0 && <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" /><span className="text-[9px] text-red-300 font-medium">Crítica {dayData!.criticas}</span></div>}
+                      {dayData!.apertura > 0 && <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" /><span className="text-[9px] text-red-300 font-medium">Apertura {dayData!.apertura}</span></div>}
+                      {dayData!.presencia > 0 && <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" /><span className="text-[9px] text-red-300 font-medium">Presencia {dayData!.presencia}</span></div>}
                       {dayData!.atencion > 0 && <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0" /><span className="text-[9px] text-yellow-300 font-medium">Atención {dayData!.atencion}</span></div>}
                       {dayData!.movimientos > 0 && <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" /><span className="text-[9px] text-orange-300 font-medium">Mov. {dayData!.movimientos}</span></div>}
                       {dayData!.desconexion > 0 && <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" /><span className="text-[9px] text-red-300 font-medium">Descon. {dayData!.desconexion}</span></div>}
@@ -238,5 +244,5 @@ export default function MonitorCalendario() {
 }
 
 interface MonitorCalendarDay {
-  dia: number; total: number; criticas: number; atencion: number; movimientos: number; desconexion: number;
+  dia: number; total: number; criticas: number; atencion: number; apertura: number; presencia: number; movimientos: number; desconexion: number;
 }

@@ -16,6 +16,7 @@ import MapLayers from "../components/MapLayers";
 import MapSearchBox from "../components/MapSearchBox";
 import AlertsChart from "../components/AlertsChart";
 import MapErrorBoundary from "../components/MapErrorBoundary";
+import GatewayStatusBar from "../components/GatewayStatusBar";
 
 export default function Dashboard() {
   const { isMobile } = useBreakpoint();
@@ -30,6 +31,8 @@ export default function Dashboard() {
   const { data: criticaHistory } = useAlertHistory("critica", "total");
   const { data: atencionHistory } = useAlertHistory("atencion", "total");
   const { data: movimientosHistory } = useAlertHistory("movimientos_anomalos", "total");
+  const { data: aperturaHistory } = useAlertHistory("apertura", "total");
+  const { data: presenciaHistory } = useAlertHistory("presencia", "total");
   const [timelineRange, setTimelineRange] = useState("24h");
   const { data: timelineData } = useAlertTimeline(timelineRange);
   // Unificar historial de todos los tipos para el gráfico
@@ -38,14 +41,16 @@ export default function Dashboard() {
       ...(criticaHistory?.alerts || []),
       ...(atencionHistory?.alerts || []),
       ...(movimientosHistory?.alerts || []),
+      ...(aperturaHistory?.alerts || []),
+      ...(presenciaHistory?.alerts || []),
     ];
     return { alerts };
-  }, [criticaHistory, atencionHistory, movimientosHistory]);
+  }, [criticaHistory, atencionHistory, movimientosHistory, aperturaHistory, presenciaHistory]);
 
   // Side effects
   useAlertSound({
-    critical: data?.alerts?.critical?.length ?? 0,
-    atencion: data?.alerts?.atencion?.length ?? 0,
+    critical: (data?.alerts?.critical?.length ?? 0) + (data?.alerts?.apertura?.length ?? 0),
+    atencion: (data?.alerts?.atencion?.length ?? 0) + (data?.alerts?.presencia?.length ?? 0),
     desconexionGW: data?.alerts?.desconexionGW?.length ?? 0,
     movimientos_anomalos: data?.alerts?.movimientos_anomalos?.length ?? 0,
   });
@@ -203,33 +208,9 @@ export default function Dashboard() {
               )}
               <MapOverlayInfo data={data} />
 
-              {/* Gateway status panel — separado debajo del resumen */}
               {gateways.length > 0 && (
-                <div className="absolute left-2 z-10 flex flex-col gap-1.5"
-                  style={{ top: '195px' }}>
-                  <div className="flex items-center gap-2 text-[13px] text-text-100 font-bold uppercase tracking-wider bg-bg-100/80 backdrop-blur-sm border border-border/30 rounded-lg px-2.5 py-1.5 shadow-lg">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="18" r="1"/><path d="M3 9a17 17 0 0 1 18 0"/><path d="M6 13a10 10 0 0 1 12 0"/></svg>
-                    Gateways
-                    <span className="font-bold text-green-400 text-[12px] ml-1">{gateways.filter(g => g.is_online).length}/{gateways.length}</span>
-                  </div>
-                  {/* Online: puntitos con contorno */}
-                  {gateways.filter(g => g.is_online).length > 0 && (
-                    <div className="bg-bg-100/80 backdrop-blur-sm border border-border/30 rounded-lg px-2.5 py-1.5 shadow-lg inline-flex flex-wrap gap-1.5 w-fit">
-                      {gateways.filter(g => g.is_online).map(gw => (
-                        <div key={gw.id} className="w-5 h-5 rounded-full bg-green-500/15 border border-green-400/30 flex items-center justify-center" title={gw.name}>
-                          <span className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_4px_rgba(74,222,128,0.6)]" />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {/* Offline: cada uno con su propio contenedor */}
-                  {gateways.filter(g => !g.is_online).map(gw => (
-                    <div key={gw.id} className="flex items-center gap-2 text-[13px] bg-red-950/70 backdrop-blur-sm border border-red-500/30 rounded-lg px-2.5 py-1.5 shadow-lg">
-                      <span className="w-2 h-2 rounded-full shrink-0 bg-red-400 animate-pulse" />
-                      <span className="text-red-300 truncate max-w-28 font-medium">{gw.name.replace(/^Gateway\s/, 'GW ')}</span>
-                      <span className="text-[11px] font-bold text-red-400">OFF</span>
-                    </div>
-                  ))}
+                <div className="absolute left-2 z-10" style={{ top: '120px' }}>
+                  <GatewayStatusBar gateways={gateways} />
                 </div>
               )}
 

@@ -72,7 +72,7 @@ export const useCreateDevice = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: Partial<Device>) => configService.createDevice(data),
-    onSuccess: () => { toast.success("Dispositivo creado"); queryClient.invalidateQueries({ queryKey: CONFIG_KEYS.devices() }); },
+    onSuccess: () => { toast.success("Dispositivo creado"); queryClient.invalidateQueries({ queryKey: ['config', 'devices'] }); },
     onError: (e: any) => toast.error(e.message || "Error al crear dispositivo"),
   });
 };
@@ -80,7 +80,7 @@ export const useUpdateDevice = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<Device> }) => configService.updateDevice(id, data),
-    onSuccess: () => { toast.success("Dispositivo actualizado"); queryClient.invalidateQueries({ queryKey: CONFIG_KEYS.devices() }); },
+    onSuccess: () => { toast.success("Dispositivo actualizado"); queryClient.invalidateQueries({ queryKey: ['config', 'devices'] }); },
     onError: (e: any) => toast.error(e.message || "Error al actualizar dispositivo"),
   });
 };
@@ -88,7 +88,7 @@ export const useDeleteDevice = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => configService.deleteDevice(id),
-    onSuccess: () => { toast.success("Dispositivo eliminado"); queryClient.invalidateQueries({ queryKey: CONFIG_KEYS.devices() }); },
+    onSuccess: () => { toast.success("Dispositivo eliminado"); queryClient.invalidateQueries({ queryKey: ['config', 'devices'] }); },
     onError: (e: any) => toast.error(e.message || "Error al eliminar dispositivo"),
   });
 };

@@ -90,9 +90,9 @@ export default function MonitorSubEstacionDetailPanel({ deviceId, deviceName, la
               deviceAlerts.map((alert: any) => (
                 <div key={alert.id}
                   className={`flex items-start gap-1.5 text-[11px] leading-tight rounded px-1.5 py-1 border-s-2 ${
-                    alert.type === 'critica' ? 'border-red-500/40 bg-red-500/8' : 'border-yellow-500/40 bg-yellow-500/8'
+                    alert.type === 'critica' || alert.type === 'apertura' ? 'border-red-500/40 bg-red-500/8' : 'border-yellow-500/40 bg-yellow-500/8'
                   } ${alert.status === 'resolved' ? 'opacity-50' : ''}`}>
-                  <span className={`w-2 h-2 rounded-full ${alert.type === 'critica' ? 'bg-red-500' : 'bg-yellow-500'} shrink-0 mt-0.5`} />
+                  <span className={`w-2 h-2 rounded-full ${alert.type === 'critica' || alert.type === 'apertura' ? 'bg-red-500' : 'bg-yellow-500'} shrink-0 mt-0.5`} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1 flex-wrap">
                       <span className="text-[9px] font-semibold uppercase text-text-300">{alert.type}</span>

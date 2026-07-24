@@ -1,76 +1,95 @@
-import { useMemo } from "react";
-import { IconAntenna, IconBolt, IconBattery } from "@tabler/icons-react";
-import { format } from "date-fns";
+import { useEffect, useRef, useState } from "react";
 import type { GatewayDevice } from "../types/dashboard.types";
 
 export default function GatewayStatusBar({ gateways }: { gateways: GatewayDevice[] }) {
-  const onlineCount = gateways.filter(g => g.is_online).length;
-  const totalCount = gateways.length;
+  if (gateways.length === 0) return null;
 
-  if (totalCount === 0) return null;
+  const online = gateways.filter(g => g.is_online);
+  const offline = gateways.filter(g => !g.is_online);
+  const [showOnlinePopup, setShowOnlinePopup] = useState(false);
+  const popupRef = useRef(null);
+  useEffect(() => {
+  const handleClickOutside = (e) => {
+    if (popupRef.current && !popupRef.current.contains(e.target)) {
+      setShowOnlinePopup(false);
+    }
+  };
+  document.addEventListener('mousedown', handleClickOutside);
+  return () => document.removeEventListener('mousedown', handleClickOutside);
+}, []);
 
-  const shortName = (name: string) =>
-    name.replace(/^Gateway\s/, 'GW ').replace(/ (Norte|Sur|Central|Austral|Frontera)$/, '');
-
-  const powerStatus = useMemo(() => {
-    const map = new Map<number, { onBattery: boolean; batteryPct: number }>();
-    gateways.forEach((gw, i) => {
-      const seed = (gw.id * 7 + i * 13) % 100;
-      const onBattery = seed < 30;
-      const batteryPct = onBattery ? Math.max(5, Math.min(100, 30 + seed)) : 100;
-      map.set(gw.id, { onBattery, batteryPct });
-    });
-    return map;
-  }, [gateways]);
-
-  return (
-    <div className="w-full px-1.5 pt-1">
-      <div className="relative rounded-lg bg-linear-to-r from-bg-300 via-bg-100 to-bg-200 shadow border border-border/30 px-2.5 py-1.5">
-        <div className="absolute left-1/2 -translate-x-1/2 top-0 w-2/3 h-[1.5px]"
-          style={{ background: 'linear-gradient(to left, transparent, #6b7280, transparent)' }}
-        />
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <div className="flex items-center gap-1">
-            <IconAntenna size={13} className="text-text-300" />
-            <span className="text-[9px] font-semibold text-text-300 uppercase tracking-wider">GW</span>
+return (
+  <div className="flex flex-col gap-1.5 w-full max-w-50 relative">
+    {/* Header */}
+    <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-text-200 border-b border-border/20 pb-1.5">
+      <span>Gateways</span>
+      <div className="flex items-center gap-2 relative">
+        {/* Número de inactivos */}
+        <span className="text-red-500 font-bold text-[11px]">{offline.length}</span>
+        {/* Botón con número de activos */}
+        {online.length > 0 && (
+          <button
+  onClick={() => setShowOnlinePopup(!showOnlinePopup)}
+  aria-expanded={showOnlinePopup}
+  aria-label={`Usuarios en línea (${online.length})`}
+  className="
+    relative flex items-center gap-1 px-2 py-1
+    rounded-full bg-emerald-500/10 hover:bg-emerald-500/20
+    border border-emerald-500/30 hover:border-emerald-500/50
+    text-emerald-400 text-xs font-medium
+    transition-all duration-200
+    focus:outline-none focus:ring-2 focus:ring-emerald-400/50 focus:ring-offset-2 focus:ring-offset-gray-900
+    active:scale-95
+  "
+>
+  <span className="tabular-nums">{online.length}</span>
+  <span className={`transition-transform duration-200 ${showOnlinePopup ? 'rotate-270' : ''}`}>
+    ▼
+  </span>
+</button>
+        )}
+        {/* Popup de activos - posicionado a la DERECHA del botón */}
+        {showOnlinePopup && online.length > 0 && (
+          <div
+            ref={popupRef}
+            className="absolute top-1/2 left-full -translate-y-1/2 ml-1 w-36 max-h-28 overflow-y-auto bg-bg-200/95 backdrop-blur-sm border border-border/30 rounded-lg shadow-xl p-1.5 z-50"
+          >
+            <div className="text-[9px] font-bold uppercase tracking-wider text-emerald-400/80 border-b border-border/10 pb-0.5 mb-0.5 px-1">
+              Online ({online.length})
+            </div>
+            {online.map(gw => (
+              <div
+                key={gw.id}
+                className="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-bg-300/30 transition"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_4px_#34d399] shrink-0" />
+                <span className="text-[10px] text-emerald-300/90 truncate">
+                  {gw.name.replace(/^Gateway\s/, '')}
+                </span>
+              </div>
+            ))}
           </div>
-          <div className="h-2.5 w-px bg-border/40" />
-          <div className="flex items-center gap-1.5 text-[9px]">
-            <span className="flex items-center gap-1 text-green-400/90">
-              <span className="w-1 h-1 rounded-full bg-green-400 shadow-[0_0_3px_rgba(74,222,128,0.4)]" />
-              {onlineCount}
-            </span>
-            <span className="flex items-center gap-1 text-red-400/90">
-              <span className="w-1 h-1 rounded-full bg-red-400 shadow-[0_0_3px_rgba(248,113,113,0.4)]" />
-              {totalCount - onlineCount}
-            </span>
-          </div>
-          <div className="h-2.5 w-px bg-border/40" />
-          <div className="flex flex-wrap gap-1">
-            {gateways.map(gw => {
-              const power = powerStatus.get(gw.id)!;
-              return (
-                <div key={gw.id}
-                  className={`flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-medium leading-none transition-all duration-200 border ${
-                    gw.is_online ? "bg-green-500/5 text-green-400/90 border-green-500/15" : "bg-red-500/5 text-red-400/90 border-red-500/15"
-                  }`}
-                  title={`${gw.name} · ${gw.company_name}\nIP: ${gw.ip_internal} · FW: ${gw.firmware_version}${gw.last_seen ? `\nÚltimo: ${format(new Date(gw.last_seen), "HH:mm:ss")}` : ""}\nAlimentación: ${power.onBattery ? `🔋 Batería (${power.batteryPct}%)` : "⚡ Corriente"}`}
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${gw.is_online ? "bg-green-400 animate-pulse shadow-[0_0_3px_rgba(74,222,128,0.5)]" : "bg-red-400"}`} />
-                  <span className="truncate max-w-20 whitespace-nowrap">{shortName(gw.name)}</span>
-                  {power.onBattery ? (
-                    <span className="flex items-center gap-0.5 text-[9px] text-amber-400/80 ml-0.5">
-                      <IconBattery size={10} /> {power.batteryPct}%
-                    </span>
-                  ) : (
-                    <span className="text-[9px] text-blue-400/60 ml-0.5"><IconBolt size={10} /></span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        )}
       </div>
     </div>
-  );
+
+    {/* Lista de inactivos */}
+    {offline.map(gw => (
+      <div
+        key={gw.id}
+        className="group relative flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-red-500/10 backdrop-blur-sm border border-red-500/30 hover:bg-black/55 transition cursor-default shadow-lg"
+      >
+        <span className="w-2 h-2 rounded-full bg-red-500 shrink-0 shadow-[0_0_6px_rgba(239,68,68,0.6)] animate-pulse" />
+        <span className="text-[12px] text-red-500  truncate flex-1">
+          {gw.name.replace(/^Gateway\s/, '')}
+        </span>
+        <span className="text-[9px] font-bold text-red-500 uppercase tracking-wider">Off</span>
+        {/* Tooltip */}
+        <div className="absolute left-43 top-1/2 -translate-y-1/2 ml-2 px-2 py-1 bg-bg-300/95 backdrop-blur-md border border-border/40 rounded shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 text-[10px] text-text-200">
+          {gw.ip_internal || '—'} · sin respuesta
+        </div>
+      </div>
+    ))}
+  </div>
+);
 }
