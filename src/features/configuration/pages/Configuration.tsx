@@ -49,22 +49,24 @@ export default function Configuration() {
       </div>
 
       {/* ── Navegación principal ── */}
-      <nav className="flex gap-1 bg-bg-100/40 p-1 rounded-lg mb-6 border border-border/10" role="tablist">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-              activeTab === tab.id
-                ? "bg-brand-200/10 text-brand-200 shadow-xs"
-                : "text-text-300 hover:text-text-200 hover:bg-bg-100/50"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <nav className="bg-bg-100 border-b border-border mb-6" role="tablist">
+        <div className="flex gap-1 overflow-x-auto">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === tab.id
+                  ? "border-brand-100 text-brand-100"
+                  : "border-transparent text-text-200 hover:text-text-100"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </nav>
 
       {/* ── Contenido ── */}

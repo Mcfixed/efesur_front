@@ -49,25 +49,25 @@ export default function MonitorSubEstacionDetailPanel({ deviceId, deviceName, la
           </div>
           <div className="flex-1 overflow-auto">
             <table className="w-full text-xs">
-              <thead>
-                <tr className="text-[10px] uppercase tracking-wider sticky top-0 bg-bg-100 border-b border-border/20">
-                  <th className="text-left px-3 py-1.5 font-semibold text-text-300">Fecha</th>
-                  <th className="text-left px-3 py-1.5 font-semibold text-text-300">Estado</th>
-                  <th className="text-left px-3 py-1.5 font-semibold text-text-300">GW</th>
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-bg-200 text-text-300 uppercase tracking-wider text-[9px]">
+                  <th className="text-left py-2 px-2 font-medium">Fecha</th>
+                  <th className="text-left py-2 px-2 font-medium">Estado</th>
+                  <th className="text-left py-2 px-2 font-medium">GW</th>
                 </tr>
               </thead>
               <tbody>
-                {telemetryData?.telemetry?.slice(0, 50).map((t: any) => (
-                  <tr key={t.id} className="border-t border-border/10 hover:bg-bg-100/60 transition-colors">
-                    <td className="px-3 py-1.5 text-text-200 font-mono whitespace-nowrap">{format(new Date(t.ts), "dd HH:mm")}</td>
-                    <td className="px-3 py-1.5">
+                {telemetryData?.telemetry?.slice(0, 50).map((t: any, i: number) => (
+                  <tr key={t.id} className={`${i % 2 === 0 ? "bg-bg-100" : "bg-bg-200/30"} hover:bg-bg-200/60 transition-colors border-b border-border/20`}>
+                    <td className="py-1.5 px-2 text-text-200 font-mono text-[10px] whitespace-nowrap">{format(new Date(t.ts), "dd HH:mm")}</td>
+                    <td className="py-1.5 px-2">
                       {t.object?.input_1_status === 'open'
                         ? <span className="text-green-400 font-medium">Abierta</span>
                         : t.object?.input_1_status === 'closed'
                           ? <span className="text-red-400 font-medium">Cerrada</span>
                           : <span className="text-text-300">—</span>}
                     </td>
-                    <td className="px-2 py-1">{Array.isArray(t.rxinfo) ? t.rxinfo.length : '—'}</td>
+                    <td className="py-1.5 px-2 text-text-300 text-[10px]">{Array.isArray(t.rxinfo) ? t.rxinfo.length : '—'}</td>
                   </tr>
                 ))}
               </tbody>

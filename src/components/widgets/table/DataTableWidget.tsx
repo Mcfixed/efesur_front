@@ -73,7 +73,7 @@ export function DataTableWidget<T extends object>({
     setPage(0);
   };
 
-  const cellPad = compact ? "px-3 py-1.5" : "px-4 py-2.5";
+  const cellPad = compact ? "py-1.5 px-2" : "py-2 px-2";
 
   return (
     <WidgetContainer
@@ -88,17 +88,16 @@ export function DataTableWidget<T extends object>({
       onPositionChange={onPositionChange}
     >
       <div className="overflow-x-auto -mx-4 -my-4">
-        <table className="w-full text-sm text-left">
+        <table className="w-full text-xs text-left">
           {/* ── Head ──────────────────────────────────────────────────── */}
-          <thead>
-            <tr className="border-b border-border/30 bg-bg-100">
+          <thead className="sticky top-0 z-10">
+            <tr className="bg-bg-200 text-text-300 uppercase tracking-wider text-[9px]">
               {columns.map((col) => (
                 <th
                   key={String(col.key)}
                   className={[
                     cellPad,
-                    "text-xs font-semibold text-text-200 uppercase tracking-wide whitespace-nowrap",
-                    "cursor-pointer select-none hover:text-text-100 transition-colors",
+                    "text-left font-medium whitespace-nowrap cursor-pointer select-none hover:text-text-100 transition-colors",
                   ].join(" ")}
                   style={{ width: col.width }}
                   onClick={() => handleSort(col)}
@@ -124,7 +123,7 @@ export function DataTableWidget<T extends object>({
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-4 py-8 text-center text-text-400 text-sm"
+                  className="px-4 py-8 text-center text-text-300 text-xs"
                 >
                   Sin datos
                 </td>
@@ -135,8 +134,8 @@ export function DataTableWidget<T extends object>({
                   key={ri}
                   className={[
                     "border-b border-border/20 transition-colors",
-                    striped && ri % 2 === 1 ? "bg-bg-100/60" : "",
-                    hoverable ? "hover:bg-bg-100/70" : "",
+                    striped ? (ri % 2 === 1 ? "bg-bg-200/30" : "bg-bg-100") : "bg-bg-100",
+                    hoverable ? "hover:bg-bg-200/60" : "",
                   ]
                     .filter(Boolean)
                     .join(" ")}

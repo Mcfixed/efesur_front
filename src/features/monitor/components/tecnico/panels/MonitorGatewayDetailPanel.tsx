@@ -243,10 +243,10 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
 
   return (
     <div className="flex-1 flex flex-col min-h-0 gap-1.5">
-      <div className="flex gap-1 bg-bg-300/30 p-0.5 rounded-lg shrink-0 self-start">
+      <div className="flex gap-1 bg-bg-100 border-b border-border shrink-0 self-start w-full">
         {tabs.map(t => (
           <button key={t.key} onClick={() => setActiveTab(t.key)}
-            className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all ${activeTab === t.key ? 'bg-white/15 text-text-100 shadow-sm border border-white/10' : 'text-text-300 hover:text-text-200'}`}>{t.label}</button>
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === t.key ? 'border-brand-100 text-brand-100' : 'border-transparent text-text-200 hover:text-text-100'}`}>{t.label}</button>
         ))}
       </div>
 
@@ -264,20 +264,20 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
               </div>
               <div className="flex-1 overflow-y-auto min-h-0">
                 {gatewayRecords.length > 0 ? (
-                  <table className="w-full text-[10px]">
-                    <thead className="text-text-300 sticky top-0 bg-bg-100">
-                      <tr className="border-b border-border/20">
-                        <th className="text-left px-2 py-1 font-medium">Dispositivo</th>
-                        <th className="text-left px-2 py-1 font-medium">Hora</th>
-                        <th className="text-center px-1 py-1 font-medium">GW</th>
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 z-10">
+                      <tr className="bg-bg-200 text-text-300 uppercase tracking-wider text-[9px]">
+                        <th className="text-left py-2 px-2 font-medium">Dispositivo</th>
+                        <th className="text-left py-2 px-2 font-medium">Hora</th>
+                        <th className="text-center py-2 px-2 font-medium">GW</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {gatewayRecords.map((r: any) => (
-                        <tr key={r.id} className="border-b border-border/10 hover:bg-bg-300/20">
-                          <td className="px-2 py-1 text-text-200 truncate max-w-28">{r.device_name || r.dev_eui}</td>
-                          <td className="px-2 py-1 text-text-300 font-mono whitespace-nowrap">{format(new Date(r.ts), "HH:mm:ss")}</td>
-                          <td className="px-1 py-1 text-center text-text-300">{Array.isArray(r.rxinfo) ? r.rxinfo.length : '—'}</td>
+                      {gatewayRecords.map((r: any, i: number) => (
+                        <tr key={r.id} className={`${i % 2 === 0 ? "bg-bg-100" : "bg-bg-200/30"} hover:bg-bg-200/60 transition-colors border-b border-border/20`}>
+                          <td className="py-1.5 px-2 text-text-100 truncate max-w-28 font-medium">{r.device_name || r.dev_eui}</td>
+                          <td className="py-1.5 px-2 text-text-300 font-mono text-[10px] whitespace-nowrap">{format(new Date(r.ts), "HH:mm:ss")}</td>
+                          <td className="py-1.5 px-2 text-center text-text-300 text-[10px]">{Array.isArray(r.rxinfo) ? r.rxinfo.length : '—'}</td>
                         </tr>
                       ))}
                     </tbody>

@@ -184,35 +184,35 @@ export default function MonitorCalendario() {
             ) : !alerts || alerts.length === 0 ? (
               <div className="flex items-center justify-center h-full"><p className="text-[13px] text-text-300">Sin alertas este día</p></div>
             ) : (
-              <table className="w-full text-[11px]">
-                <thead>
-                  <tr className="text-[10px] uppercase tracking-wider text-text-400 border-b border-border/20">
-                    <th className="text-left px-2.5 py-1.5 font-medium w-[28px]"> </th>
-                    <th className="text-left px-2.5 py-1.5 font-medium">Dispositivo</th>
-                    <th className="text-left px-2.5 py-1.5 font-medium">Tipo</th>
-                    <th className="text-left px-2.5 py-1.5 font-medium">Alerta</th>
-                    <th className="text-left px-2.5 py-1.5 font-medium w-[52px]">Hora</th>
-                    <th className="text-right px-2.5 py-1.5 font-medium w-[68px]">Acción</th>
+              <table className="w-full text-xs">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-bg-200 text-text-300 uppercase tracking-wider text-[9px]">
+                    <th className="text-left py-2 px-2 font-medium w-[28px]"> </th>
+                    <th className="text-left py-2 px-2 font-medium">Dispositivo</th>
+                    <th className="text-left py-2 px-2 font-medium">Tipo</th>
+                    <th className="text-left py-2 px-2 font-medium">Alerta</th>
+                    <th className="text-left py-2 px-2 font-medium w-[52px]">Hora</th>
+                    <th className="text-right py-2 px-2 font-medium w-[68px]">Acción</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {alerts.map((a: any) => {
+                  {alerts.map((a: any, i: number) => {
                     const conf = TYPE_LABELS[a.type] || { label: a.type, color: "text-text-300 bg-bg-200/60", icon: IconAlertCircle };
                     const Icon = conf.icon;
                     return (
-                      <tr key={a.id} className="border-b border-border/10 hover:bg-bg-200/30 transition-colors">
-                        <td className="px-2.5 py-1.5">
+                      <tr key={a.id} className={`${i % 2 === 0 ? "bg-bg-100" : "bg-bg-200/30"} hover:bg-bg-200/60 transition-colors border-b border-border/20`}>
+                        <td className="py-1.5 px-2">
                           <div className={`w-5 h-5 rounded flex items-center justify-center ${conf.color}`}>
                             <Icon size={10} />
                           </div>
                         </td>
-                        <td className="px-2.5 py-1.5 font-semibold text-text-100 truncate max-w-[130px]">{a.device_name}</td>
-                        <td className="px-2.5 py-1.5 text-text-300">{a.type_device}</td>
-                        <td className="px-2.5 py-1.5">
+                        <td className="py-1.5 px-2 font-semibold text-text-100 truncate max-w-[130px]">{a.device_name}</td>
+                        <td className="py-1.5 px-2 text-text-300 text-[10px]">{a.type_device}</td>
+                        <td className="py-1.5 px-2">
                           <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${conf.color}`}>{conf.label}</span>
                         </td>
-                        <td className="px-2.5 py-1.5 text-text-300 font-mono">{format(new Date(a.created_at), "HH:mm")}</td>
-                        <td className="px-2.5 py-1.5 text-right">
+                        <td className="py-1.5 px-2 text-text-300 font-mono text-[10px]">{format(new Date(a.created_at), "HH:mm")}</td>
+                        <td className="py-1.5 px-2 text-right">
                           {a.type === "critica" ? (
                             <button onClick={() => setTrackingAlertId(a.id)}
                               className="text-[10px] font-semibold text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 px-2 py-0.5 rounded transition-colors">

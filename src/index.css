@@ -31,6 +31,7 @@
   --color-bg-200: var(--bg-200);
   --color-bg-300: var(--bg-300);
   --color-bg-400: var(--bg-400);
+  --color-bg-450: var(--bg-450);
   --color-bg-hover: var(--bg-hover);
 
   /* Colores de Marca y Acción */
@@ -54,6 +55,7 @@
     --bg-200: #e7e7e7;
     --bg-300: #ffffff;
     --bg-400: #000000;
+    --bg-450: #292929;
 
     /* Interacción */
     --bg-hover: #e2e8f0;
@@ -79,6 +81,7 @@
     --bg-200: #1f2127;
     --bg-300: #373a42;
     --bg-400: #dce0e4;
+    --bg-450: #ffffff;
 
     /* Interacción */
 
@@ -160,9 +163,9 @@ body {
   height: 100vh;
   overflow-x: hidden;
   /* font-family: "Raleway", sans-serif; */
-  font-family: "Outfit", sans-serif;
+  /* font-family: "Outfit", sans-serif; */
   /* font-family: "Libre Franklin", sans-serif; */
-  /* font-family: "Space Grotesk", sans-serif; */
+  font-family: "Space Grotesk", sans-serif;
 }
 
 .font-secondary{

@@ -69,27 +69,27 @@ export default function AuditPage() {
       </div>
 
       {/* Tabla */}
-      <div className="bg-bg-100 border border-border/30 rounded-lg overflow-hidden flex-1">
-        <div className="overflow-auto max-h-full">
-          <table className="w-full text-[13px]">
-            <thead>
-              <tr className="text-[11px] uppercase tracking-wider bg-bg-200/40 border-b border-border/20">
-                <th className="text-left px-3 py-2 font-medium text-text-300">Fecha</th>
-                <th className="text-left px-3 py-2 font-medium text-text-300">Usuario</th>
-                <th className="text-left px-3 py-2 font-medium text-text-300">Acción</th>
-                <th className="text-left px-3 py-2 font-medium text-text-300">Detalle</th>
-                <th className="text-left px-3 py-2 font-medium text-text-300">IP</th>
+      <div className="bg-bg-100 rounded-lg border border-border overflow-hidden flex-1">
+        <div className="overflow-x-auto max-h-full overflow-y-auto">
+          <table className="w-full text-xs">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-bg-200 text-text-300 uppercase tracking-wider text-[9px]">
+                <th className="text-left py-2 px-2 font-medium">Fecha</th>
+                <th className="text-left py-2 px-2 font-medium">Usuario</th>
+                <th className="text-left py-2 px-2 font-medium">Acción</th>
+                <th className="text-left py-2 px-2 font-medium">Detalle</th>
+                <th className="text-left py-2 px-2 font-medium">IP</th>
               </tr>
             </thead>
-            <tbody className="text-text-200">
+            <tbody>
               {isLoading ? (
-                <tr><td colSpan={5} className="px-3 py-8 text-center text-text-300">Cargando...</td></tr>
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-text-300 text-xs">Cargando...</td></tr>
               ) : !data?.logs.length ? (
-                <tr><td colSpan={5} className="px-3 py-8 text-center text-text-300">Sin registros</td></tr>
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-text-300 text-xs">Sin registros</td></tr>
               ) : (
-                data.logs.map(log => (
-                  <tr key={log.id} className="border-b border-border/10 hover:bg-bg-200/40 transition-colors">
-                    <td className="px-3 py-2.5 whitespace-nowrap text-text-300">
+                data.logs.map((log, i) => (
+                  <tr key={log.id} className={`${i % 2 === 0 ? "bg-bg-100" : "bg-bg-200/30"} hover:bg-bg-200/60 transition-colors border-b border-border/20`}>
+                    <td className="py-1.5 px-2 whitespace-nowrap text-text-300 font-mono text-[10px]">
                       {(() => {
                         try {
                           if (!log.created_at) return "—";
@@ -101,16 +101,16 @@ export default function AuditPage() {
                         } catch { return "—"; }
                       })()}
                     </td>
-                    <td className="px-3 py-2.5 font-medium text-text-100">{log.user_name || "—"}</td>
-                    <td className="px-3 py-2.5">
-                      <span className="bg-bg-200/60 px-1.5 py-0.5 rounded text-[11px] font-medium">
+                    <td className="py-1.5 px-2 font-medium text-text-100">{log.user_name || "—"}</td>
+                    <td className="py-1.5 px-2">
+                      <span className="bg-bg-200/60 px-1.5 py-0.5 rounded text-[10px] font-medium text-text-200">
                         {ACTION_LABELS[log.action] || log.action}
                       </span>
                     </td>
-                    <td className="px-3 py-2.5 text-text-300 max-w-xs truncate cursor-pointer hover:text-text-100" onClick={() => setDetailLog(log)}>
+                    <td className="py-1.5 px-2 text-text-300 text-[10px] max-w-xs truncate cursor-pointer hover:text-text-100" onClick={() => setDetailLog(log)}>
                       {log.details ? JSON.stringify(log.details).slice(0, 80) + "..." : "—"}
                     </td>
-                    <td className="px-3 py-2.5 font-mono text-[11px] text-text-300">{log.ip || "—"}</td>
+                    <td className="py-1.5 px-2 font-mono text-[10px] text-text-300">{log.ip || "—"}</td>
                   </tr>
                 ))
               )}

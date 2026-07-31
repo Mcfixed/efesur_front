@@ -24,20 +24,22 @@ export default function MonitorPage() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <div className="shrink-0 flex items-center gap-1 bg-bg-100/50 border-b border-border/20 px-5 py-0">
-        {TABS.map(t => {
-          const Icon = t.icon;
-          const active = tab === t.key;
-          return (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`relative flex items-center gap-2.5 px-5 py-3 text-[14px] font-bold transition-all ${
-                active
-                  ? "text-brand-200 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-brand-200 after:rounded-full"
-                  : "text-text-300 hover:text-text-200"
-              }`}
-            ><Icon size={18} /> {t.label}</button>
-          );
-        })}
+      <div className="shrink-0 bg-bg-100 border-b border-border px-5">
+        <div className="flex gap-1 overflow-x-auto">
+          {TABS.map(t => {
+            const Icon = t.icon;
+            const active = tab === t.key;
+            return (
+              <button key={t.key} onClick={() => setTab(t.key)}
+                className={`flex items-center gap-2 px-4 py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
+                  active
+                    ? "border-brand-100 text-brand-100"
+                    : "border-transparent text-text-200 hover:text-text-100"
+                }`}
+              ><Icon size={16} stroke={1.5} /> {t.label}</button>
+            );
+          })}
+        </div>
       </div>
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
         {tab === "resumen" && <MonitorResumen />}

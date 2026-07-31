@@ -74,32 +74,32 @@ export default function MonitorResumen() {
           const hasIssue = key !== "totalSensores" && key !== "cobertura" && (val as number) > 0;
           const isLowCoverage = key === "cobertura" && (val as number) < 100;
           return (
-            <div key={key} className={`relative rounded-lg bg-bg-100 border shadow-sm px-2.5 py-2 overflow-hidden transition-colors ${borderColor}`}>
-              <div className="flex items-center gap-1.5 relative">
-                <div className="w-6 h-6 rounded-md bg-bg-200/80 flex items-center justify-center shrink-0">
-                  <Icon size={12} className="text-text-200" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[7px] font-medium uppercase tracking-wider text-text-300 flex items-center gap-1">
-                    {label}
-                    <span className="text-[5px] font-semibold text-text-200 bg-bg-300/30 px-0.5 py-0.5 rounded">HOY</span>
-                  </p>
-                  <p className="text-[14px] font-bold leading-none tracking-tight text-text-100 flex items-center gap-1">
+            <div key={key} className={`relative flex items-start justify-between gap-3 border border-border-200/40 p-3 rounded-lg bg-bg-100 transition-colors ${borderColor}`}>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-text-200 uppercase tracking-wide truncate flex items-center gap-1">
+                  {label}
+                  <span className="text-[9px] font-semibold text-text-200 bg-bg-300/60 px-1 py-0.5 rounded shrink-0">HOY</span>
+                </p>
+                <div className="mt-1 flex items-baseline gap-1">
+                  <span className="text-3xl font-bold leading-none tracking-tight text-text-100">
                     {isLoading
                       ? <span className="animate-pulse text-text-300">--</span>
                       : isPct
                         ? <>{typeof val === "number" ? (
                           <span className="inline-flex items-baseline gap-0.5">
-                            {Math.round(val)}<span className="text-[9px] font-normal text-text-300">%</span>
+                            {Math.round(val)}<span className="text-sm font-normal text-text-300">%</span>
                           </span>
                         ) : "—"}</>
                         : val ?? "—"}
-                    {!isLoading && (hasIssue || isLowCoverage) && (
-                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${key === "atencion" || key === "presencia" ? "bg-yellow-400" : "bg-red-400"}`}
-                        style={{ boxShadow: `0 0 4px ${key === "atencion" || key === "presencia" ? "rgba(250,204,21,0.5)" : "rgba(239,68,68,0.5)"}` }} />
-                    )}
-                  </p>
+                  </span>
                 </div>
+                {!isLoading && (hasIssue || isLowCoverage) && (
+                  <span className={`w-1.5 h-1.5 rounded-full inline-block shrink-0 mt-1 ${key === "atencion" || key === "presencia" ? "bg-yellow-400" : "bg-red-400"}`}
+                    style={{ boxShadow: `0 0 4px ${key === "atencion" || key === "presencia" ? "rgba(250,204,21,0.5)" : "rgba(239,68,68,0.5)"}` }} />
+                )}
+              </div>
+              <div className="shrink-0 p-2.5 rounded-lg bg-bg-300" style={{ color: "#8ecae0" }}>
+                <Icon size={20} />
               </div>
             </div>
           );

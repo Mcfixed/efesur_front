@@ -57,38 +57,38 @@ export default function MonitorGpsDetailPanel({
           </div>
           <div className="flex-1 overflow-auto">
             <table className="w-full text-xs">
-              <thead>
-                <tr className="text-[10px] uppercase tracking-wider sticky top-0 bg-bg-100 border-b border-border/20">
-                  <th className="text-left px-3 py-1.5 font-semibold text-text-300">Fecha</th>
-                  <th className="text-left px-3 py-1.5 font-semibold text-text-300"><MonitorBatteryPopup><span className="flex items-center gap-1 cursor-help">Bat<svg className="w-3 h-3 text-text-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span></MonitorBatteryPopup></th>
-                  <th className="text-left px-3 py-1.5 font-semibold text-text-300">°C</th>
-                  <th className="text-left px-3 py-1.5 font-semibold text-text-300">Mov</th>
-                  <th className="text-left px-3 py-1.5 font-semibold text-text-300">Gateways</th>
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-bg-200 text-text-300 uppercase tracking-wider text-[9px]">
+                  <th className="text-left py-2 px-2 font-medium">Fecha</th>
+                  <th className="text-left py-2 px-2 font-medium"><MonitorBatteryPopup><span className="flex items-center gap-1 cursor-help">Bat<svg className="w-3 h-3 text-text-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span></MonitorBatteryPopup></th>
+                  <th className="text-left py-2 px-2 font-medium">°C</th>
+                  <th className="text-left py-2 px-2 font-medium">Mov</th>
+                  <th className="text-left py-2 px-2 font-medium">Gateways</th>
                 </tr>
               </thead>
               <tbody>
-                {telemetryData?.telemetry?.map((t: any) => (
-                  <tr key={t.id} className="border-t border-border/10 hover:bg-bg-100/60 transition-colors">
-                    <td className="px-3 py-1.5 text-text-200 font-mono whitespace-nowrap">{format(new Date(t.ts), "dd HH:mm")}</td>
-                    <td className="px-3 py-1.5 font-mono">{formatBattery(t.object?.voltage_mV)}</td>
-                    <td className="px-3 py-1.5 font-mono">{t.object?.temperature_C != null ? <span>{t.object.temperature_C}°</span> : <span className="text-text-300">—</span>}</td>
-                    <td className="px-3 py-1.5">
+                {telemetryData?.telemetry?.map((t: any, i: number) => (
+                  <tr key={t.id} className={`${i % 2 === 0 ? "bg-bg-100" : "bg-bg-200/30"} hover:bg-bg-200/60 transition-colors border-b border-border/20`}>
+                    <td className="py-1.5 px-2 text-text-200 font-mono text-[10px] whitespace-nowrap">{format(new Date(t.ts), "dd HH:mm")}</td>
+                    <td className="py-1.5 px-2 font-mono text-[10px] text-text-100">{formatBattery(t.object?.voltage_mV)}</td>
+                    <td className="py-1.5 px-2 font-mono text-[10px] text-text-100">{t.object?.temperature_C != null ? <span>{t.object.temperature_C}°</span> : <span className="text-text-300">—</span>}</td>
+                    <td className="py-1.5 px-2">
                       {t.object?.packetType?.startsWith?.('COMMAND')
-                        ? <span className="text-cyan-400 font-semibold text-[11px]" title={t.object.systemMessage || ''}>{t.object.systemMessage || t.object.packetType}</span>
+                        ? <span className="text-cyan-400 font-semibold text-[10px]" title={t.object.systemMessage || ''}>{t.object.systemMessage || t.object.packetType}</span>
                         : t.object?.packetType === 'CONFIG_REPORT'
-                          ? <span className="text-purple-400 font-semibold text-[11px]">Config Report</span>
+                          ? <span className="text-purple-400 font-semibold text-[10px]">Config Report</span>
                           : t.object?.packetType === 'QA_VALIDATION'
-                            ? <span className="text-purple-400 font-semibold text-[11px]">QA Validación</span>
+                            ? <span className="text-purple-400 font-semibold text-[10px]">QA Validación</span>
                             : t.object?.systemStatus?.freeFallFlag ? <span className="text-red-400" title="Caída libre">●</span>
                               : t.object?.systemStatus?.motionFlag ? <span className="text-yellow-400" title="Movimiento">●</span>
                                 : t.object?.voltage_mV != null && t.object?.temperature_C != null ? <span className="text-green-400" title="KeepAlive">●</span>
                                   : <span className="text-text-300">○</span>}
                     </td>
-                    <td className="px-3 py-1.5">
+                    <td className="py-1.5 px-2">
                       {Array.isArray(t.rxinfo) && t.rxinfo.length > 0
-                        ? <span className="flex items-center gap-1 flex-wrap">{t.rxinfo.map((gw: any, i: number) => {
-                            const name = gwNameMap.get(gw.gatewayId) || gwNameMap.get(gw.gatewayId?.slice(-6)) || gw.gatewayId?.slice(-6) || `GW${i + 1}`;
-                            return <span key={i} className="text-[10px] bg-bg-300/40 px-1 py-0.5 rounded font-mono">{name}</span>;
+                        ? <span className="flex items-center gap-1 flex-wrap">{t.rxinfo.map((gw: any, gi: number) => {
+                            const name = gwNameMap.get(gw.gatewayId) || gwNameMap.get(gw.gatewayId?.slice(-6)) || gw.gatewayId?.slice(-6) || `GW${gi + 1}`;
+                            return <span key={gi} className="text-[10px] bg-bg-300/40 px-1 py-0.5 rounded font-mono text-text-200">{name}</span>;
                           })}</span>
                         : <span className="text-text-300">—</span>
                       }
