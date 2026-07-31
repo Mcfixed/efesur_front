@@ -44,6 +44,8 @@ const BaseMap: React.FC<BaseMapProps> = ({
   children,
   initialCenter = DEFAULT_CENTER,
   initialZoom = MAP_ZOOM_LEVEL,
+  initialPitch = 0,
+  initialBearing = 0,
   onMapRef,
 }) => {
   const mapRef = useRef<MapRef>(null);
@@ -101,11 +103,6 @@ const BaseMap: React.FC<BaseMapProps> = ({
         icon: <IconTrees size={20} />,
         style: "mapbox://styles/mapbox/outdoors-v12",
       },
-      blueprint: {
-        name: "Planos / Blueprint",
-        icon: <IconLayout size={20} />,
-        style: "mapbox://styles/mapbox/cj7qzzm1u20ia2rp6v7ndznb2",
-      },
       standard: {
         name: "Mapbox Standard",
         icon: <IconStack size={20} />,
@@ -120,11 +117,6 @@ const BaseMap: React.FC<BaseMapProps> = ({
         name: "Tráfico Nocturno",
         icon: <IconBolt size={20} />,
         style: "mapbox://styles/mapbox/traffic-night-v2",
-      },
-      blank: {
-        name: "Lienzo Vacío",
-        icon: <IconSquare size={20} />,
-        style: "mapbox://styles/mapbox/empty-v9",
       },
 
       // --- 15 NUEVAS CAPAS ADICIONALES ---
@@ -142,56 +134,6 @@ const BaseMap: React.FC<BaseMapProps> = ({
         name: "Oscuro Profundo",
         icon: <IconMoonStars size={20} />,
         style: "mapbox://styles/mapbox/dark-v10",
-      },
-      emerald: {
-        name: "Estilo Esmeralda",
-        icon: <IconLeaf size={20} />,
-        style: "mapbox://styles/mapbox/emerald-v8",
-      },
-      pencil: {
-        name: "Dibujo Lápiz",
-        icon: <IconPencil size={20} />,
-        style: "mapbox://styles/mapbox/cj44mfrt20f082snj2se3v4lv",
-      },
-      terminal: {
-        name: "Matrix / Terminal",
-        icon: <IconTerminal2 size={20} />,
-        style: "mapbox://styles/mapbox/cjdt368to39652rm94oizscu9",
-      },
-      decimal: {
-        name: "Decimal (Clean)",
-        icon: <IconNumber size={20} />,
-        style: "mapbox://styles/mapbox/cj3k9u3l200132ss0nbi90n3p",
-      },
-      mineral: {
-        name: "Mineral / Soft",
-        icon: <IconRipple size={20} />,
-        style: "mapbox://styles/mapbox/cj6m99v7e5o9r2ro09idk6773",
-      },
-      north_star: {
-        name: "Estrella del Norte",
-        icon: <IconCompass size={20} />,
-        style: "mapbox://styles/mapbox/cj44m9p3h0f292snm239p4p2s",
-      },
-      ice_cream: {
-        name: "Ice Cream (Pastel)",
-        icon: <IconIceCream size={20} />,
-        style: "mapbox://styles/mapbox/cj7at6m5i3p6v2rmsqf80t6f8",
-      },
-      moonlight: {
-        name: "Luz de Luna",
-        icon: <IconCloudMinus size={20} />,
-        style: "mapbox://styles/mapbox/cj3k9ut30000z2rnma60ic924",
-      },
-      odyssey: {
-        name: "Odisea (Sci-Fi)",
-        icon: <IconRocket size={20} />,
-        style: "mapbox://styles/mapbox/cj6m6v98v5mtl2rmv0qlu83f1",
-      },
-      bubble: {
-        name: "Burbuja / Infantil",
-        icon: <IconCircleDot size={20} />,
-        style: "mapbox://styles/mapbox/cj7at6m5i3p6v2rmsqf80t6f8",
       },
       navigation_guidance_day: {
         name: "Guía de Ruta Día",
@@ -233,8 +175,8 @@ const BaseMap: React.FC<BaseMapProps> = ({
           longitude: initialCenter.longitude,
           latitude: initialCenter.latitude,
           zoom: initialZoom,
-          pitch: 0,
-          bearing: 0,
+          pitch: initialPitch,
+          bearing: initialBearing,
         }}
         mapboxAccessToken={MAPBOX_TOKEN}
         mapStyle={mapLayers[selectedLayer].style}
@@ -255,7 +197,7 @@ const BaseMap: React.FC<BaseMapProps> = ({
         {children}
       </ReactMapGL>
       <div className="absolute right-1 top-1 h-[calc(100%-8px)] z-50 bg-bg-100/90 backdrop-blur-sm flex flex-col gap-1 p-1 rounded">
-        <div className="flex flex-col p-0.5 gap-1 border border-border rounded py-1">
+        <div className="flex flex-col p-0.5 gap-1  rounded py-1">
           <LayerSelector
             selectedLayer={selectedLayer}
             onLayerChange={handleLayerChange}

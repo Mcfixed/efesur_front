@@ -1,26 +1,20 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { format } from "date-fns";
 import { useMonitorDevices } from "../../hooks/useMonitor";
 import { monitorService } from "../../services/monitor.service";
-import { IconX, IconFileReport, IconBattery, IconWifi, IconDashboard, IconAlertTriangle, IconTemperature, IconMapPin, IconServer, IconScale, IconChartLine } from "@tabler/icons-react";
+import { IconX, IconFileReport, IconBattery, IconWifi, IconAlertTriangle } from "@tabler/icons-react";
 
 interface Props {
   onClose: () => void;
 }
 
-type ReportType = 'general' | 'battery' | 'connectivity' | 'executive' | 'alerts' | 'temperature' | 'gps' | 'gateway' | 'sla' | 'comparative';
+type ReportType = 'general' | 'battery' | 'connectivity' | 'alerts';
 
 const REPORT_OPTIONS: { key: ReportType; label: string; desc: string; icon: any }[] = [
   { key: 'general', label: 'Reporte general', desc: 'Métricas y alertas por dispositivo', icon: IconFileReport },
-  { key: 'executive', label: 'Ejecutivo', desc: 'Resumen mensual de alto nivel', icon: IconDashboard },
   { key: 'battery', label: 'Salud de baterías', desc: 'Estado, voltaje y proyección', icon: IconBattery },
   { key: 'connectivity', label: 'Conectividad', desc: 'SNR, RSSI y cobertura', icon: IconWifi },
-  { key: 'temperature', label: 'Temperatura', desc: 'Sensor térmico por dispositivo', icon: IconTemperature },
-  { key: 'alerts', label: 'Alertas', desc: 'Análisis avanzado de incidentes', icon: IconAlertTriangle },
-  { key: 'gps', label: 'Tracking GPS', desc: 'Recorridos y velocidad', icon: IconMapPin },
-  { key: 'gateway', label: 'Gateway', desc: 'Estado de infraestructura', icon: IconServer },
-  { key: 'sla', label: 'SLA / Cumplimiento', desc: 'Disponibilidad y tiempos', icon: IconScale },
-  { key: 'comparative', label: 'Comparativo', desc: 'Período vs período anterior', icon: IconChartLine },
+  { key: 'alerts', label: 'Alertas y Tracking', desc: 'Alertas y recorridos por dispositivo', icon: IconAlertTriangle },
 ];
 
 export default function MonitorReportModal({ onClose }: Props) {
@@ -32,26 +26,29 @@ export default function MonitorReportModal({ onClose }: Props) {
   const [reportData, setReportData] = useState<any>(null);
   const [reportType, setReportType] = useState<ReportType>('general');
 
+  // Dispositivos visibles: todos los tipos en todos los reportes
+  const visibleDevices = useMemo(() => (allDevices || []), [allDevices]);
+
   const deviceTypes = useMemo(() => {
-    const types = new Set((allDevices || []).map(d => d.type_device));
+    const types = new Set(visibleDevices.map(d => d.type_device));
     return [...types].sort();
-  }, [allDevices]);
+  }, [visibleDevices]);
 
   const devicesByType = useMemo(() => {
     const map = new Map<string, typeof allDevices>();
-    (allDevices || []).forEach(d => {
+    visibleDevices.forEach(d => {
       const arr = map.get(d.type_device) || [];
       arr.push(d);
       map.set(d.type_device, arr);
     });
     return map;
-  }, [allDevices]);
+  }, [visibleDevices]);
 
   const toggleAll = () => {
-    if (selectedIds.size === (allDevices || []).length) {
+    if (selectedIds.size === visibleDevices.length && visibleDevices.every(d => selectedIds.has(d.id))) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set((allDevices || []).map(d => d.id)));
+      setSelectedIds(new Set(visibleDevices.map(d => d.id)));
     }
   };
 
@@ -70,32 +67,54 @@ export default function MonitorReportModal({ onClose }: Props) {
     setSelectedIds(next);
   };
 
+  // Al cambiar de tipo de reporte, limpiar selecciones que ya no son válidas
+  useEffect(() => {
+    const validIds = new Set(visibleDevices.map(d => d.id));
+    setSelectedIds(prev => new Set([...prev].filter(id => validIds.has(id))));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reportType, allDevices]);
+
   const generatePDF = async () => {
     if (selectedIds.size === 0) return;
     if (reportType === 'general') await generateGeneralPDF();
     else if (reportType === 'battery') await generateBatteryPDF();
     else if (reportType === 'connectivity') await generateConnectivityPDF();
-    else if (reportType === 'executive') await generateExecutivePDF();
     else if (reportType === 'alerts') await generateAlertsPDF();
-    else if (reportType === 'temperature') await generateTemperaturePDF();
-    else if (reportType === 'gps') await generateGpsPDF();
-    else if (reportType === 'gateway') await generateGatewayPDF();
-    else if (reportType === 'sla') await generateSlaPDF();
-    else if (reportType === 'comparative') await generateComparativePDF();
   };
 
   const generateGeneralPDF = async () => {
     if (selectedIds.size === 0) return;
     setLoading(true);
     try {
+      // Gateway → lectores asignados (el gateway tiene id_device_father apuntando al lector)
+      const lectorsByGateway = new Map<number, any[]>();
+      const lectoresById = new Map<number, any>();
+      (allDevices || []).filter(d => d.type_device === 'Lector').forEach(d => lectoresById.set(d.id, d));
+      (allDevices || []).forEach(d => {
+        if (d.type_device === 'Gateway' && d.id_device_father) {
+          const lector = lectoresById.get(d.id_device_father);
+          if (lector) {
+            const arr = lectorsByGateway.get(d.id) || [];
+            arr.push(lector);
+            lectorsByGateway.set(d.id, arr);
+          }
+        }
+      });
+      const selectedDevices = (allDevices || []).filter(d => selectedIds.has(d.id));
+      // Expandir deviceIds: incluir los lectores de los gateways seleccionados
+      const expandedIds = new Set(selectedIds);
+      selectedDevices.forEach(d => {
+        if (d.type_device === 'Gateway') {
+          (lectorsByGateway.get(d.id) || []).forEach(l => expandedIds.add(l.id));
+        }
+      });
+
       const data = await monitorService.getReport({
-        deviceIds: [...selectedIds],
+        deviceIds: [...expandedIds],
         from: fromDate ? new Date(fromDate).toISOString() : undefined,
         to: toDate ? new Date(toDate + "T23:59:59").toISOString() : undefined,
       });
       setReportData(data);
-
-      const selectedDevices = (allDevices || []).filter(d => selectedIds.has(d.id));
       const title = `Reporte EFESUR - ${format(new Date(), "yyyy-MM-dd")}`;
       const isSingleDay = fromDate === toDate;
       const dayCount = fromDate && toDate
@@ -194,34 +213,65 @@ export default function MonitorReportModal({ onClose }: Props) {
         return valid.length > 0 ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
       };
 
+      // ─── Helper: escape HTML ───
+      const esc = (s: any) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+
       // ─── Agrupar telemetría por dispositivo ───
       const deviceMap = new Map<number, { bat: number[]; temp: number[]; snr: number[]; rssi: number[]; ts: Date[]; gwCount: number[] }>();
 
       selectedDevices.forEach(d => deviceMap.set(d.id, { bat: [], temp: [], snr: [], rssi: [], ts: [], gwCount: [] }));
 
+      // ─── Telemetría de lectores (para mostrar en los gateways) ───
+      // Estructura del objeto lector:
+      // { mppt: { chargeState, panelPower_W, batteryVoltage_V, batteryCurrent_A, panelVoltage_V, loadCurrent_A, temp, loadState },
+      //   charger220: { State, Error, battery_V, battery_A },
+      //   sensores: { presenseSensor, distancePrecenseSensor, openingDoorSensor } }
+      const lectorMap = new Map<number, { volt: number[]; power: number[]; current: number[]; temp: number[]; panelV: number[]; loadA: number[]; loadState: number[]; chargeState: number[]; chargerState: string[]; sensores: any[]; ts: Date[] }>();
+      (allDevices || []).filter(d => d.type_device === 'Lector').forEach(d => {
+        lectorMap.set(d.id, { volt: [], power: [], current: [], temp: [], panelV: [], loadA: [], loadState: [], chargeState: [], chargerState: [], sensores: [], ts: [] });
+      });
+
       data.telemetry.forEach((t: any) => {
         const rx = Array.isArray(t.rxinfo) ? t.rxinfo : typeof t.rxinfo === 'string' ? (() => { try { return JSON.parse(t.rxinfo); } catch { return []; } })() : [];
         const gw = rx[0] || {};
         const entry = deviceMap.get(t.device_id);
-        if (!entry) return;
-        if (t.object?.voltage_mV != null) {
-          const mv = Number(t.object.voltage_mV);
-          entry.bat.push(mv);
+        if (entry) {
+          if (t.object?.voltage_mV != null) {
+            const mv = Number(t.object.voltage_mV);
+            entry.bat.push(mv);
+          }
+          if (t.object?.temperature_C != null) {
+            const tc = Number(t.object.temperature_C);
+            entry.temp.push(tc);
+          }
+          if (gw?.snr != null) {
+            const sn = Number(gw.snr);
+            entry.snr.push(sn);
+          }
+          if (gw?.rssi != null) {
+            const rs = Number(gw.rssi);
+            entry.rssi.push(rs);
+          }
+          entry.ts.push(new Date(t.ts));
+          entry.gwCount.push(rx.length);
         }
-        if (t.object?.temperature_C != null) {
-          const tc = Number(t.object.temperature_C);
-          entry.temp.push(tc);
+        // Datos de lector (asignados a un gateway)
+        const le = lectorMap.get(t.device_id);
+        if (le) {
+          const o = t.object || {};
+          const batV = o.charger220?.battery_V ?? o.mppt?.batteryVoltage_V;
+          if (batV != null) le.volt.push(Number(batV));
+          if (o.mppt?.panelPower_W != null) le.power.push(Number(o.mppt.panelPower_W));
+          if (o.mppt?.batteryCurrent_A != null) le.current.push(Number(o.mppt.batteryCurrent_A));
+          if (o.mppt?.temp != null) le.temp.push(Number(o.mppt.temp));
+          if (o.mppt?.panelVoltage_V != null) le.panelV.push(Number(o.mppt.panelVoltage_V));
+          if (o.mppt?.loadCurrent_A != null) le.loadA.push(Number(o.mppt.loadCurrent_A));
+          if (o.mppt?.loadState != null) le.loadState.push(Number(o.mppt.loadState));
+          if (o.mppt?.chargeState != null) le.chargeState.push(Number(o.mppt.chargeState));
+          if (o.charger220?.State != null) le.chargerState.push(String(o.charger220.State));
+          if (o.sensores) le.sensores.push(o.sensores);
+          le.ts.push(new Date(t.ts));
         }
-        if (gw?.snr != null) {
-          const sn = Number(gw.snr);
-          entry.snr.push(sn);
-        }
-        if (gw?.rssi != null) {
-          const rs = Number(gw.rssi);
-          entry.rssi.push(rs);
-        }
-        entry.ts.push(new Date(t.ts));
-        entry.gwCount.push(rx.length);
       });
 
       const sections: string[] = [];
@@ -315,9 +365,139 @@ export default function MonitorReportModal({ onClose }: Props) {
                 `).join('')}
               </div>
             </div>` : ''}
+
+            ${device.type_device === 'Gateway' ? (() => {
+              const lectores = lectorsByGateway.get(device.id) || [];
+              if (!lectores.length) return '';
+              const lectoresHtml = lectores.map(lector => {
+                const le = lectorMap.get(lector.id);
+                const lectorAlerts = (data.alerts || []).filter((a: any) => a.device_id === lector.id || a.device_name === lector.name);
+                if (!le || !le.ts.length) return `
+                  <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;margin-bottom:14px">
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <span style="font-size:12px;font-weight:700;color:#047857">${esc(lector.name)}</span>
+                      <span style="font-size:10px;color:#888">${esc(lector.dev_eui)} · Lector</span>
+                    </div>
+                    <p style="font-size:10px;color:#9ca3af;margin:6px 0 0">Sin telemetría en el período</p>
+                  </div>`;
+                const avgVolt = avg(le.volt);
+                const avgPower = avg(le.power);
+                const avgCurrent = avg(le.current);
+                const avgTemp = avg(le.temp);
+                const last = le.ts.length - 1;
+                const chargerState = le.chargerState[last];
+                const sensors = le.sensores[last] || {};
+                const voltSpark = le.volt.length > 1 ? sparkline(le.volt, '#22c55e', 'V', 44, le.ts) : '';
+                const powerSpark = le.power.length > 1 ? sparkline(le.power, '#f59e0b', 'W', 44, le.ts) : '';
+                const currentSpark = le.current.length > 1 ? sparkline(le.current, '#3b82f6', 'A', 44, le.ts) : '';
+                const tempSpark = le.temp.length > 1 ? sparkline(le.temp, '#ef4444', '°C', 44, le.ts) : '';
+                const panelVSpark = le.panelV.length > 1 ? sparkline(le.panelV, '#8b5cf6', 'V', 44, le.ts) : '';
+                const loadASpark = le.loadA.length > 1 ? sparkline(le.loadA, '#0ea5e9', 'A', 44, le.ts) : '';
+                return `
+                  <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;margin-bottom:14px">
+                    <div style="display:flex;align-items:center;gap:8px;border-bottom:1px solid #d1fae5;padding-bottom:8px;margin-bottom:10px">
+                      <span style="font-size:12px;font-weight:700;color:#047857">${esc(lector.name)}</span>
+                      <span style="font-size:10px;color:#888">${esc(lector.dev_eui)} · Lector</span>
+                      <span style="margin-left:auto;font-size:10px;font-weight:600;color:${chargerState === 'Flotación' ? '#16a34a' : chargerState === 'Carga' ? '#d97706' : '#666'}">${esc(chargerState || '—')}</span>
+                    </div>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+                      <div style="flex:1;min-width:80px;background:#fff;border-radius:6px;padding:8px;text-align:center;border:1px solid #d1fae5"><p style="font-size:8px;color:#888;margin:0;text-transform:uppercase">Batería</p><p style="font-size:15px;font-weight:700;color:#111;margin:2px 0 0">${avgVolt != null ? avgVolt.toFixed(2) + 'V' : '—'}</p></div>
+                      <div style="flex:1;min-width:80px;background:#fff;border-radius:6px;padding:8px;text-align:center;border:1px solid #d1fae5"><p style="font-size:8px;color:#888;margin:0;text-transform:uppercase">Potencia</p><p style="font-size:15px;font-weight:700;color:#111;margin:2px 0 0">${avgPower != null ? avgPower.toFixed(1) + 'W' : '—'}</p></div>
+                      <div style="flex:1;min-width:80px;background:#fff;border-radius:6px;padding:8px;text-align:center;border:1px solid #d1fae5"><p style="font-size:8px;color:#888;margin:0;text-transform:uppercase">Corriente</p><p style="font-size:15px;font-weight:700;color:#111;margin:2px 0 0">${avgCurrent != null ? avgCurrent.toFixed(2) + 'A' : '—'}</p></div>
+                      <div style="flex:1;min-width:80px;background:#fff;border-radius:6px;padding:8px;text-align:center;border:1px solid #d1fae5"><p style="font-size:8px;color:#888;margin:0;text-transform:uppercase">Temp</p><p style="font-size:15px;font-weight:700;color:#111;margin:2px 0 0">${avgTemp != null ? avgTemp.toFixed(1) + '°C' : '—'}</p></div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                      <div>${voltSpark ? `<p style="font-size:9px;color:#555;margin:0 0 2px;font-weight:600">Batería (V)</p>${voltSpark}` : ''}</div>
+                      <div>${powerSpark ? `<p style="font-size:9px;color:#555;margin:0 0 2px;font-weight:600">Potencia panel (W)</p>${powerSpark}` : ''}</div>
+                      <div>${currentSpark ? `<p style="font-size:9px;color:#555;margin:0 0 2px;font-weight:600">Corriente batería (A)</p>${currentSpark}` : ''}</div>
+                      <div>${tempSpark ? `<p style="font-size:9px;color:#555;margin:0 0 2px;font-weight:600">Temperatura (°C)</p>${tempSpark}` : ''}</div>
+                      <div>${panelVSpark ? `<p style="font-size:9px;color:#555;margin:0 0 2px;font-weight:600">Voltaje panel (V)</p>${panelVSpark}` : ''}</div>
+                      <div>${loadASpark ? `<p style="font-size:9px;color:#555;margin:0 0 2px;font-weight:600">Corriente carga (A)</p>${loadASpark}` : ''}</div>
+                    </div>
+                    ${sensors && Object.keys(sensors).length ? `
+                    <div style="margin-top:8px;font-size:9px;color:#666;display:flex;gap:10px;flex-wrap:wrap">
+                      ${sensors.presenseSensor != null ? `<span>Presencia: <b>${sensors.presenseSensor ? 'Sí' : 'No'}</b></span>` : ''}
+                      ${sensors.openingDoorSensor != null ? `<span>Puerta: <b>${sensors.openingDoorSensor ? 'Abierta' : 'Cerrada'}</b></span>` : ''}
+                      ${sensors.distancePrecenseSensor != null ? `<span>Distancia: <b>${sensors.distancePrecenseSensor}</b></span>` : ''}
+                    </div>` : ''}
+                    ${lectorAlerts.length > 0 ? `
+                    <div style="margin-top:10px;border-top:1px solid #d1fae5;padding-top:8px">
+                      <p style="font-size:11px;font-weight:700;color:#dc2626;margin:0 0 6px">Alertas del lector (${lectorAlerts.length})</p>
+                      <div style="column-count:2;column-gap:12px;column-rule:1px solid #f3f4f6">
+                        ${lectorAlerts.map((a: any) => `
+                          <div style="font-size:9px;padding:2px 0;border-bottom:1px solid #f3f4f6;display:flex;align-items:center;gap:5px;break-inside:avoid">
+                            <span style="color:${a.type === 'critica' || a.type === 'apertura' ? '#ef4444' : '#f59e0b'};font-weight:600">●</span>
+                            <span style="font-weight:600;color:#333">${esc(a.type)}</span>
+                            <span style="color:#888">${format(new Date(a.created_at), "dd/MM HH:mm")}</span>
+                          </div>`).join('')}
+                      </div>
+                    </div>` : ''}
+                  </div>`;
+              }).join('');
+              return `
+                <div style="margin-top:20px;border-top:2px solid #e5e7eb;padding-top:14px">
+                  <h3 style="font-size:13px;color:#333;margin:0 0 10px">Lectores asignados (${lectores.length})</h3>
+                  ${lectoresHtml}
+                </div>`;
+            })() : ''}
           </div>
         `);
       });
+
+      // ─── Tabla grande final: TODOS los datos seleccionados en el rango ───
+      const movLabel = (o: any) => {
+        if (!o) return { text: '—', color: '#9ca3af' };
+        if (o.packetType?.startsWith?.('COMMAND')) return { text: o.systemMessage || o.packetType, color: '#0891b2' };
+        if (o.packetType === 'CONFIG_REPORT') return { text: 'Config Report', color: '#7c3aed' };
+        if (o.packetType === 'QA_VALIDATION') return { text: 'QA Validación', color: '#7c3aed' };
+        if (o.systemStatus?.freeFallFlag) return { text: 'Caída libre', color: '#dc2626' };
+        if (o.systemStatus?.motionFlag) return { text: 'Movimiento', color: '#ca8a04' };
+        if (o.voltage_mV != null && o.temperature_C != null) return { text: 'KeepAlive', color: '#16a34a' };
+        return { text: '—', color: '#9ca3af' };
+      };
+      const allRows = (data.telemetry || []).map((t: any) => {
+        const mov = movLabel(t.object);
+        const rx = Array.isArray(t.rxinfo) ? t.rxinfo : typeof t.rxinfo === 'string' ? (() => { try { return JSON.parse(t.rxinfo); } catch { return []; } })() : [];
+        const gw = rx[0] || {};
+        return `<tr>
+          <td style="padding:4px 6px;border:1px solid #e5e7eb;white-space:nowrap;font-size:9px">${esc(t.device_name || '—')}</td>
+          <td style="padding:4px 6px;border:1px solid #e5e7eb;white-space:nowrap;font-size:9px">${format(new Date(t.ts), "dd/MM HH:mm:ss")}</td>
+          <td style="padding:4px 6px;border:1px solid #e5e7eb;font-size:9px">${esc(t.object?.packetType || '—')}</td>
+          <td style="padding:4px 6px;border:1px solid #e5e7eb;text-align:center;font-size:9px">${t.object?.voltage_mV != null ? Number(t.object.voltage_mV).toFixed(0) + ' mV' : '—'}</td>
+          <td style="padding:4px 6px;border:1px solid #e5e7eb;text-align:center;font-size:9px">${t.object?.temperature_C != null ? Number(t.object.temperature_C).toFixed(1) + '°' : '—'}</td>
+          <td style="padding:4px 6px;border:1px solid #e5e7eb;font-size:9px">${t.object?.latitude != null ? Number(t.object.latitude).toFixed(6) : '—'}</td>
+          <td style="padding:4px 6px;border:1px solid #e5e7eb;font-size:9px">${t.object?.longitude != null ? Number(t.object.longitude).toFixed(6) : '—'}</td>
+          <td style="padding:4px 6px;border:1px solid #e5e7eb;text-align:center;font-size:9px">${gw?.snr != null ? Number(gw.snr).toFixed(1) : '—'}</td>
+          <td style="padding:4px 6px;border:1px solid #e5e7eb;text-align:center;font-size:9px">${gw?.rssi != null ? Number(gw.rssi).toFixed(1) : '—'}</td>
+          <td style="padding:4px 6px;border:1px solid #e5e7eb;text-align:center;font-size:9px">${t.object?.satellites != null ? t.object.satellites : '—'}</td>
+          <td style="padding:4px 6px;border:1px solid #e5e7eb;text-align:center;font-size:9px">${esc(t.object?.systemStatus?.operatingMode || t.object?.operatingMode || '—')}</td>
+          <td style="padding:4px 6px;border:1px solid #e5e7eb;font-size:9px;color:${mov.color};font-weight:600">${esc(mov.text)}</td>
+        </tr>`;
+      }).join('');
+
+      sections.push(`<div style="font-family:Arial,sans-serif;padding:24px">
+        <div style="border-bottom:2px solid #e5e7eb;padding-bottom:10px;margin-bottom:14px">
+          <h2 style="font-size:15px;color:#111;margin:0">Telemetría completa</h2>
+          <p style="font-size:10px;color:#888;margin:2px 0 0">Todos los registros de telemetry_data_all en el período ${fromDate} → ${toDate} · ${data.telemetry?.length || 0} registros</p>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:9px">
+          <thead><tr style="background:#f3f4f6">
+            <th style="padding:5px 6px;text-align:left;border:1px solid #e5e7eb">Dispositivo</th>
+            <th style="padding:5px 6px;text-align:left;border:1px solid #e5e7eb">Fecha</th>
+            <th style="padding:5px 6px;text-align:left;border:1px solid #e5e7eb">Tipo</th>
+            <th style="padding:5px 6px;text-align:center;border:1px solid #e5e7eb">Batería</th>
+            <th style="padding:5px 6px;text-align:center;border:1px solid #e5e7eb">Temp</th>
+            <th style="padding:5px 6px;text-align:left;border:1px solid #e5e7eb">Latitud</th>
+            <th style="padding:5px 6px;text-align:left;border:1px solid #e5e7eb">Longitud</th>
+            <th style="padding:5px 6px;text-align:center;border:1px solid #e5e7eb">SNR</th>
+            <th style="padding:5px 6px;text-align:center;border:1px solid #e5e7eb">RSSI</th>
+            <th style="padding:5px 6px;text-align:center;border:1px solid #e5e7eb">Sat</th>
+            <th style="padding:5px 6px;text-align:center;border:1px solid #e5e7eb">Modo</th>
+            <th style="padding:5px 6px;text-align:left;border:1px solid #e5e7eb">Movimiento</th>
+          </tr></thead>
+          <tbody>${allRows || `<tr><td colspan="12" style="padding:8px;border:1px solid #e5e7eb;text-align:center;color:#9ca3af">Sin telemetría en el período</td></tr>`}</tbody>
+        </table>
+      </div>`);
 
       const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
         <style>
@@ -616,276 +796,220 @@ export default function MonitorReportModal({ onClose }: Props) {
   };
 
   // ═══════════════════════════════════════════
-  // REPORTE EJECUTIVO
-  // ═══════════════════════════════════════════
-  const generateExecutivePDF = async () => {
-    setLoading(true);
-    try {
-      const data = await monitorService.getReportExecutive();
-      setReportData(data);
-      const title = `Ejecutivo - ${format(new Date(), "yyyy-MM-dd")}`;
-      const { activeDevices, activeToday, alertsByType, topAlertDevices, gateways } = data;
-      const gwOnline = (gateways || []).filter((g: any) => g.last_seen && new Date(g.last_seen).getTime() > Date.now() - 3600000).length;
-
-      const sections = [`<div style="font-family:Arial,sans-serif;padding:30px">
-        <div style="text-align:center;padding:40px 20px"><h1 style="font-size:24px;color:#111;margin:0 0 6px">Reporte Ejecutivo</h1><p style="font-size:12px;color:#666">${format(new Date(), "MMMM yyyy")}</p></div>
-        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">
-          <div style="flex:1;min-width:100px;background:#f0fdf4;border-radius:8px;padding:14px;text-align:center;border:1px solid #bbf7d0"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Sensores activos</p><p style="font-size:22px;font-weight:700;color:#16a34a;margin:4px 0 0">${activeToday} / ${activeDevices}</p></div>
-          <div style="flex:1;min-width:100px;background:#fef2f2;border-radius:8px;padding:14px;text-align:center;border:1px solid #fecaca"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Alertas críticas</p><p style="font-size:22px;font-weight:700;color:#ef4444;margin:4px 0 0">${((alertsByType || []).find((a: any) => a.type === 'critica')?.total || 0) + ((alertsByType || []).find((a: any) => a.type === 'apertura')?.total || 0)}</p></div>
-          <div style="flex:1;min-width:100px;background:#fffbeb;border-radius:8px;padding:14px;text-align:center;border:1px solid #fde68a"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Gateways online</p><p style="font-size:22px;font-weight:700;color:#d97706;margin:4px 0 0">${gwOnline} / ${(gateways || []).length}</p></div>
-          <div style="flex:1;min-width:100px;background:#f9fafb;border-radius:8px;padding:14px;text-align:center;border:1px solid #e5e7eb"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Cobertura</p><p style="font-size:22px;font-weight:700;color:#111;margin:4px 0 0">${activeDevices > 0 ? Math.round(activeToday / activeDevices * 100) : 0}%</p></div>
-        </div>
-        ${topAlertDevices?.length ? `<h2 style="font-size:13px;color:#333;margin:0 0 8px">Top dispositivos con más alertas</h2><table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:#f3f4f6"><th style="padding:6px 8px;text-align:left;border:1px solid #e5e7eb">Dispositivo</th><th style="padding:6px 8px;text-align:left;border:1px solid #e5e7eb">Tipo</th><th style="padding:6px 8px;text-align:left;border:1px solid #e5e7eb">Alertas</th></tr></thead><tbody>${topAlertDevices.map((d: any) => `<tr><td style="padding:5px 8px;border:1px solid #e5e7eb;font-weight:600">${d.name}</td><td style="padding:5px 8px;border:1px solid #e5e7eb;color:#666">${d.type_device}</td><td style="padding:5px 8px;border:1px solid #e5e7eb;color:#ef4444;font-weight:700">${d.total}</td></tr>`).join('')}</tbody></table>` : ''}
-        ${gateways?.length ? `<h2 style="font-size:13px;color:#333;margin:16px 0 8px">Estado de gateways</h2><table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:#f3f4f6"><th style="padding:6px 8px;text-align:left;border:1px solid #e5e7eb">Gateway</th><th style="padding:6px 8px;text-align:left;border:1px solid #e5e7eb">Estado</th><th style="padding:6px 8px;text-align:left;border:1px solid #e5e7eb">Firmware</th></tr></thead><tbody>${gateways.map((g: any) => `<tr><td style="padding:5px 8px;border:1px solid #e5e7eb;font-weight:600">${g.name}</td><td style="padding:5px 8px;border:1px solid #e5e7eb"><span style="color:${g.last_seen && new Date(g.last_seen).getTime() > Date.now() - 3600000 ? '#16a34a' : '#ef4444'};font-weight:600">${g.last_seen && new Date(g.last_seen).getTime() > Date.now() - 3600000 ? 'Online' : 'Offline'}</span></td><td style="padding:5px 8px;border:1px solid #e5e7eb;color:#666">${g.firmware_version || '—'}</td></tr>`).join('')}</tbody></table>` : ''}
-      </div>`];
-
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>@page{margin:12mm 10mm}body{font-family:Arial,sans-serif;color:#222;background:#fff;margin:0;padding:0}</style></head><body>${sections.join('\n')}</body></html>`;
-      const win = window.open('', '_blank'); win?.document.write(html); win?.document.close(); setTimeout(() => win?.print(), 500);
-    } catch (e) { console.error('Error ejecutivo:', e); }
-    setLoading(false);
-  };
-
-  // ═══════════════════════════════════════════
-  // REPORTE ALERTAS
+  // REPORTE ALERTAS Y TRACKING (fusionado)
+  // - GPS: sección por dispositivo con recorridos y mapas
+  // - Otros tipos: sección por dispositivo con sus alertas
   // ═══════════════════════════════════════════
   const generateAlertsPDF = async () => {
     setLoading(true);
     try {
-      const data = await monitorService.getReportAlerts({ deviceIds: [...selectedIds], from: fromDate ? new Date(fromDate).toISOString() : undefined, to: toDate ? new Date(toDate + "T23:59:59").toISOString() : undefined });
-      setReportData(data);
-      const title = `Alertas - ${format(new Date(), "yyyy-MM-dd")}`;
-      const alerts = data.alerts || [];
-      const resTimes = data.resolutionTimes || [];
+      const params = { deviceIds: [...selectedIds], from: fromDate ? new Date(fromDate).toISOString() : undefined, to: toDate ? new Date(toDate + "T23:59:59").toISOString() : undefined };
+      const [alertsData, gpsData] = await Promise.all([
+        monitorService.getReportAlerts(params),
+        monitorService.getReportGps(params),
+      ]);
+      setReportData(alertsData);
+      const selectedDevices = (allDevices || []).filter(d => selectedIds.has(d.id));
+      const title = `Alertas y Tracking - ${format(new Date(), "yyyy-MM-dd")}`;
+      const alerts = alertsData?.alerts || [];
+      const resTimes = alertsData?.resolutionTimes || [];
+      const gpsDevices = selectedDevices.filter(d => d.type_device === 'Gps');
+      const gpsIds = new Set(gpsDevices.map(d => d.id));
+
+      // Mapas GPS: acumular telemetría por dispositivo
+      const deviceMap = new Map<number, { lats: number[]; lngs: number[]; speeds: number[]; timestamps: Date[]; rows: any[] }>();
+      gpsDevices.forEach(d => deviceMap.set(d.id, { lats: [], lngs: [], speeds: [], timestamps: [], rows: [] }));
+      (gpsData?.telemetry || []).forEach((t: any) => { const e = deviceMap.get(t.device_id); if (!e) return; if (t.object?.latitude) e.lats.push(Number(t.object.latitude)); if (t.object?.longitude) e.lngs.push(Number(t.object.longitude)); if (t.object?.speed) e.speeds.push(Number(t.object.speed)); e.timestamps.push(new Date(t.ts)); e.rows.push(t); });
+
+      const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+      const esc = (s: any) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
       const criticals = alerts.filter((a: any) => a.type === 'critica' || a.type === 'apertura');
       const attentions = alerts.filter((a: any) => a.type === 'atencion' || a.type === 'apertura' || a.type === 'presencia');
 
       const sections = [`<div style="font-family:Arial,sans-serif;padding:30px">
-        <div style="text-align:center;padding:30px 20px"><h1 style="font-size:22px;color:#111;margin:0 0 6px">Reporte de Alertas</h1><p style="font-size:12px;color:#666">${fromDate} → ${toDate} · ${alerts.length} alertas</p></div>
+        <div style="text-align:center;padding:30px 20px"><h1 style="font-size:22px;color:#111;margin:0 0 6px">Reporte de Alertas y Tracking</h1><p style="font-size:12px;color:#666">${fromDate} → ${toDate} · ${selectedDevices.length} dispositivos · ${alerts.length} alertas</p></div>
         <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
           <div style="flex:1;min-width:100px;background:#fef2f2;border-radius:8px;padding:12px;text-align:center;border:1px solid #fecaca"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Críticas</p><p style="font-size:20px;font-weight:700;color:#ef4444;margin:2px 0 0">${criticals.length}</p></div>
           <div style="flex:1;min-width:100px;background:#fffbeb;border-radius:8px;padding:12px;text-align:center;border:1px solid #fde68a"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Atención</p><p style="font-size:20px;font-weight:700;color:#d97706;margin:2px 0 0">${attentions.length}</p></div>
           <div style="flex:1;min-width:100px;background:#f0fdf4;border-radius:8px;padding:12px;text-align:center;border:1px solid #bbf7d0"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Resueltas</p><p style="font-size:20px;font-weight:700;color:#16a34a;margin:2px 0 0">${alerts.filter((a: any) => a.status === 'resolved' || a.resolved_at).length}</p></div>
           <div style="flex:1;min-width:100px;background:#f9fafb;border-radius:8px;padding:12px;text-align:center;border:1px solid #e5e7eb"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Tiempo prom. resolución</p><p style="font-size:20px;font-weight:700;color:#111;margin:2px 0 0">${resTimes.length > 0 ? (resTimes.reduce((s: number, r: any) => s + Number(r.avg_hours), 0) / resTimes.length).toFixed(1) + 'h' : '—'}</p></div>
         </div>
-        ${resTimes.length ? `<h2 style="font-size:13px;color:#333;margin:0 0 8px">Tiempo de resolución por tipo</h2><table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:16px"><thead><tr style="background:#f3f4f6"><th style="padding:6px 8px;text-align:left;border:1px solid #e5e7eb">Tipo</th><th style="padding:6px 8px;text-align:left;border:1px solid #e5e7eb">Promedio (horas)</th></tr></thead><tbody>${resTimes.map((r: any) => `<tr><td style="padding:5px 8px;border:1px solid #e5e7eb">${r.type}</td><td style="padding:5px 8px;border:1px solid #e5e7eb;font-weight:700">${Number(r.avg_hours).toFixed(1)}h</td></tr>`).join('')}</tbody></table>` : ''}
-        <h2 style="font-size:13px;color:#333;margin:0 0 8px">Últimas alertas (${Math.min(alerts.length, 30)})</h2>
-        <table style="width:100%;border-collapse:collapse;font-size:10px"><thead><tr style="background:#f3f4f6"><th style="padding:4px 6px;text-align:left;border:1px solid #e5e7eb">Dispositivo</th><th style="padding:4px 6px;text-align:left;border:1px solid #e5e7eb">Tipo</th><th style="padding:4px 6px;text-align:left;border:1px solid #e5e7eb">Fecha</th></tr></thead><tbody>${alerts.slice(0, 30).map((a: any) => `<tr><td style="padding:4px 6px;border:1px solid #e5e7eb;font-weight:600">${a.device_name}</td><td style="padding:4px 6px;border:1px solid #e5e7eb"><span style="color:${a.type === 'critica' || a.type === 'apertura' ? '#ef4444' : '#f59e0b'}">${a.type}</span></td><td style="padding:4px 6px;border:1px solid #e5e7eb;color:#888">${format(new Date(a.created_at), "dd/MM HH:mm")}</td></tr>`).join('')}</tbody></table>
+        ${resTimes.length ? `<h2 style="font-size:13px;color:#333;margin:0 0 8px">Tiempo de resolución por tipo</h2><table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:16px"><thead><tr style="background:#f3f4f6"><th style="padding:6px 8px;text-align:left;border:1px solid #e5e7eb">Tipo</th><th style="padding:6px 8px;text-align:left;border:1px solid #e5e7eb">Promedio (horas)</th></tr></thead><tbody>${resTimes.map((r: any) => `<tr><td style="padding:5px 8px;border:1px solid #e5e7eb">${esc(r.type)}</td><td style="padding:5px 8px;border:1px solid #e5e7eb;font-weight:700">${Number(r.avg_hours).toFixed(1)}h</td></tr>`).join('')}</tbody></table>` : ''}
       </div>`];
 
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>@page{margin:12mm 10mm}body{font-family:Arial,sans-serif;color:#222;background:#fff;margin:0;padding:0}</style></head><body>${sections.join('\n')}</body></html>`;
-      const win = window.open('', '_blank'); win?.document.write(html); win?.document.close(); setTimeout(() => win?.print(), 500);
-    } catch (e) { console.error('Error alertas:', e); }
-    setLoading(false);
-  };
-
-  // ═══════════════════════════════════════════
-  // REPORTE TEMPERATURA
-  // ═══════════════════════════════════════════
-  const generateTemperaturePDF = async () => {
-    setLoading(true);
-    try {
-      const data = await monitorService.getReportTemperature({ deviceIds: [...selectedIds], from: fromDate ? new Date(fromDate).toISOString() : undefined, to: toDate ? new Date(toDate + "T23:59:59").toISOString() : undefined });
-      setReportData(data);
-      const selectedDevices = (allDevices || []).filter(d => selectedIds.has(d.id));
-      const title = `Temperatura - ${format(new Date(), "yyyy-MM-dd")}`;
-      const deviceMap = new Map<number, { temps: number[]; timestamps: Date[] }>();
-      selectedDevices.forEach(d => deviceMap.set(d.id, { temps: [], timestamps: [] }));
-      data.telemetry.forEach((t: any) => { const e = deviceMap.get(t.device_id); if (!e) return; const tc = t.object?.temperature_C; if (tc != null) e.temps.push(Number(tc)); e.timestamps.push(new Date(t.ts)); });
-
-      const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
-      const sparkline = (vals: number[], c: string, h = 36) => { if (vals.length < 2) return ''; const mn=Math.min(...vals), mx=Math.max(...vals), r=mx-mn||1; return `<svg viewBox="0 0 360 ${h}" style="display:block;width:100%;height:auto"><polyline points="${vals.map((v,i)=>`${(i/(vals.length-1))*360},${h-6-((v-mn)/r)*(h-12)}`).join(' ')}" fill="none" stroke="${c}" stroke-width="1"/></svg>`; };
-      const allTemps = data.telemetry.map((t: any) => t.object?.temperature_C != null ? Number(t.object.temperature_C) : null).filter((v: any): v is number => v != null);
-      const avgGlobal = avg(allTemps);
-      const minGlobal = allTemps.length ? Math.min(...allTemps) : 0;
-      const maxGlobal = allTemps.length ? Math.max(...allTemps) : 0;
-      const outOfRange = allTemps.filter((v: number) => v > 50 || v < -10).length;
-
-      const sections = [`<div style="font-family:Arial,sans-serif;padding:30px">
-        <div style="text-align:center;padding:30px"><h1 style="font-size:22px;color:#111;margin:0 0 6px">Reporte de Temperatura</h1><p style="font-size:12px;color:#666">${fromDate} → ${toDate}</p></div>
-        <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
-          <div style="flex:1;min-width:80px;background:#f9fafb;border-radius:8px;padding:12px;text-align:center;border:1px solid #e5e7eb"><p style="font-size:9px;color:#888;margin:0;text-transform:uppercase">Promedio</p><p style="font-size:18px;font-weight:700;color:#111;margin:2px 0 0">${avgGlobal.toFixed(1)}°C</p></div>
-          <div style="flex:1;min-width:80px;background:#f9fafb;border-radius:8px;padding:12px;text-align:center;border:1px solid #e5e7eb"><p style="font-size:9px;color:#888;margin:0;text-transform:uppercase">Mínima</p><p style="font-size:18px;font-weight:700;color:#3b82f6;margin:2px 0 0">${minGlobal.toFixed(1)}°C</p></div>
-          <div style="flex:1;min-width:80px;background:#f9fafb;border-radius:8px;padding:12px;text-align:center;border:1px solid #e5e7eb"><p style="font-size:9px;color:#888;margin:0;text-transform:uppercase">Máxima</p><p style="font-size:18px;font-weight:700;color:#ef4444;margin:2px 0 0">${maxGlobal.toFixed(1)}°C</p></div>
-          <div style="flex:1;min-width:80px;background:#fef2f2;border-radius:8px;padding:12px;text-align:center;border:1px solid #fecaca"><p style="font-size:9px;color:#888;margin:0;text-transform:uppercase">Fuera de rango</p><p style="font-size:18px;font-weight:700;color:#ef4444;margin:2px 0 0">${outOfRange}</p></div>
-        </div>
-      </div>`];
-
-      selectedDevices.forEach((device) => {
-        const e = deviceMap.get(device.id); if (!e || e.temps.length < 2) return;
-        const dm = avg(e.temps); const lo = Math.min(...e.temps); const hi = Math.max(...e.temps);
-        sections.push(`<div style="page-break-after:always;font-family:Arial,sans-serif;padding:24px">
-          <div style="border-bottom:2px solid #e5e7eb;padding-bottom:10px;margin-bottom:14px"><h2 style="font-size:15px;color:#111;margin:0">${device.name}</h2><p style="font-size:10px;color:#888;margin:2px 0 0">${device.dev_eui} · ${device.type_device} · ${e.temps.length} registros</p></div>
-          <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
-            <div style="flex:1;min-width:70px;background:#f9fafb;border-radius:6px;padding:10px;text-align:center;border:1px solid #e5e7eb"><p style="font-size:9px;color:#888;margin:0;text-transform:uppercase">Prom</p><p style="font-size:14px;font-weight:700;color:#111;margin:2px 0 0">${dm.toFixed(1)}°C</p></div>
-            <div style="flex:1;min-width:70px;background:#f9fafb;border-radius:6px;padding:10px;text-align:center;border:1px solid #e5e7eb"><p style="font-size:9px;color:#888;margin:0;text-transform:uppercase">Mín</p><p style="font-size:14px;font-weight:700;color:#3b82f6;margin:2px 0 0">${lo.toFixed(1)}°C</p></div>
-            <div style="flex:1;min-width:70px;background:#f9fafb;border-radius:6px;padding:10px;text-align:center;border:1px solid #e5e7eb"><p style="font-size:9px;color:#888;margin:0;text-transform:uppercase">Máx</p><p style="font-size:14px;font-weight:700;color:#ef4444;margin:2px 0 0">${hi.toFixed(1)}°C</p></div>
+      // Helper: mapa Leaflet real del recorrido de una alerta
+      const trackMaps: { id: string; label: string; points: any[] }[] = [];
+      let mapCounter = 0;
+      const trackMapDiv = (pts: any[], label: string) => {
+        if (!pts || pts.length < 2) return '<p style="color:#9ca3af;font-size:10px;margin:0">Sin recorrido registrado</p>';
+        const id = `track-map-${++mapCounter}`;
+        trackMaps.push({ id, label, points: pts });
+        const startT = format(new Date(pts[0].timestamp), "dd/MM HH:mm");
+        const endT = format(new Date(pts[pts.length - 1].timestamp), "dd/MM HH:mm");
+        return `<div style="margin-top:8px">
+          <div id="${id}" class="track-map" style="width:690px;max-width:100%;height:320px;border:1px solid #e2e8f0;border-radius:8px;background:#e8e8e8;overflow:hidden"></div>
+          <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:8px;color:#888">
+            <span>🟢 Inicio ${startT}</span>
+            <span>${pts.length} puntos</span>
+            <span>🔴 Fin ${endT}</span>
           </div>
-          ${sparkline(e.temps, '#f97316')}
-          <p style="font-size:8px;color:#999;margin:4px 0 0">${format(e.timestamps[0], "dd/MM HH:mm")} → ${format(e.timestamps[e.timestamps.length-1], "dd/MM HH:mm")}</p>
-        </div>`);
-      });
-
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>@page{margin:12mm 10mm}body{font-family:Arial,sans-serif;color:#222;background:#fff;margin:0;padding:0}</style></head><body>${sections.join('\n')}</body></html>`;
-      const win = window.open('', '_blank'); win?.document.write(html); win?.document.close(); setTimeout(() => win?.print(), 500);
-    } catch (e) { console.error('Error temperatura:', e); }
-    setLoading(false);
-  };
-
-  // ═══════════════════════════════════════════
-  // REPORTE GPS
-  // ═══════════════════════════════════════════
-  const generateGpsPDF = async () => {
-    setLoading(true);
-    try {
-      const data = await monitorService.getReportGps({ deviceIds: [...selectedIds], from: fromDate ? new Date(fromDate).toISOString() : undefined, to: toDate ? new Date(toDate + "T23:59:59").toISOString() : undefined });
-      setReportData(data);
-      const selectedDevices = (allDevices || []).filter(d => selectedIds.has(d.id));
-      const title = `GPS - ${format(new Date(), "yyyy-MM-dd")}`;
-      const deviceMap = new Map<number, { lats: number[]; lngs: number[]; speeds: number[]; timestamps: Date[] }>();
-      selectedDevices.filter(d => d.type_device === 'Gps').forEach(d => deviceMap.set(d.id, { lats: [], lngs: [], speeds: [], timestamps: [] }));
-      data.telemetry.forEach((t: any) => { const e = deviceMap.get(t.device_id); if (!e) return; if (t.object?.latitude) e.lats.push(Number(t.object.latitude)); if (t.object?.longitude) e.lngs.push(Number(t.object.longitude)); if (t.object?.speed) e.speeds.push(Number(t.object.speed)); e.timestamps.push(new Date(t.ts)); });
-
-      const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
-      const sections = [`<div style="font-family:Arial,sans-serif;padding:30px"><div style="text-align:center;padding:30px"><h1 style="font-size:22px;color:#111;margin:0 0 6px">Reporte Tracking GPS</h1><p style="font-size:12px;color:#666">${fromDate} → ${toDate} · ${deviceMap.size} dispositivos GPS</p></div></div>`];
-
-      deviceMap.forEach((e, deviceId) => {
-        const device = selectedDevices.find(d => d.id === deviceId); if (!device || e.lats.length < 2) return;
-        const avgSpeed = avg(e.speeds);
-        sections.push(`<div style="page-break-after:always;font-family:Arial,sans-serif;padding:24px">
-          <div style="border-bottom:2px solid #e5e7eb;padding-bottom:10px;margin-bottom:14px"><h2 style="font-size:15px;color:#111;margin:0">${device.name}</h2><p style="font-size:10px;color:#888;margin:2px 0 0">${device.dev_eui} · ${device.type_device}</p></div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap">
-            <div style="flex:1;min-width:70px;background:#f9fafb;border-radius:6px;padding:10px;text-align:center;border:1px solid #e5e7eb"><p style="font-size:9px;color:#888;margin:0;text-transform:uppercase">Puntos</p><p style="font-size:16px;font-weight:700;color:#111;margin:2px 0 0">${e.lats.length}</p></div>
-            <div style="flex:1;min-width:70px;background:#f9fafb;border-radius:6px;padding:10px;text-align:center;border:1px solid #e5e7eb"><p style="font-size:9px;color:#888;margin:0;text-transform:uppercase">Vel. Prom</p><p style="font-size:16px;font-weight:700;color:#111;margin:2px 0 0">${avgSpeed.toFixed(1)} m/s</p></div>
-            <div style="flex:1;min-width:70px;background:#f9fafb;border-radius:6px;padding:10px;text-align:center;border:1px solid #e5e7eb"><p style="font-size:9px;color:#888;margin:0;text-transform:uppercase">Inicio</p><p style="font-size:11px;font-weight:600;color:#666;margin:2px 0 0">${format(e.timestamps[0], "dd/MM HH:mm")}</p></div>
-            <div style="flex:1;min-width:70px;background:#f9fafb;border-radius:6px;padding:10px;text-align:center;border:1px solid #e5e7eb"><p style="font-size:9px;color:#888;margin:0;text-transform:uppercase">Fin</p><p style="font-size:11px;font-weight:600;color:#666;margin:2px 0 0">${format(e.timestamps[e.timestamps.length-1], "dd/MM HH:mm")}</p></div>
-          </div>
-        </div>`);
-      });
-
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>@page{margin:12mm 10mm}body{font-family:Arial,sans-serif;color:#222;background:#fff;margin:0;padding:0}</style></head><body>${sections.join('\n')}</body></html>`;
-      const win = window.open('', '_blank'); win?.document.write(html); win?.document.close(); setTimeout(() => win?.print(), 500);
-    } catch (e) { console.error('Error gps:', e); }
-    setLoading(false);
-  };
-
-  // ═══════════════════════════════════════════
-  // REPORTE GATEWAY
-  // ═══════════════════════════════════════════
-  const generateGatewayPDF = async () => {
-    setLoading(true);
-    try {
-      const data = await monitorService.getReportGateway();
-      setReportData(data);
-      const title = `Gateway - ${format(new Date(), "yyyy-MM-dd")}`;
-      const gws = data.gateways || [];
-      const online = gws.filter((g: any) => g.last_seen && new Date(g.last_seen).getTime() > Date.now() - 3600000);
-
-      const sections = [`<div style="font-family:Arial,sans-serif;padding:30px">
-        <div style="text-align:center;padding:30px"><h1 style="font-size:22px;color:#111;margin:0 0 6px">Reporte de Gateways</h1><p style="font-size:12px;color:#666">${gws.length} gateways · ${online.length} online</p></div>
-        <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
-          <div style="flex:1;min-width:100px;background:#f0fdf4;border-radius:8px;padding:12px;text-align:center;border:1px solid #bbf7d0"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Online</p><p style="font-size:22px;font-weight:700;color:#16a34a;margin:2px 0 0">${online.length}</p></div>
-          <div style="flex:1;min-width:100px;background:#fef2f2;border-radius:8px;padding:12px;text-align:center;border:1px solid #fecaca"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Offline</p><p style="font-size:22px;font-weight:700;color:#ef4444;margin:2px 0 0">${gws.length - online.length}</p></div>
-          <div style="flex:1;min-width:100px;background:#f9fafb;border-radius:8px;padding:12px;text-align:center;border:1px solid #e5e7eb"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Total disp. conectados</p><p style="font-size:22px;font-weight:700;color:#111;margin:2px 0 0">${gws.reduce((s: number, g: any) => s + (g.device_count || 0), 0)}</p></div>
-        </div>
-        <table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:#f3f4f6"><th style="padding:6px 8px;text-align:left;border:1px solid #e5e7eb">Gateway</th><th style="padding:6px 8px;text-align:left;border:1px solid #e5e7eb">Estado</th><th style="padding:6px 8px;text-align:left;border:1px solid #e5e7eb">Dispositivos</th><th style="padding:6px 8px;text-align:left;border:1px solid #e5e7eb">Firmware</th><th style="padding:6px 8px;text-align:left;border:1px solid #e5e7eb">IP</th><th style="padding:6px 8px;text-align:left;border:1px solid #e5e7eb">Batería</th></tr></thead><tbody>${gws.map((g: any) => `<tr><td style="padding:5px 8px;border:1px solid #e5e7eb;font-weight:600">${g.name}</td><td style="padding:5px 8px;border:1px solid #e5e7eb"><span style="color:${g.last_seen && new Date(g.last_seen).getTime() > Date.now() - 3600000 ? '#16a34a' : '#ef4444'};font-weight:600">${g.last_seen && new Date(g.last_seen).getTime() > Date.now() - 3600000 ? 'Online' : 'Offline'}</span></td><td style="padding:5px 8px;border:1px solid #e5e7eb;text-align:center;font-weight:700">${g.device_count || 0}</td><td style="padding:5px 8px;border:1px solid #e5e7eb;color:#666">${g.firmware_version || '—'}</td><td style="padding:5px 8px;border:1px solid #e5e7eb;color:#666">${g.ip_internal || '—'}</td><td style="padding:5px 8px;border:1px solid #e5e7eb;color:#666">${g.battery || '—'}</td></tr>`).join('')}</tbody></table>
-      </div>`];
-
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>@page{margin:12mm 10mm}body{font-family:Arial,sans-serif;color:#222;background:#fff;margin:0;padding:0}</style></head><body>${sections.join('\n')}</body></html>`;
-      const win = window.open('', '_blank'); win?.document.write(html); win?.document.close(); setTimeout(() => win?.print(), 500);
-    } catch (e) { console.error('Error gateway:', e); }
-    setLoading(false);
-  };
-
-  // ═══════════════════════════════════════════
-  // REPORTE SLA
-  // ═══════════════════════════════════════════
-  const generateSlaPDF = async () => {
-    setLoading(true);
-    try {
-      const data = await monitorService.getReportAlerts({ deviceIds: [...selectedIds], from: fromDate ? new Date(fromDate).toISOString() : undefined, to: toDate ? new Date(toDate + "T23:59:59").toISOString() : undefined });
-      const execData = await monitorService.getReportExecutive();
-      setReportData(data);
-      const title = `SLA - ${format(new Date(), "yyyy-MM-dd")}`;
-      const alerts = data.alerts || [];
-      const resTimes = data.resolutionTimes || [];
-      const totalAlerts = alerts.length;
-      const resolvedCount = alerts.filter((a: any) => a.resolved_at).length;
-      const criticalCount = alerts.filter((a: any) => a.type === 'critica' || a.type === 'apertura').length;
-      const resolvedCritical = alerts.filter((a: any) => (a.type === 'critica' || a.type === 'apertura') && a.resolved_at).length;
-      const avgResTime = resTimes.length > 0 ? (resTimes.reduce((s: number, r: any) => s + Number(r.avg_hours), 0) / resTimes.length) : 0;
-      const slaCritical = criticalCount > 0 ? (resolvedCritical / criticalCount * 100) : 100;
-      const coverage = execData?.activeDevices > 0 ? Math.round((execData.activeToday || 0) / execData.activeDevices * 100) : 0;
-
-      const sections = [`<div style="font-family:Arial,sans-serif;padding:30px">
-        <div style="text-align:center;padding:30px"><h1 style="font-size:22px;color:#111;margin:0 0 6px">Reporte SLA / Cumplimiento</h1><p style="font-size:12px;color:#666">${fromDate} → ${toDate}</p></div>
-        <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
-          <div style="flex:1;min-width:100px;background:#f0fdf4;border-radius:8px;padding:12px;text-align:center;border:1px solid #bbf7d0"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Cobertura</p><p style="font-size:22px;font-weight:700;color:#16a34a;margin:2px 0 0">${coverage}%</p></div>
-          <div style="flex:1;min-width:100px;background:#fef2f2;border-radius:8px;padding:12px;text-align:center;border:1px solid #fecaca"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Alertas totales</p><p style="font-size:22px;font-weight:700;color:#111;margin:2px 0 0">${totalAlerts}</p></div>
-          <div style="flex:1;min-width:100px;background:#fffbeb;border-radius:8px;padding:12px;text-align:center;border:1px solid #fde68a"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">% Resueltas</p><p style="font-size:22px;font-weight:700;color:#d97706;margin:2px 0 0">${totalAlerts > 0 ? Math.round(resolvedCount / totalAlerts * 100) : 100}%</p></div>
-          <div style="flex:1;min-width:100px;background:#f9fafb;border-radius:8px;padding:12px;text-align:center;border:1px solid #e5e7eb"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Tiempo resolución</p><p style="font-size:22px;font-weight:700;color:#111;margin:2px 0 0">${avgResTime.toFixed(1)}h</p></div>
-        </div>
-        <h2 style="font-size:13px;color:#333;margin:0 0 8px">Indicadores de cumplimiento</h2>
-        <table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:#f3f4f6"><th style="padding:6px 8px;text-align:left;border:1px solid #e5e7eb">Indicador</th><th style="padding:6px 8px;text-align:left;border:1px solid #e5e7eb">Valor</th><th style="padding:6px 8px;text-align:left;border:1px solid #e5e7eb">Estado</th></tr></thead><tbody>
-          <tr><td style="padding:5px 8px;border:1px solid #e5e7eb">Cobertura de red</td><td style="padding:5px 8px;border:1px solid #e5e7eb;font-weight:700">${coverage}%</td><td style="padding:5px 8px;border:1px solid #e5e7eb"><span style="color:${coverage >= 80 ? '#16a34a' : coverage >= 50 ? '#d97706' : '#ef4444'};font-weight:600">${coverage >= 80 ? 'Cumple' : coverage >= 50 ? 'Regular' : 'Crítico'}</span></td></tr>
-          <tr><td style="padding:5px 8px;border:1px solid #e5e7eb">Resolución de críticas</td><td style="padding:5px 8px;border:1px solid #e5e7eb;font-weight:700">${slaCritical.toFixed(0)}%</td><td style="padding:5px 8px;border:1px solid #e5e7eb"><span style="color:${slaCritical >= 90 ? '#16a34a' : slaCritical >= 70 ? '#d97706' : '#ef4444'};font-weight:600">${slaCritical >= 90 ? 'Cumple' : slaCritical >= 70 ? 'Regular' : 'Crítico'}</span></td></tr>
-          <tr><td style="padding:5px 8px;border:1px solid #e5e7eb">Tiempo promedio resolución</td><td style="padding:5px 8px;border:1px solid #e5e7eb;font-weight:700">${avgResTime.toFixed(1)}h</td><td style="padding:5px 8px;border:1px solid #e5e7eb"><span style="color:${avgResTime <= 4 ? '#16a34a' : avgResTime <= 24 ? '#d97706' : '#ef4444'};font-weight:600">${avgResTime <= 4 ? 'Cumple' : avgResTime <= 24 ? 'Regular' : 'Crítico'}</span></td></tr>
-      </tbody></table>
-      </div>`];
-
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>@page{margin:12mm 10mm}body{font-family:Arial,sans-serif;color:#222;background:#fff;margin:0;padding:0}</style></head><body>${sections.join('\n')}</body></html>`;
-      const win = window.open('', '_blank'); win?.document.write(html); win?.document.close(); setTimeout(() => win?.print(), 500);
-    } catch (e) { console.error('Error sla:', e); }
-    setLoading(false);
-  };
-
-  // ═══════════════════════════════════════════
-  // REPORTE COMPARATIVO
-  // ═══════════════════════════════════════════
-  const generateComparativePDF = async () => {
-    setLoading(true);
-    try {
-      const msPerDay = 86400000;
-      const p1Start = fromDate;
-      const p1End = toDate;
-      const daysDiff = Math.round((new Date(toDate).getTime() - new Date(fromDate).getTime()) / msPerDay) + 1;
-      const p2Start = format(new Date(new Date(fromDate).getTime() - daysDiff * msPerDay), "yyyy-MM-dd");
-      const p2End = format(new Date(new Date(fromDate).getTime() - msPerDay), "yyyy-MM-dd");
-
-      const data = await monitorService.getReportComparative({
-        deviceIds: [...selectedIds],
-        period1Start: new Date(p1Start).toISOString(),
-        period1End: new Date(p1End + "T23:59:59").toISOString(),
-        period2Start: new Date(p2Start).toISOString(),
-        period2End: new Date(p2End + "T23:59:59").toISOString(),
-      });
-      setReportData(data);
-      const title = `Comparativo - ${format(new Date(), "yyyy-MM-dd")}`;
-      const { period1, period2 } = data;
-      const calcTrend = (v1: number, v2: number) => {
-        if (v2 === 0) return { dir: '—', pct: 0 };
-        const pct = Math.round(((v1 - v2) / v2) * 100);
-        return { dir: pct > 0 ? '↑' : pct < 0 ? '↓' : '—', pct: Math.abs(pct) };
+        </div>`;
       };
-      const t1 = period1 ? { tel: parseInt(period1.total_telemetry || 0), volt: period1.avg_voltage ? Number(period1.avg_voltage) : 0, temp: period1.avg_temperature ? Number(period1.avg_temperature) : 0, alerts: period1.alerts ? parseInt(period1.alerts.total || 0) : 0 } : { tel: 0, volt: 0, temp: 0, alerts: 0 };
-      const t2 = period2 ? { tel: parseInt(period2.total_telemetry || 0), volt: period2.avg_voltage ? Number(period2.avg_voltage) : 0, temp: period2.avg_temperature ? Number(period2.avg_temperature) : 0, alerts: period2.alerts ? parseInt(period2.alerts.total || 0) : 0 } : { tel: 0, volt: 0, temp: 0, alerts: 0 };
-      const telTrend = calcTrend(t1.tel, t2.tel);
-      const voltTrend = calcTrend(t1.volt, t2.volt);
-      const alertsTrend = calcTrend(t1.alerts, t2.alerts);
 
-      const sections = [`<div style="font-family:Arial,sans-serif;padding:30px">
-        <div style="text-align:center;padding:30px"><h1 style="font-size:22px;color:#111;margin:0 0 6px">Reporte Comparativo</h1><p style="font-size:12px;color:#666">${p1Start} → ${p1End} vs ${p2Start} → ${p2End}</p></div>
-        <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:16px"><thead><tr style="background:#f3f4f6"><th style="padding:8px 10px;text-align:left;border:1px solid #e5e7eb">Métrica</th><th style="padding:8px 10px;text-align:center;border:1px solid #e5e7eb">Período actual</th><th style="padding:8px 10px;text-align:center;border:1px solid #e5e7eb">Período anterior</th><th style="padding:8px 10px;text-align:center;border:1px solid #e5e7eb">Tendencia</th></tr></thead>
-        <tbody>
-          <tr><td style="padding:6px 10px;border:1px solid #e5e7eb;font-weight:600">Registros</td><td style="padding:6px 10px;border:1px solid #e5e7eb;text-align:center">${t1.tel.toLocaleString()}</td><td style="padding:6px 10px;border:1px solid #e5e7eb;text-align:center">${t2.tel.toLocaleString()}</td><td style="padding:6px 10px;border:1px solid #e5e7eb;text-align:center;font-weight:700;color:${telTrend.dir === '↑' ? '#16a34a' : telTrend.dir === '↓' ? '#ef4444' : '#888'}">${telTrend.dir} ${telTrend.pct > 0 ? telTrend.pct + '%' : ''}</td></tr>
-          <tr><td style="padding:6px 10px;border:1px solid #e5e7eb;font-weight:600">Voltaje promedio</td><td style="padding:6px 10px;border:1px solid #e5e7eb;text-align:center">${t1.volt.toFixed(3)}V</td><td style="padding:6px 10px;border:1px solid #e5e7eb;text-align:center">${t2.volt.toFixed(3)}V</td><td style="padding:6px 10px;border:1px solid #e5e7eb;text-align:center;font-weight:700;color:${voltTrend.dir === '↑' ? '#16a34a' : voltTrend.dir === '↓' ? '#ef4444' : '#888'}">${voltTrend.dir} ${voltTrend.pct > 0 ? voltTrend.pct + '%' : ''}</td></tr>
-          <tr><td style="padding:6px 10px;border:1px solid #e5e7eb;font-weight:600">Alertas</td><td style="padding:6px 10px;border:1px solid #e5e7eb;text-align:center">${t1.alerts}</td><td style="padding:6px 10px;border:1px solid #e5e7eb;text-align:center">${t2.alerts}</td><td style="padding:6px 10px;border:1px solid #e5e7eb;text-align:center;font-weight:700;color:${alertsTrend.dir === '↑' ? '#ef4444' : alertsTrend.dir === '↓' ? '#16a34a' : '#888'}">${alertsTrend.dir} ${alertsTrend.pct > 0 ? alertsTrend.pct + '%' : ''}</td></tr>
-        </tbody></table>
-        <p style="font-size:9px;color:#999;margin-top:12px">↑ mejora · ↓ empeora · las alertas ↑ es negativo</p>
-      </div>`];
+      // ─── 1) Sección por dispositivo ───
+      // GPS → resumen + cada alerta con su recorrido (mapa)
+      // Otros → sus alertas (tipos y detalles)
+      selectedDevices.forEach((device) => {
+        const isGps = gpsIds.has(device.id);
+        const e = deviceMap.get(device.id);
+        const devAlerts = alerts.filter((a: any) => a.device_id === device.id || a.device_name === device.name);
 
-      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title><style>@page{margin:12mm 10mm}body{font-family:Arial,sans-serif;color:#222;background:#fff;margin:0;padding:0}</style></head><body>${sections.join('\n')}</body></html>`;
-      const win = window.open('', '_blank'); win?.document.write(html); win?.document.close(); setTimeout(() => win?.print(), 500);
-    } catch (e) { console.error('Error comparativo:', e); }
+        const alertsHtml = devAlerts.length > 0 ? devAlerts.map((a: any) => `
+          <div style="border:1px solid ${isGps ? '#fecaca' : '#f3f4f6'};border-radius:8px;margin-bottom:12px;padding:10px;background:#fff">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="background:${a.type === 'critica' || a.type === 'apertura' || a.type === 'presencia' ? '#fef2f2' : '#fefce8'};color:${a.type === 'critica' || a.type === 'apertura' || a.type === 'presencia' ? '#dc2626' : '#a16207'};font-weight:700;font-size:10px;text-transform:uppercase;padding:3px 8px;border-radius:4px">${esc(a.type)}</span>
+              <span style="font-size:10px;color:${a.resolved_at ? '#16a34a' : '#dc2626'};font-weight:600">${a.resolved_at ? '● Resuelta' : '● Activa'}</span>
+              <span style="font-size:10px;color:#666;white-space:nowrap">${format(new Date(a.created_at), "dd/MM HH:mm:ss")}</span>
+              ${a.resolved_at ? `<span style="font-size:9px;color:#888">→ ${format(new Date(a.resolved_at), "dd/MM HH:mm")}</span>` : ''}
+            </div>
+            ${a.metadata?.reason ? `<p style="font-size:10px;color:#555;margin:6px 0 0"><b>Motivo:</b> ${esc(a.metadata.reason)}</p>` : ''}
+            ${a.metadata?.details ? `<p style="font-size:9px;color:#888;margin:2px 0 0">${esc(typeof a.metadata.details === 'string' ? a.metadata.details : JSON.stringify(a.metadata.details))}</p>` : ''}
+            ${isGps ? trackMapDiv(a.tracking_data || [], `${esc(a.type)} ${format(new Date(a.created_at), "dd/MM HH:mm")}`) : ''}
+          </div>`).join('') : '<p style="font-size:11px;color:#9ca3af;margin:0">Sin alertas en el período</p>';
+
+        sections.push(`<div style="page-break-after:always;font-family:Arial,sans-serif;padding:24px">
+          <div style="border-bottom:2px solid #e5e7eb;padding-bottom:10px;margin-bottom:14px"><h2 style="font-size:15px;color:#111;margin:0">${esc(device.name)}</h2><p style="font-size:10px;color:#888;margin:2px 0 0">${esc(device.dev_eui)} · ${esc(device.type_device)}</p></div>
+          ${isGps && e ? `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+            <div style="flex:1;min-width:70px;background:#f9fafb;border-radius:6px;padding:10px;text-align:center;border:1px solid #e5e7eb"><p style="font-size:9px;color:#888;margin:0;text-transform:uppercase">Puntos</p><p style="font-size:16px;font-weight:700;color:#111;margin:2px 0 0">${e.rows.length}</p></div>
+            <div style="flex:1;min-width:70px;background:#f9fafb;border-radius:6px;padding:10px;text-align:center;border:1px solid #e5e7eb"><p style="font-size:9px;color:#888;margin:0;text-transform:uppercase">Vel. Prom</p><p style="font-size:16px;font-weight:700;color:#111;margin:2px 0 0">${avg(e.speeds).toFixed(1)} m/s</p></div>
+            <div style="flex:1;min-width:70px;background:#f9fafb;border-radius:6px;padding:10px;text-align:center;border:1px solid #e5e7eb"><p style="font-size:9px;color:#888;margin:0;text-transform:uppercase">Inicio</p><p style="font-size:11px;font-weight:600;color:#666;margin:2px 0 0">${e.timestamps.length ? format(e.timestamps[0], "dd/MM HH:mm") : '—'}</p></div>
+            <div style="flex:1;min-width:70px;background:#f9fafb;border-radius:6px;padding:10px;text-align:center;border:1px solid #e5e7eb"><p style="font-size:9px;color:#888;margin:0;text-transform:uppercase">Fin</p><p style="font-size:11px;font-weight:600;color:#666;margin:2px 0 0">${e.timestamps.length ? format(e.timestamps[e.timestamps.length-1], "dd/MM HH:mm") : '—'}</p></div>
+          </div>` : ''}
+          <div style="margin-top:6px">
+            <h3 style="font-size:12px;color:#333;margin:0 0 10px;text-transform:uppercase">${isGps ? `Alertas y recorridos (${devAlerts.length})` : `Alertas (${devAlerts.length})`}</h3>
+            ${alertsHtml}
+          </div>
+        </div>`);
+      });
+
+      // ─── 2) Tabla grande final: telemetría de los GPS seleccionados ───
+      const movLabel = (o: any) => {
+        if (!o) return { text: '—', color: '#9ca3af' };
+        if (o.packetType?.startsWith?.('COMMAND')) return { text: o.systemMessage || o.packetType, color: '#0891b2' };
+        if (o.packetType === 'CONFIG_REPORT') return { text: 'Config Report', color: '#7c3aed' };
+        if (o.packetType === 'QA_VALIDATION') return { text: 'QA Validación', color: '#7c3aed' };
+        if (o.systemStatus?.freeFallFlag) return { text: 'Caída libre', color: '#dc2626' };
+        if (o.systemStatus?.motionFlag) return { text: 'Movimiento', color: '#ca8a04' };
+        if (o.voltage_mV != null && o.temperature_C != null) return { text: 'KeepAlive', color: '#16a34a' };
+        return { text: '—', color: '#9ca3af' };
+      };
+      const allRows = (gpsData?.telemetry || [])
+        .map((t: any) => {
+          const mov = movLabel(t.object);
+          return `<tr>
+            <td style="padding:4px 6px;border:1px solid #e5e7eb;white-space:nowrap;font-size:9px">${esc(t.device_name || '—')}</td>
+            <td style="padding:4px 6px;border:1px solid #e5e7eb;white-space:nowrap;font-size:9px">${format(new Date(t.ts), "dd/MM HH:mm:ss")}</td>
+            <td style="padding:4px 6px;border:1px solid #e5e7eb;font-size:9px">${esc(t.object?.packetType || '—')}</td>
+            <td style="padding:4px 6px;border:1px solid #e5e7eb;text-align:center;font-size:9px">${t.object?.voltage_mV != null ? Number(t.object.voltage_mV).toFixed(0) + ' mV' : '—'}</td>
+            <td style="padding:4px 6px;border:1px solid #e5e7eb;text-align:center;font-size:9px">${t.object?.temperature_C != null ? Number(t.object.temperature_C).toFixed(1) + '°' : '—'}</td>
+            <td style="padding:4px 6px;border:1px solid #e5e7eb;font-size:9px">${t.object?.latitude != null ? Number(t.object.latitude).toFixed(6) : '—'}</td>
+            <td style="padding:4px 6px;border:1px solid #e5e7eb;font-size:9px">${t.object?.longitude != null ? Number(t.object.longitude).toFixed(6) : '—'}</td>
+            <td style="padding:4px 6px;border:1px solid #e5e7eb;text-align:center;font-size:9px">${t.object?.satellites != null ? t.object.satellites : '—'}</td>
+            <td style="padding:4px 6px;border:1px solid #e5e7eb;text-align:center;font-size:9px">${esc(t.object?.systemStatus?.operatingMode || t.object?.operatingMode || '—')}</td>
+            <td style="padding:4px 6px;border:1px solid #e5e7eb;font-size:9px;color:${mov.color};font-weight:600">${esc(mov.text)}</td>
+          </tr>`;
+        }).join('');
+
+      if (gpsData?.telemetry?.length) {
+        sections.push(`<div style="font-family:Arial,sans-serif;padding:24px">
+          <div style="border-bottom:2px solid #e5e7eb;padding-bottom:10px;margin-bottom:14px">
+            <h2 style="font-size:15px;color:#111;margin:0">Telemetría completa (GPS)</h2>
+            <p style="font-size:10px;color:#888;margin:2px 0 0">Todos los registros de telemetry_data_all en el período ${fromDate} → ${toDate} · ${gpsData.telemetry.length} registros</p>
+          </div>
+          <table style="width:100%;border-collapse:collapse;font-size:9px">
+            <thead><tr style="background:#f3f4f6">
+              <th style="padding:5px 6px;text-align:left;border:1px solid #e5e7eb">Dispositivo</th>
+              <th style="padding:5px 6px;text-align:left;border:1px solid #e5e7eb">Fecha</th>
+              <th style="padding:5px 6px;text-align:left;border:1px solid #e5e7eb">Tipo</th>
+              <th style="padding:5px 6px;text-align:center;border:1px solid #e5e7eb">Batería</th>
+              <th style="padding:5px 6px;text-align:center;border:1px solid #e5e7eb">Temp</th>
+              <th style="padding:5px 6px;text-align:left;border:1px solid #e5e7eb">Latitud</th>
+              <th style="padding:5px 6px;text-align:left;border:1px solid #e5e7eb">Longitud</th>
+              <th style="padding:5px 6px;text-align:center;border:1px solid #e5e7eb">Sat</th>
+              <th style="padding:5px 6px;text-align:center;border:1px solid #e5e7eb">Modo</th>
+              <th style="padding:5px 6px;text-align:left;border:1px solid #e5e7eb">Movimiento</th>
+            </tr></thead>
+            <tbody>${allRows}</tbody>
+          </table>
+        </div>`);
+      }
+
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+        <style>
+          @page{margin:12mm 10mm}
+          body{font-family:Arial,sans-serif;color:#222;background:#fff;margin:0;padding:0}
+          .leaflet-container{background:#dfe6ea}
+          .leaflet-control-attribution{font-size:8px !important}
+          .track-map{page-break-inside:avoid}
+        </style>
+      </head><body>
+        ${sections.join('\n')}
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>
+        <script>
+          window.__TRACK_MAPS__ = ${JSON.stringify(trackMaps)};
+          window.__MAPS__ = [];
+          function initMaps() {
+            var maps = window.__TRACK_MAPS__ || [];
+            if (maps.length === 0) { setTimeout(function(){ window.print(); }, 400); return; }
+            var pending = 0;
+            function checkDone() {
+              if (pending <= 0) {
+                setTimeout(function(){
+                  window.__MAPS__.forEach(function(mm){
+                    try { mm.invalidateSize(); } catch(e){}
+                  });
+                  setTimeout(function(){ window.print(); }, 700);
+                }, 250);
+              }
+            }
+            maps.forEach(function(m) {
+              pending++;
+              var finished = false;
+              function done() {
+                if (finished) return;
+                finished = true;
+                pending--;
+                checkDone();
+              }
+              var el = document.getElementById(m.id);
+              if (!el) { done(); return; }
+              try {
+                var map = L.map(m.id, { zoomControl: false, attributionControl: true, scrollWheelZoom: false });
+                window.__MAPS__.push(map);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+                var pts = m.points.map(function(p){ return [parseFloat(p.latitude), parseFloat(p.longitude)]; });
+                L.polyline(pts, { color: '#ef4444', weight: 3, opacity: 0.85 }).addTo(map);
+                pts.forEach(function(pos, i) {
+                  var isFirst = i === 0, isLast = i === pts.length - 1;
+                  var color = isFirst ? '#22c55e' : isLast ? '#ef4444' : '#3b82f6';
+                  L.circleMarker(pos, { radius: isFirst || isLast ? 8 : 4, color: '#fff', weight: 2, fillColor: color, fillOpacity: 0.9 }).addTo(map);
+                });
+                map.fitBounds(L.latLngBounds(pts), { padding: [30, 30] });
+                map.whenReady(function(){
+                  setTimeout(function(){ map.invalidateSize(); }, 100);
+                });
+                map.on('load', done);
+                setTimeout(done, 8000);
+              } catch (e) { done(); }
+            });
+          }
+          if (document.readyState === 'complete') initMaps();
+          else window.addEventListener('load', initMaps);
+        <\/script>
+      </body></html>`;
+      const win = window.open('', '_blank', 'width=1000,height=1400'); win?.document.write(html); win?.document.close();
+    } catch (e) { console.error('Error alertas:', e); }
     setLoading(false);
   };
 
@@ -952,7 +1076,7 @@ export default function MonitorReportModal({ onClose }: Props) {
               </p>
               <button onClick={toggleAll}
                 className="text-xs font-semibold text-brand-200 hover:text-brand-100 transition-colors">
-                {selectedIds.size === (allDevices || []).length ? 'Deseleccionar todos' : 'Seleccionar todos'}
+                {selectedIds.size === visibleDevices.length && visibleDevices.length > 0 ? 'Deseleccionar todos' : 'Seleccionar todos'}
               </button>
             </div>
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">

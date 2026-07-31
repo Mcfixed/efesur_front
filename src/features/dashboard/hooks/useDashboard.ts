@@ -13,7 +13,8 @@ export const useDashboardData = () => {
   return useQuery({
     queryKey: DASHBOARD_KEYS.data(),
     queryFn: () => dashboardService.getDashboardData(),
-    refetchInterval: 10000, // Refetch every 10 seconds
+    refetchInterval: 10000,
+    staleTime: 5000,
   });
 };
 
@@ -21,7 +22,8 @@ export const useDevicesLocations = () => {
   return useQuery({
     queryKey: DASHBOARD_KEYS.locations(),
     queryFn: () => dashboardService.getDevicesLocations(),
-    refetchInterval: 10000, // Refetch every 10 seconds
+    refetchInterval: 15000,
+    staleTime: 10000,
   });
 };
 
@@ -29,7 +31,8 @@ export const useGatewayStatus = () => {
   return useQuery({
     queryKey: DASHBOARD_KEYS.gateways(),
     queryFn: () => dashboardService.getGatewayStatus(),
-    refetchInterval: 10000, // Refetch every 10 seconds for real-time status
+    refetchInterval: 10000,
+    staleTime: 5000,
   });
 };
 
@@ -37,10 +40,16 @@ export const useResolveAlert = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason: string }) =>
-      dashboardService.resolveAlert(id, { reason }),
-    onSuccess: () => {
-      toast.success("Alerta resuelta con éxito");
+    mutationFn: ({ id, reason, action }: { id: number; reason: string; action?: string }) =>
+      dashboardService.resolveAlert(id, { reason, action }),
+    onSuccess: (data: any) => {
+      const action = data?.alert?.action || 'resolver';
+      const msgs: Record<string, string> = {
+        abortar: 'Alerta resuelta + comando abortar emergencia enviado',
+        persecucion: 'Alerta resuelta + modo persecución activado',
+        resolver: 'Alerta resuelta visualmente',
+      };
+      toast.success(msgs[action] || 'Alerta resuelta');
       queryClient.invalidateQueries({ queryKey: DASHBOARD_KEYS.all });
     },
     onError: (error: any) => {
@@ -53,7 +62,8 @@ export const useAlertHistory = (type: string, range: string) => {
   return useQuery({
     queryKey: [...DASHBOARD_KEYS.all, "history", type, range],
     queryFn: () => dashboardService.getAlertHistory(type, range),
-    refetchInterval: 30000,
+    refetchInterval: 60000,
+    staleTime: 30000,
   });
 };
 
@@ -61,6 +71,7 @@ export const useAlertTimeline = (range: string) => {
   return useQuery({
     queryKey: [...DASHBOARD_KEYS.all, "timeline", range],
     queryFn: () => dashboardService.getAlertTimeline(range),
-    refetchInterval: 15000,
+    refetchInterval: 10000,
+    staleTime: 5000,
   });
 };

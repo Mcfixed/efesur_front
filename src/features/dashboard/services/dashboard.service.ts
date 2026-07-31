@@ -17,7 +17,7 @@ export const dashboardService = {
     return response.data.data;
   },
 
-  resolveAlert: async (id: number, data: { reason: string }) => {
+  resolveAlert: async (id: number, data: { reason: string; action?: string }) => {
     const response = await apiClient.post<{data: { message: string; alert: Alert }}>(`/dashboard/alerts/${id}/resolve`, data);
     return response.data.data;
   },

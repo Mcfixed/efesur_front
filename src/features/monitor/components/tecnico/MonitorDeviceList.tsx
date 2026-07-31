@@ -313,13 +313,19 @@ export default function MonitorDeviceList({
                         : <span className="text-text-300">—</span>}
                     </td>
                     <td className="px-2.5 py-1.5">
-                      {t.object?.systemStatus?.freeFallFlag
-                        ? <span className="text-red-400 font-bold" title="Caída libre">●</span>
-                        : t.object?.systemStatus?.motionFlag
-                          ? <span className="text-yellow-400 font-bold" title="Movimiento">●</span>
-                          : t.object?.voltage_mV != null && t.object?.temperature_C != null
-                            ? <span className="text-green-400 font-bold" title="KeepAlive">●</span>
-                            : <span className="text-text-300">○</span>}
+                      {t.object?.packetType?.startsWith?.('COMMAND')
+                        ? <span className="text-cyan-400 font-semibold text-[11px]" title={t.object.systemMessage || ''}>{t.object.systemMessage || t.object.packetType}</span>
+                        : t.object?.packetType === 'CONFIG_REPORT'
+                          ? <span className="text-purple-400 font-semibold text-[11px]">Config Report</span>
+                          : t.object?.packetType === 'QA_VALIDATION'
+                            ? <span className="text-purple-400 font-semibold text-[11px]">QA Validación</span>
+                            : t.object?.systemStatus?.freeFallFlag
+                              ? <span className="text-red-400 font-bold" title="Caída libre">●</span>
+                              : t.object?.systemStatus?.motionFlag
+                                ? <span className="text-yellow-400 font-bold" title="Movimiento">●</span>
+                                : t.object?.voltage_mV != null && t.object?.temperature_C != null
+                                  ? <span className="text-green-400 font-bold" title="KeepAlive">●</span>
+                                  : <span className="text-text-300">○</span>}
                     </td>
                     <td className="px-2.5 py-1.5">
                       {Array.isArray(t.rxinfo) ? t.rxinfo.length : '—'}

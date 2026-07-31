@@ -8,7 +8,7 @@ interface Props {
 }
 
 export default function AlertsChart({ historyData, isLoading }: Props) {
-  const [chartExpanded, setChartExpanded] = useState(true);
+  const [chartExpanded, setChartExpanded] = useState(false);
   const [chartAlertType, setChartAlertType] = useState<"critica" | "atencion" | "movimientos_anomalos" | "apertura" | "presencia">("critica");
   const [chartTimeRange, setChartTimeRange] = useState<"1h" | "24h" | "7d" | "30d" | "total">("24h");
 
@@ -83,11 +83,11 @@ export default function AlertsChart({ historyData, isLoading }: Props) {
             </div>
           </div>
 
-          <div className="bg-bg-300/30 rounded-lg p-1">
+          <div className="bg-bg-300/30 rounded-lg p-1" style={{ height: 134, overflow: 'hidden' }}>
             {isLoading ? (
-              <div className="flex items-center justify-center h-20"><p className="text-xs text-text-300">Cargando...</p></div>
+              <div className="flex items-center justify-center" style={{ height: 122 }}><p className="text-xs text-text-300 animate-pulse">Cargando...</p></div>
             ) : chartData.length === 0 ? (
-              <div className="flex items-center justify-center h-20"><p className="text-xs text-text-300">Sin alertas en este período</p></div>
+              <div className="flex items-center justify-center" style={{ height: 122 }}><p className="text-xs text-text-300">Sin alertas en este período</p></div>
             ) : (
               <BarChartWidget
                 data={chartData}

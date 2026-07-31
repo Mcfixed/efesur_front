@@ -2,10 +2,14 @@ import { useState, useMemo, Fragment } from "react";
 import { Marker, Source, Layer, Popup } from "react-map-gl";
 import type { DashboardData, GatewayDevice, GpsDevice } from "../types/dashboard.types";
 import DevicePopup from "./DevicePopup";
+import { IconEye, IconEyeOff } from "@tabler/icons-react";
 
 interface Props {
   data?: DashboardData;
   gateways: GatewayDevice[];
+  showAllSensors?: boolean;
+  onToggleShowAll?: () => void;
+  mapZoom?: number;
 }
 
 function createCircleGeoJSON(lng: number, lat: number, radiusKm: number) {
@@ -25,7 +29,10 @@ function createCircleGeoJSON(lng: number, lat: number, radiusKm: number) {
   return { type: "Polygon" as const, coordinates: [coordinates] };
 }
 
-export default function MapLayers({ data, gateways }: Props) {
+const ZOOM_THRESHOLD = 13;
+
+export default function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 0 }: Props) {
+  const showSensors = showAllSensors || mapZoom >= ZOOM_THRESHOLD;
   const [selectedDevice, setSelectedDevice] = useState<GpsDevice | null>(null);
   const [selectedGateway, setSelectedGateway] = useState<GatewayDevice | null>(null);
   const [selectedTrackingAlert, setSelectedTrackingAlert] = useState<number | null>(null);
@@ -306,7 +313,19 @@ export default function MapLayers({ data, gateways }: Props) {
         </Source>
       ))}
 
-      {/* Device markers - normales primero */}
+      {/* Toggle mostrar/ocultar sensores */}
+      <div className="absolute top-20 left-2 z-20">
+        <button
+          onClick={onToggleShowAll}
+          className="flex items-center gap-1.5 bg-bg-100/90 hover:bg-bg-100 border border-border/40 rounded-lg px-2.5 py-1.5 shadow-lg backdrop-blur-sm transition-all text-[11px] font-medium"
+          title={showAllSensors ? "Ocultar sensores (solo gateways)" : "Mostrar todos los sensores"}
+        >
+          {showAllSensors ? <IconEyeOff size={14} className="text-text-300" /> : <IconEye size={14} className="text-text-300" />}
+          <span className="text-text-200">{showAllSensors ? 'Ocultar sensores' : 'Mostrar sensores'}</span>
+        </button>
+      </div>
+
+      {/* Device markers - normales (con alertas siempre visibles, sin alertas solo si zoom >= threshold) */}
       {data?.devices?.map(device => {
         if (!device.latitude_current || !device.longitude_current) return null;
         const isCritical = data.alerts?.critical?.some(a => a.device_id === device.id);
@@ -314,6 +333,8 @@ export default function MapLayers({ data, gateways }: Props) {
         const isMovAnomalos = data.alerts?.movimientos_anomalos?.some(a => a.device_id === device.id);
         const isApertura = data.alerts?.apertura?.some(a => a.device_id === device.id);
         const isPresencia = data.alerts?.presencia?.some(a => a.device_id === device.id);
+        const hasAnyAlert = isCritical || isAtencion || isMovAnomalos || isApertura || isPresencia;
+        if (!hasAnyAlert && !showSensors) return null; // Sin alertas y zoom bajo → oculto
         if (isCritical) return null; // Los críticos se renderizan al final
 
         // Color del pin por tipo de dispositivo
@@ -371,7 +392,7 @@ export default function MapLayers({ data, gateways }: Props) {
         );
       })}
 
-      {/* Device markers - críticos al final (SIEMPRE encima) */}
+      {/* Device markers - críticos al final (siempre visibles si existen) */}
       {data?.devices?.map(device => {
         if (!device.latitude_current || !device.longitude_current) return null;
         const isCritical = data.alerts?.critical?.some(a => a.device_id === device.id);

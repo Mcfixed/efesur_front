@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { IconX, IconCheck, IconRadar, IconAlertTriangle, IconAlertCircle, IconDoor, IconUser, IconWifiOff } from "@tabler/icons-react";
+import { IconX, IconCheck, IconRadar, IconAlertTriangle, IconAlertCircle, IconDoor, IconUser, IconWifiOff, IconBellOff, IconRun } from "@tabler/icons-react";
 import { format } from "date-fns";
 import RightBar from "@/components/bars/RightBar";
 import { useResolveAlert } from "../hooks/useDashboard";
@@ -25,17 +25,53 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
   const resolveMutation = useResolveAlert();
   const [resolvingAlertId, setResolvingAlertId] = useState<number | null>(null);
   const [resolveReason, setResolveReason] = useState("");
+  const [showConfirmResolver, setShowConfirmResolver] = useState(false);
+  const [showReasonInput, setShowReasonInput] = useState(false);
+  const [lastCommandMsg, setLastCommandMsg] = useState<string | null>(null);
+  const [commandsSent, setCommandsSent] = useState<Set<number>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('cs_cmd') || '[]')); } catch { return new Set(); }
+  });
 
   // Última alerta creada hace menos de 1 minuto
   const latest = timelineData.length ? timelineData.reduce((a: any, b: any) => new Date(a.created_at) > new Date(b.created_at) ? a : b) : null;
   const newestAlertId = latest && Date.now() - new Date(latest.created_at).getTime() < 60000 ? latest.id : null;
 
-  const handleOpenResolve = (id: number) => { setResolvingAlertId(id); setResolveReason(""); };
-  const handleConfirmResolve = () => {
+  const handleOpenResolve = (id: number) => {
+    setResolvingAlertId(id);
+    setResolveReason("");
+    setShowConfirmResolver(false);
+    setShowReasonInput(false);
+    setLastCommandMsg(null);
+  };
+  // Enviar solo comando (abortar/persecucion) SIN resolver la alerta
+  const handleSendCommand = (action: string) => {
+    if (resolvingAlertId === null) return;
+    resolveMutation.mutate(
+      { id: resolvingAlertId, reason: '', action },
+      {
+        onSuccess: () => {
+          const labels: Record<string, string> = { abortar: '🚫 Abortar emergencia enviado al sensor', persecucion: '🏃 Modo persecución activado en el sensor' };
+          setLastCommandMsg(labels[action] || `Comando ${action} enviado`);
+          setCommandsSent(prev => {
+            const next = new Set(prev).add(resolvingAlertId!);
+            localStorage.setItem('cs_cmd', JSON.stringify([...next]));
+            return next;
+          });
+        },
+      }
+    );
+  };
+  // Abrir input de motivo para resolver visualmente
+  const handleOpenResolverOnly = () => { setShowReasonInput(true); };
+  // Confirmar resolución visual
+  const handleConfirmResolverOnly = () => {
     if (resolvingAlertId === null || !resolveReason.trim()) return;
-    resolveMutation.mutate({ id: resolvingAlertId, reason: resolveReason.trim() });
+    resolveMutation.mutate({ id: resolvingAlertId, reason: resolveReason.trim(), action: 'resolver' });
     setResolvingAlertId(null);
     setResolveReason("");
+    setShowConfirmResolver(false);
+    setShowReasonInput(false);
+    setLastCommandMsg(null);
   };
 
   const criticalActive = timelineData.filter((a: any) => a.priority === 0);
@@ -156,13 +192,76 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
     </div>
   );
 
-  // Modal de resolución
-  const resolveModal = resolvingAlertId !== null && (
+  // Modal principal: enviar comando o resolver
+  const resolveModal = resolvingAlertId !== null && !showReasonInput && !showConfirmResolver && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="bg-bg-100 border border-border/50 rounded-xl shadow-2xl p-5 w-105 max-w-[90vw]">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-bold text-text-100">Acción sobre alerta crítica</h3>
+          <button onClick={() => setResolvingAlertId(null)} className="text-text-300 hover:text-text-100 outline-none"><IconX size={18} /></button>
+        </div>
+
+        {lastCommandMsg ? (
+          <div className="text-center py-4">
+            <p className="text-[14px] font-semibold text-green-400 mb-2">{lastCommandMsg}</p>
+            <p className="text-[11px] text-text-400 mb-4">La alerta crítica continúa activa en el panel</p>
+            <button onClick={() => { setResolvingAlertId(null); setLastCommandMsg(null); }}
+              className="px-4 py-2 text-xs text-text-300 bg-bg-200 hover:bg-bg-300 rounded-lg transition-colors">Cerrar</button>
+          </div>
+        ) : commandsSent.has(resolvingAlertId) ? (
+          <>
+            <div className="text-center py-2 mb-3">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-green-400 bg-green-500/10 px-3 py-1 rounded-full">✓ Comando ya enviado al sensor</span>
+            </div>
+            <button onClick={handleOpenResolverOnly}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-[12px] font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors">
+              <IconCheck size={16} />
+              <span>Resolver alerta visualmente</span>
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="text-xs text-text-300 mb-4">Selecciona una acción para el sensor:</p>
+            <div className="space-y-2">
+              <button onClick={() => handleSendCommand('abortar')} disabled={resolveMutation.isPending}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-[12px] font-semibold text-white bg-orange-600 hover:bg-orange-700 transition-colors disabled:opacity-40">
+                <IconBellOff size={18} />
+                <div className="text-left">
+                  <p>Abortar emergencia</p>
+                  <p className="text-[10px] font-normal text-white/70">Envía comando al sensor para detener la alerta</p>
+                </div>
+                {resolveMutation.isPending && <span className="ml-auto text-[10px] animate-pulse">Enviando...</span>}
+              </button>
+              <button onClick={() => handleSendCommand('persecucion')} disabled={resolveMutation.isPending}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-[12px] font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-40">
+                <IconRun size={18} />
+                <div className="text-left">
+                  <p>Modo persecución</p>
+                  <p className="text-[10px] font-normal text-white/70">Activa seguimiento continuo hasta agotar batería</p>
+                </div>
+                {resolveMutation.isPending && <span className="ml-auto text-[10px] animate-pulse">Enviando...</span>}
+              </button>
+              <div className="border-t border-border/30 pt-3 mt-3">
+                <button onClick={handleOpenResolverOnly}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-[11px] font-medium text-text-300 bg-bg-200 hover:bg-bg-300 transition-colors">
+                  <IconCheck size={16} />
+                  <span>Solo resolver alerta visualmente</span>
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
+  // Paso 2: Input de motivo + confirmación para resolver visualmente
+  const reasonModal = showReasonInput && resolvingAlertId !== null && (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="bg-bg-100 border border-border/50 rounded-xl shadow-2xl p-5 w-95 max-w-[90vw]">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold text-text-100">Resolver Alerta Crítica</h3>
-          <button onClick={() => setResolvingAlertId(null)} className="text-text-300 hover:text-text-100 outline-none"><IconX size={18} /></button>
+          <h3 className="text-sm font-bold text-text-100">Resolver alerta visualmente</h3>
+          <button onClick={() => { setShowReasonInput(false); setResolveReason(""); }} className="text-text-300 hover:text-text-100 outline-none"><IconX size={18} /></button>
         </div>
         <p className="text-xs text-text-300 mb-3">Ingresa el motivo de resolución:</p>
         <textarea value={resolveReason} onChange={e => setResolveReason(e.target.value)}
@@ -170,17 +269,45 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
           className="w-full bg-bg-200 border border-border/50 rounded-lg px-3 py-2 text-sm text-text-100 placeholder:text-text-300 outline-none focus:border-brand-100/50 resize-none"
           rows={3} autoFocus
         />
+        {!commandsSent.has(resolvingAlertId) && (
+          <p className="text-[10px] text-yellow-400/80 mt-2 mb-3">⚠ El sensor <span className="text-red-400">no recibirá ningún comando</span>. Seguirá enviando alertas por 6 horas.</p>
+        )}
         <div className="flex items-center justify-end gap-2 mt-3">
-          <button onClick={() => setResolvingAlertId(null)} className="px-3 py-1.5 text-xs text-text-300 hover:text-text-100 bg-bg-200 hover:bg-bg-300 rounded-lg transition-colors">Cancelar</button>
-          <button onClick={handleConfirmResolve} disabled={!resolveReason.trim() || resolveMutation.isPending}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {resolveMutation.isPending ? "Resolviendo..." : "✓ Confirmar"}
+          <button onClick={() => { setShowReasonInput(false); setResolveReason(""); }} className="px-3 py-1.5 text-xs text-text-300 hover:text-text-100 bg-bg-200 hover:bg-bg-300 rounded-lg transition-colors">Cancelar</button>
+          <button onClick={() => { if (resolveReason.trim()) setShowConfirmResolver(true); }}
+            disabled={!resolveReason.trim()}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors disabled:opacity-50">
+            Continuar
           </button>
         </div>
       </div>
     </div>
   );
+
+  // Confirmación final para resolver visual
+  const confirmResolveModal = showConfirmResolver && resolvingAlertId !== null && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="bg-bg-100 border border-border/50 rounded-xl shadow-2xl p-5 w-95 max-w-[90vw]">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-bold text-yellow-400">¿Resolver solo visual?</h3>
+          <button onClick={() => setShowConfirmResolver(false)} className="text-text-300 hover:text-text-100 outline-none"><IconX size={18} /></button>
+        </div>
+        {commandsSent.has(resolvingAlertId) ? (
+          <p className="text-xs text-green-400 mb-4">✓ Comando ya enviado al sensor. Solo se resolverá la alerta visualmente.</p>
+        ) : (
+          <p className="text-xs text-text-300 mb-4">El sensor seguirá enviando alertas críticas durante 6 horas si no se envía un comando de abortar emergencia o modo persecución.</p>
+        )}
+        <div className="flex items-center justify-end gap-2">
+          <button onClick={() => setShowConfirmResolver(false)} className="px-3 py-1.5 text-xs text-text-300 hover:text-text-100 bg-bg-200 hover:bg-bg-300 rounded-lg transition-colors">Volver</button>
+          <button onClick={handleConfirmResolverOnly} disabled={resolveMutation.isPending}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors disabled:opacity-50"
+          >{resolveMutation.isPending ? "Resolviendo..." : "✓ Resolver igual"} </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const allModals = <>{resolveModal}{reasonModal}{confirmResolveModal}</>;
 
   if (isMobile && isOpen) {
     return (
@@ -192,7 +319,7 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
           </div>
           <div className="h-[calc(100vh-48px)] overflow-hidden">{content}</div>
         </div>
-        {resolveModal}
+        {allModals}
       </>
     );
   }
@@ -203,7 +330,7 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
         <button className="absolute right-0 z-50 top-[50%] rounded-s-sm bg-brand-100 p-1" onClick={() => setOpen?.(true)}>
           <IconX size={24} stroke={1.5} className="text-white rotate-45" />
         </button>
-        {resolveModal}
+        {allModals}
       </>
     );
   }
@@ -215,7 +342,7 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
           {content}
         </RightBar>
       </div>
-      {resolveModal}
+      {allModals}
     </>
   );
 }

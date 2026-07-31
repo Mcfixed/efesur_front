@@ -17,6 +17,8 @@ export interface BaseMapProps {
   children?: React.ReactNode;
   initialCenter?: MapCenter;
   initialZoom?: number;
+  initialPitch?: number;
+  initialBearing?: number;
   onMapRef?: (ref: MapRef | null) => void;
 }
 

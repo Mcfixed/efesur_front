@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import type { MapRef } from "react-map-gl";
 
 // Custom Hooks
-import { useDashboardData, useGatewayStatus, useAlertHistory, useAlertTimeline } from "../hooks/useDashboard";
+import { useDashboardData, useGatewayStatus, useAlertTimeline } from "../hooks/useDashboard";
 import { useAlertSound } from "../hooks/useCriticalAlertSound";
 import { useAlertVoice } from "../hooks/useAlertVoice";
 
@@ -21,6 +21,10 @@ import GatewayStatusBar from "../components/GatewayStatusBar";
 export default function Dashboard() {
   const { isMobile } = useBreakpoint();
   const [isOpenRightBar, setOpenRightBar] = useState(false);
+  const [showAllSensors, setShowAllSensors] = useState(false);
+  const [mapZoom, setMapZoom] = useState(5);
+  const [mapPitch, setMapPitch] = useState(69);
+  const [mapBearing, setMapBearing] = useState(-55);
   const mapRef = useRef<MapRef | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const lastCriticalIds = useRef<string | null>(null);
@@ -28,24 +32,13 @@ export default function Dashboard() {
   // Data fetching
   const { data, isLoading } = useDashboardData();
   const { data: gatewayData } = useGatewayStatus();
-  const { data: criticaHistory } = useAlertHistory("critica", "total");
-  const { data: atencionHistory } = useAlertHistory("atencion", "total");
-  const { data: movimientosHistory } = useAlertHistory("movimientos_anomalos", "total");
-  const { data: aperturaHistory } = useAlertHistory("apertura", "total");
-  const { data: presenciaHistory } = useAlertHistory("presencia", "total");
   const [timelineRange, setTimelineRange] = useState("24h");
   const { data: timelineData } = useAlertTimeline(timelineRange);
-  // Unificar historial de todos los tipos para el gráfico
-  const historyData = useMemo(() => {
-    const alerts = [
-      ...(criticaHistory?.alerts || []),
-      ...(atencionHistory?.alerts || []),
-      ...(movimientosHistory?.alerts || []),
-      ...(aperturaHistory?.alerts || []),
-      ...(presenciaHistory?.alerts || []),
-    ];
-    return { alerts };
-  }, [criticaHistory, atencionHistory, movimientosHistory, aperturaHistory, presenciaHistory]);
+  // Datos para el gráfico "Alertas por Sensor" (rango fijo 30d, independiente del timeline)
+  const { data: chartTimeline } = useAlertTimeline("30d");
+  const historyData = useMemo(() => ({
+    alerts: chartTimeline?.alerts || [],
+  }), [chartTimeline]);
 
   // Side effects
   useAlertSound({
@@ -103,23 +96,29 @@ export default function Dashboard() {
     };
   }, []);
 
+  // ─── TRACK MAP ZOOM ────────────────────────────────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const onMove = () => { setMapZoom(map.getZoom()); setMapPitch(map.getPitch()); setMapBearing(map.getBearing()); };
+    map.on('move', onMove);
+    return () => { map.off('move', onMove); };
+  }, [mapLoaded]);
+
   // ─── AUTO ZOOM ─────────────────────────────────────────────
   // Lógica simple: si hay críticas → zoom a críticas, si no → zoom a todos
   useEffect(() => {
     if (!mapRef.current || !mapLoaded || !data) return;
 
-    // Obtener todas las coordenadas
-    const allItems = [
-      ...(data.devices || []).filter(d => d.latitude_current && d.longitude_current),
-      ...(gatewayData?.gateways || []).filter(g => g.latitude_current && g.longitude_current),
-    ];
+    // Obtener solo gateways (por defecto)
+    const gwItems = (gatewayData?.gateways || []).filter(g => g.latitude_current && g.longitude_current);
 
     // Obtener solo alertas críticas
     const criticalItems = (data.alerts?.critical || []).filter(a => a.latitude_current && a.longitude_current);
 
-    // Decidir qué zoom hacer
+    // Decidir qué zoom hacer: críticas tienen prioridad, sino gateways
     const hasCritical = criticalItems.length > 0;
-    const itemsToZoom = hasCritical ? criticalItems : allItems;
+    const itemsToZoom = hasCritical ? criticalItems : gwItems;
 
     // Generar fingerprint de las alertas críticas para detectar cambios
     const criticalFingerprint = criticalItems.length > 0 ? criticalItems.map(a => a.id).sort().join(',') : 'none';
@@ -146,7 +145,7 @@ export default function Dashboard() {
       // Hacer zoom
       mapRef.current.fitBounds(
         [[minLng - padLng, minLat - padLat], [maxLng + padLng, maxLat + padLat]],
-        { padding: hasCritical ? 10 : 60, maxZoom: 25, duration: 1000 }
+        { padding: hasCritical ? 10 : 60, maxZoom: 25, duration: 1000, pitch: 69, bearing: -55 }
       );
     }
   }, [data, mapLoaded, gatewayData]);
@@ -154,24 +153,24 @@ export default function Dashboard() {
   const gateways = gatewayData?.gateways || [];
 
   // Determinar color del parpadeo del mapa
-  const pulseColor = (data?.alerts?.critical?.length ?? 0) > 0
-    ? '255, 68, 68'   // rojo
-    : (data?.alerts?.movimientos_anomalos?.length ?? 0) > 0
-      ? '168, 85, 247' // púrpura
-      : null;
+  const hasCritical = (data?.alerts?.critical?.length ?? 0) > 0;
+  const hasMovements = (data?.alerts?.movimientos_anomalos?.length ?? 0) > 0;
+  const pulseClass = hasCritical ? 'map-alert-pulse-red' : hasMovements ? 'map-alert-pulse-purple' : null;
 
   return (
     <div className="w-full h-full flex flex-col overflow-hidden">
-      {/* Keyframes para el parpadeo del mapa */}
       <style>{`
-        @keyframes map-alert-pulse {
-          0%, 100% { box-shadow: inset 0 0 0 0 rgba(${pulseColor || '0,0,0'}, 0); }
-          25% { box-shadow: inset 0 0 120px 20px rgba(${pulseColor || '0,0,0'}, 0.4); }
-          50% { box-shadow: inset 0 0 150px 30px rgba(${pulseColor || '0,0,0'}, 0.25); }
-          75% { box-shadow: inset 0 0 120px 20px rgba(${pulseColor || '0,0,0'}, 0.4); }
+        @keyframes map-alert-pulse-red {
+          0%, 100% { box-shadow: inset 0 0 0 0 rgba(239,68,68,0); }
+          25% { box-shadow: inset 0 0 120px 20px rgba(239,68,68,0.4); }
+          50% { box-shadow: inset 0 0 150px 30px rgba(239,68,68,0.25); }
+          75% { box-shadow: inset 0 0 120px 20px rgba(239,68,68,0.4); }
         }
-        @keyframes map-alert-pulse-off {
-          0%, 100% { box-shadow: none; }
+        @keyframes map-alert-pulse-purple {
+          0%, 100% { box-shadow: inset 0 0 0 0 rgba(168,85,247,0); }
+          25% { box-shadow: inset 0 0 120px 20px rgba(168,85,247,0.4); }
+          50% { box-shadow: inset 0 0 150px 30px rgba(168,85,247,0.25); }
+          75% { box-shadow: inset 0 0 120px 20px rgba(168,85,247,0.4); }
         }
       `}</style>
       <AlertTickerBanner data={data} />
@@ -194,19 +193,22 @@ export default function Dashboard() {
               onMapRef={(map) => { mapRef.current = map; setMapLoaded(!!map); }} 
               initialCenter={{ longitude: -71.0, latitude: -33.0 }} 
               initialZoom={5}
+              initialPitch={69}
+              initialBearing={-55}
             >
-              {/* Parpadeo de alerta que cubre todo el mapa */}
-              {pulseColor && (
+              {pulseClass && (
                 <div
                   className="absolute inset-0 z-10 pointer-events-none"
-                  style={{
-                    boxShadow: `inset 0 0 0 0 rgba(${pulseColor}, 0)`,
-                    animation: 'map-alert-pulse 2s ease-in-out infinite',
-                    borderRadius: 'inherit',
-                  }}
+                  style={{ animation: `${pulseClass} 2s ease-in-out infinite`, borderRadius: 'inherit' }}
                 />
               )}
               <MapOverlayInfo data={data} />
+
+              {/* Indicadores de inclinación y rotación */}
+              <div className="absolute bottom-2 left-2 z-20 bg-black/70 border border-white/20 rounded px-3 py-1.5 text-[11px] font-mono text-white/90 shadow-lg space-y-0.5">
+                <div className="flex items-center gap-2"><span className="text-white/50">Pitch</span><span className="font-bold text-cyan-300">{Math.round(mapPitch)}°</span></div>
+                <div className="flex items-center gap-2"><span className="text-white/50">Bear</span><span className="font-bold text-amber-300">{Math.round(mapBearing)}°</span></div>
+              </div>
 
               {gateways.length > 0 && (
                 <div className="absolute left-2 z-10" style={{ top: '120px' }}>
@@ -231,7 +233,7 @@ export default function Dashboard() {
                   <span className="text-[11px] font-semibold text-red-400">{data.alerts.critical.length} críticas</span>
                 </div>
               )}
-              <MapLayers data={data} gateways={gateways} />
+              <MapLayers data={data} gateways={gateways} showAllSensors={showAllSensors} onToggleShowAll={() => setShowAllSensors(s => !s)} mapZoom={mapZoom} />
             </BaseMap>
           </MapErrorBoundary>
 

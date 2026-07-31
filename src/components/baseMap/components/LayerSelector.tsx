@@ -18,11 +18,11 @@ const LayerSelector: React.FC<LayerSelectorProps> = ({
   return (
     <div className="z-50">
       <div className="relative">
-        <LineGradientWhite top="-0.05rem" height="1.5rem" color={"white"} />
+        {/* <LineGradientWhite top="-0.05rem" height="1.5rem" color={"white"} /> */}
         <button
           onClick={() => setShowMenu(!showMenu)}
           className={`
-            ${showMenu ? "bg-bg-100 text-text-200  z-100" : "bg-linear-to-b from-bg-100 to-bg-300"}
+            ${showMenu ? "bg-bg-100 text-text-200  z-100" : "bg-bg-300"}
              relative text-text-200 hover:text-text-100 outline outline-transparent p-0.5   shadow-lg shadow-bg-100 h-8 w-8 flex justify-center items-center transition-all`}
         >
           <IconMapCog size={20} />
