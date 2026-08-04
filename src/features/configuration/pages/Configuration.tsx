@@ -507,6 +507,8 @@ function DevicesTab() {
         <DataTableWidget
           title="Inventario de Dispositivos"
           data={Array.isArray(devices) ? devices : (Array.isArray((devices as any)?.data) ? (devices as any).data : [])}
+          searchable
+          searchPlaceholder="Buscar por DevEUI, nombre, empresa..."
           columns={[
             { key: "dev_eui", header: "DevEUI" },
             { key: "name", header: "Nombre" },

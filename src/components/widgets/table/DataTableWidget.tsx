@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   IconChevronLeft,
   IconChevronRight,
   IconChevronUp,
   IconChevronDown,
+  IconSearch,
+  IconX,
 } from "@tabler/icons-react";
 import { WidgetContainer } from "../base/WidgetContainer";
 import type { DataTableWidgetProps, TableColumn } from "../types";
@@ -41,21 +43,44 @@ export function DataTableWidget<T extends object>({
   striped = true,
   hoverable = true,
   compact = false,
+  searchable = false,
+  searchPlaceholder = "Buscar...",
 }: DataTableWidgetProps<T>) {
   const [page, setPage] = useState(0);
   const [sortKey, setSortKey] = useState<keyof T | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // ─── Buscar (por valores crudos y texto de renders) ──────────────────────
+  const filtered = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!searchable || !q) return data;
+    return data.filter((row) =>
+      columns.some((col) => {
+        const raw = row[col.key];
+        const rawStr = raw == null ? "" : String(raw).toLowerCase();
+        if (rawStr.includes(q)) return true;
+        if (col.render) {
+          const r = col.render(row[col.key], row);
+          if (typeof r === "string" || typeof r === "number") {
+            if (String(r).toLowerCase().includes(q)) return true;
+          }
+        }
+        return false;
+      })
+    );
+  }, [data, columns, searchable, searchTerm]);
 
   // ─── Ordenar ─────────────────────────────────────────────────────────────
   const sorted = sortKey
-    ? [...data].sort((a, b) => {
+    ? [...filtered].sort((a, b) => {
         const av = a[sortKey];
         const bv = b[sortKey];
         if (av === bv) return 0;
         const cmp = av < bv ? -1 : 1;
         return sortDir === "asc" ? cmp : -cmp;
       })
-    : data;
+    : filtered;
 
   // ─── Paginar ─────────────────────────────────────────────────────────────
   const total = sorted.length;
@@ -79,7 +104,37 @@ export function DataTableWidget<T extends object>({
     <WidgetContainer
       title={title}
       subtitle={subtitle}
-      headerActions={headerActions}
+      headerActions={
+        <div className="flex items-center gap-2">
+          {searchable && (
+            <div className="relative">
+              <IconSearch size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-300" />
+              <input
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setPage(0);
+                }}
+                placeholder={searchPlaceholder}
+                className="w-52 pl-7 pr-7 py-1.5 text-xs rounded-md bg-bg-200/60 border border-border/30 text-text-100 placeholder:text-text-300 focus:outline-none focus:border-brand-200/50 focus:ring-1 focus:ring-brand-200/30 transition-colors"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => {
+                    setSearchTerm("");
+                    setPage(0);
+                  }}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-text-300 hover:text-text-200 transition-colors"
+                  title="Limpiar búsqueda"
+                >
+                  <IconX size={12} />
+                </button>
+              )}
+            </div>
+          )}
+          {headerActions}
+        </div>
+      }
       gridPosition={gridPosition}
       absolutePosition={absolutePosition}
       draggable={draggable}

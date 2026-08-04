@@ -110,6 +110,10 @@ export interface DataTableWidgetProps<T extends object>
   striped?: boolean;
   hoverable?: boolean;
   compact?: boolean;
+  /** Activa un buscador por texto sobre todas las columnas */
+  searchable?: boolean;
+  /** Placeholder del buscador */
+  searchPlaceholder?: string;
 }
 
 // ─── Widgets de Estado ────────────────────────────────────────────────────────
