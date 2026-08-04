@@ -48,6 +48,7 @@ export default function MonitorResumen() {
       apertura: a.apertura,
       presencia: a.presencia,
       movimientos: a.movimientos,
+      desconexion: a.desconexion,
     }));
   }, [alertsPerDay]);
 
@@ -127,7 +128,7 @@ export default function MonitorResumen() {
           </div>
           <div className="flex-1 min-h-0 p-1">
             {alertChart.length > 0 ? (
-              <BarChartWrapper data={alertChart} dataKey={["criticas", "apertura", "presencia", "atencion", "movimientos"]} xAxisKey="dia" colors={["#ef4444", "#dc2626", "#ef4444", "#eab308", "#a855f7"]} stacked={true} showLegend={true} nameMap={{ criticas: 'Críticas', apertura: 'Apertura', presencia: 'Presencia', atencion: 'Atención', movimientos: 'Movimientos' }} />
+              <BarChartWrapper data={alertChart} dataKey={["criticas", "apertura", "presencia", "atencion", "movimientos", "desconexion"]} xAxisKey="dia" colors={["#ef4444", "#dc2626", "#ef4444", "#eab308", "#a855f7", "#f97316"]} stacked={true} showLegend={true} nameMap={{ criticas: 'Críticas', apertura: 'Apertura', presencia: 'Presencia', atencion: 'Atención', movimientos: 'Movimientos', desconexion: 'Desconexión' }} />
             ) : (
               <div className="flex items-center justify-center h-full text-[12px] text-text-300">Sin datos</div>
             )}

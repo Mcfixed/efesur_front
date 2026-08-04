@@ -31,6 +31,12 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
     return gw?.id_device_father || null;
   }, [allDevices, deviceId]);
 
+  const lectorAsignadoName = useMemo(() => {
+    if (!lectorDeviceId || !allDevices) return null;
+    const l = allDevices.find((d: any) => d.id === lectorDeviceId);
+    return l?.name || null;
+  }, [lectorDeviceId, allDevices]);
+
   const { data: lectorAlerts } = useMonitorDeviceAlerts(lectorDeviceId);
 
   const connectedDeviceEuis = useMemo(() => {
@@ -290,6 +296,9 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
                 <div className="flex items-center gap-2">
                   <span className={`w-2 h-2 rounded-full ${lastSeen && Date.now() - new Date(lastSeen).getTime() < 300000 ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
                   <span className="text-[10px] font-bold text-text-100 uppercase tracking-wider">Estado del Sistema</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border ${lectorDeviceId ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-red-500/10 text-red-400 border-red-500/30'}`}>
+                    {lectorDeviceId ? 'Lector asignado' : 'Sin lector asignado'}
+                  </span>
                 </div>
               </div>
               <div className="flex-1 p-2 flex items-center justify-center min-h-0">
@@ -309,10 +318,10 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
                     </text>
                   </g>
 
-                  {/* Battery card — lector */}
-                  <g transform="translate(12, 68)">
+                  {/* Battery card — lector (gris si no hay lector) */}
+                  <g transform="translate(12, 68)" opacity={lectorDeviceId ? 1 : 0.35}>
                     <rect x="0" y="0" width="110" height="44" rx="5" fill="none" stroke="#555" strokeWidth="0.8" opacity="0.5" />
-                    <text x="55" y="10" textAnchor="middle" fill="#888" fontSize="6" fontWeight="bold">BATERÍA {lectorData ? `· ${lectorData.lectorName}` : ''}</text>
+                    <text x="55" y="10" textAnchor="middle" fill="#888" fontSize="6" fontWeight="bold">BATERÍA {lectorData ? `· ${lectorAsignadoName || lectorData.lectorName}` : ''}</text>
                     {/* Battery icon */}
                     <rect x="8" y="16" width="20" height="12" rx="2" fill="none" stroke={lectorData?.vBat != null ? (lectorData.vBat >= 12.5 ? '#22c55e' : lectorData.vBat >= 11.8 ? '#f97316' : '#ef4444') : '#555'} strokeWidth="1" />
                     <rect x="28" y="19" width="3" height="6" rx="0.5" fill={lectorData?.vBat != null ? (lectorData.vBat >= 12.5 ? '#22c55e' : lectorData.vBat >= 11.8 ? '#f97316' : '#ef4444') : '#555'} />
@@ -325,8 +334,8 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
                     </text>
                   </g>
 
-                  {/* Power source + temp card — lector */}
-                  <g transform="translate(138, 68)">
+                  {/* Power source + temp card — lector (gris si no hay lector) */}
+                  <g transform="translate(138, 68)" opacity={lectorDeviceId ? 1 : 0.35}>
                     <rect x="0" y="0" width="110" height="44" rx="5" fill="none" stroke="#555" strokeWidth="0.8" opacity="0.5" />
                     <text x="55" y="10" textAnchor="middle" fill="#888" fontSize="6" fontWeight="bold">ALIMENTACIÓN</text>
                     {/* Charger 220V indicator */}
@@ -345,8 +354,8 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
                     </text>
                   </g>
 
-                  {/* Sensors card — lector + gateway */}
-                  <g transform="translate(12, 120)">
+                  {/* Sensors card — lector + gateway (gris si no hay lector) */}
+                  <g transform="translate(12, 120)" opacity={lectorDeviceId ? 1 : 0.35}>
                     <rect x="0" y="0" width="236" height="28" rx="5" fill="none" stroke="#555" strokeWidth="0.8" opacity="0.5" />
                     <text x="118" y="10" textAnchor="middle" fill="#888" fontSize="6" fontWeight="bold">SENSORES</text>
                     {/* Door sensor */}
@@ -469,7 +478,7 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
       )}
 
       {activeTab === "lector_asignado" && (
-        <MonitorLectorDashboard lectorDeviceId={allDevices?.find((d: any) => d.id === deviceId)?.id_device_father} />
+        <MonitorLectorDashboard lectorDeviceId={allDevices?.find((d: any) => d.id === deviceId)?.id_device_father ?? null} />
       )}
 
       {activeTab === "mapa" && (

@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { useMonitorDevices, useMonitorLatestTelemetry } from "../../../hooks/useMonitor";
-import { IconAlertTriangle } from "@tabler/icons-react";
 
 // ═══════════════════════════════════════════
 // Sin mock data — todo desde telemetría real
@@ -91,17 +90,23 @@ export default function MonitorLectorDashboard({ lectorDeviceId }: { lectorDevic
 
   const lectores = useMemo(() => {
     if (!allDevices) return [];
+    // Sin lector asignado (id null) → no mostrar ningún lector por defecto
+    if (lectorDeviceId === null) return [];
     let list = allDevices.filter((d: any) => d.type_device === 'Lector');
     if (lectorDeviceId) {
       const specific = list.find((d: any) => d.id === lectorDeviceId);
       if (specific) return [specific];
+      return [];
     }
     return list;
   }, [allDevices, lectorDeviceId]);
 
   // Extraer datos de telemetría del primer lector
   const dashboardData = useMemo(() => {
-    if (!lectores.length || !latestTelemetry) return null;
+    if (!lectores.length) {
+      return { tel: [], mpttTel: [], chartData: [], lector: { name: 'Sin lector asignado', dev_eui: '—' }, lastT: null, sensores: {}, charger220: {}, vBat: null, pPan: null, iBat: null, iOut: null, loadState: null, chargeState: null, pvVolt: null, charging: false, charger220State: null, charger220Volt: null, temp: null };
+    }
+    if (!latestTelemetry) return null;
     const lector = lectores[0];
     const tel = (latestTelemetry || []).filter((t: any) =>
       t.dev_eui?.toLowerCase() === lector.dev_eui.toLowerCase() || t.device_id === lector.id
@@ -145,17 +150,9 @@ export default function MonitorLectorDashboard({ lectorDeviceId }: { lectorDevic
     );
   }
 
-  if (lectores.length === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-text-300 text-[13px] min-h-50">
-        <IconAlertTriangle size={18} className="mr-2 opacity-50" />
-        No hay lectores en el sistema
-      </div>
-    );
-  }
-
   if (!dashboardData) return null;
 
+  const hasLector = lectores.length > 0;
   const { chartData, lector, lastT, sensores, charger220, vBat, pPan, iBat, iOut, loadState, chargeState, pvVolt, charging, charger220State, charger220Volt, temp } = dashboardData;
 
   const batPct = vBat != null ? Math.max(0, Math.min(100, ((vBat - 11) / (15 - 11)) * 100)) : null;
@@ -173,26 +170,30 @@ export default function MonitorLectorDashboard({ lectorDeviceId }: { lectorDevic
     : { label: '—', color: '#6b7280' };
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col gap-2 p-2 bg-bg-200 rounded-md">
+    <div className={`flex-1 min-h-0 flex flex-col gap-2 p-2 bg-bg-200 rounded-md transition-all ${hasLector ? '' : 'opacity-40 grayscale'}`}>
       <style>{`@keyframes flowLine{to{stroke-dashoffset:-24}}@keyframes flowBack{to{stroke-dashoffset:24}}@keyframes pulseLive{0%{transform:scale(1)}50%{transform:scale(2)}100%{transform:scale(1)}}`}</style>
 
       {/* HEADER */}
       <div className="rounded-lg px-4 py-2.5 flex items-center justify-between bg-bg-100 border border-border/30">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-[#00a3e8]/10 flex items-center justify-center border border-[#00a3e8]/30">
-            <div className="w-2 h-2 rounded-full bg-[#00a3e8] shadow-[0_0_8px_#00a3e8]" />
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center border ${hasLector ? 'bg-[#00a3e8]/10 border-[#00a3e8]/30' : 'bg-red-500/10 border-red-500/30'}`}>
+            <div className={`w-2 h-2 rounded-full ${hasLector ? 'bg-[#00a3e8] shadow-[0_0_8px_#00a3e8]' : 'bg-red-400'}`} />
           </div>
           <div>
-            <p className="text-[13px] font-medium text-text-100 tracking-wide">{lector.name}</p>
-            <p className="text-[10px] text-text-300 font-mono">{lector.dev_eui} · {lastT?.ts ? format(new Date(lastT.ts), "dd/MM HH:mm") : '—'}</p>
+            <p className={`${hasLector ? 'text-[13px] font-medium text-text-100' : 'text-2xl font-bold text-red-400'} tracking-wide`}>{lector.name}</p>
+            {hasLector && <p className="text-[10px] text-text-300 font-mono">{lector.dev_eui} · {lastT?.ts ? format(new Date(lastT.ts), "dd/MM HH:mm") : '—'}</p>}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {charging && <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_#22c55e]" />}
-          <span className="text-[10px] font-bold tracking-wider" style={{ color: charging ? '#22c55e' : '#6b7280' }}>
-            {charging ? `CHARGING (${chargeMeta.label.toUpperCase()})` : 'SYSTEM IDLE'}
-          </span>
-        </div>
+        {hasLector ? (
+          <div className="flex items-center gap-2">
+            {charging && <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_#22c55e]" />}
+            <span className="text-[10px] font-bold tracking-wider" style={{ color: charging ? '#22c55e' : '#6b7280' }}>
+              {charging ? `CHARGING (${chargeMeta.label.toUpperCase()})` : 'SYSTEM IDLE'}
+            </span>
+          </div>
+        ) : (
+          <span className="text-[9px] font-bold uppercase tracking-wider text-red-400 border border-red-500/30 bg-red-500/10 px-2 py-1 rounded">Sin lector asignado</span>
+        )}
       </div>
 
       {/* MAIN GRID */}
