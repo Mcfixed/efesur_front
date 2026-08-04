@@ -108,7 +108,7 @@ export function DataTableWidget<T extends object>({
         <div className="flex items-center gap-2">
           {searchable && (
             <div className="relative">
-              <IconSearch size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-300" />
+              <IconSearch size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-300" />
               <input
                 value={searchTerm}
                 onChange={(e) => {
@@ -116,7 +116,7 @@ export function DataTableWidget<T extends object>({
                   setPage(0);
                 }}
                 placeholder={searchPlaceholder}
-                className="w-52 pl-7 pr-7 py-1.5 text-xs rounded-md bg-bg-200/60 border border-border/30 text-text-100 placeholder:text-text-300 focus:outline-none focus:border-brand-200/50 focus:ring-1 focus:ring-brand-200/30 transition-colors"
+                className="w-72 pl-9 pr-9 py-2.5 text-sm rounded-lg bg-bg-200/60 border border-border/30 text-text-100 placeholder:text-text-300 focus:outline-none focus:border-brand-200/50 focus:ring-1 focus:ring-brand-200/30 transition-colors"
               />
               {searchTerm && (
                 <button
@@ -124,10 +124,10 @@ export function DataTableWidget<T extends object>({
                     setSearchTerm("");
                     setPage(0);
                   }}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 text-text-300 hover:text-text-200 transition-colors"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-300 hover:text-text-200 transition-colors"
                   title="Limpiar búsqueda"
                 >
-                  <IconX size={12} />
+                  <IconX size={16} />
                 </button>
               )}
             </div>
