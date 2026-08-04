@@ -71,23 +71,30 @@ export function DeviceForm({ initialData, companies, lectors, onSubmit, onCancel
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <Input
-        label="DevEUI (Identificador Único)"
-        name="dev_eui"
-        value={formData.dev_eui || ""}
-        onChange={handleChange}
-        required
-        placeholder="Ej: A1B2C3D4E5F6G7H8"
-        disabled={!!initialData} // No se cambia el DevEUI una vez creado
-      />
-      <Input
-        label="Nombre del Dispositivo"
-        name="name"
-        value={formData.name || ""}
-        onChange={handleChange}
-        required
-        placeholder="Ej: Locomotora 502"
-      />
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="dev_eui" className="text-sm font-medium text-text-200">DevEUI</label>
+        <Input
+          id="dev_eui"
+          name="dev_eui"
+          value={formData.dev_eui || ""}
+          onChange={handleChange}
+          required
+          placeholder="Ej: A1B2C3D4E5F6G7H8"
+          disabled={!!initialData} // No se cambia el DevEUI una vez creado
+        />
+        <p className="text-xs text-text-300">Identificador único del dispositivo LoRaWAN (16 caracteres hexadecimales). No se puede modificar después de crear el dispositivo.</p>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="device_name" className="text-sm font-medium text-text-200">Nombre del Dispositivo</label>
+        <Input
+          id="device_name"
+          name="name"
+          value={formData.name || ""}
+          onChange={handleChange}
+          required
+          placeholder="Ej: Locomotora 502"
+        />
+      </div>
       
       <div className="flex flex-col gap-1.5">
         <label className="text-sm font-medium text-text-200">Tipo de Dispositivo</label>
