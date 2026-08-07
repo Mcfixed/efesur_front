@@ -9,6 +9,15 @@ import type { MonitorDevice } from "../../types/monitor.types";
 
 const DEVICE_TYPES = ["Gps", "Gateway", "SubEstacion", "Lector"];
 
+// Labels y colores de modo de operación (igual que en ChirpStack)
+const MODE_LABELS: Record<string, { label: string; className: string }> = {
+  PRODUCCION:   { label: "Producción",   className: "text-teal-400 bg-teal-500/10" },
+  TRANSPORTE:   { label: "Transporte",   className: "text-blue-400 bg-blue-500/10" },
+  MANTENIMIENTO:{ label: "Mantenimiento",className: "text-yellow-400 bg-yellow-500/10" },
+  VALIDACION:   { label: "Validación",   className: "text-purple-400 bg-purple-500/10" },
+  EMERGENCIA:   { label: "Emergencia",   className: "text-red-400 bg-red-500/10" },
+};
+
 const MINI_TABS = [
   { key: "sistema", label: "Datos y estado del sistema" },
   { key: "entrantes", label: "Últimos datos entrantes" },
@@ -113,15 +122,21 @@ export default function MonitorDeviceList({
             {expandedCard === 'Gateway' && (
               <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-bg-100 border border-border/30 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                 <div className="p-1.5 space-y-0.5">
-                  {allDevices.filter(d => d.type_device === 'Gateway').map(d => (
-                    <div key={d.id} onClick={() => { onSelectDevice(d); onToggleCard(null); }}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded text-[11px] hover:bg-bg-100/60 cursor-pointer transition-colors">
-                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${d.is_active && d.last_seen && (Date.now() - new Date(d.last_seen).getTime()) < 5 * 60 * 1000 ? 'bg-green-400' : 'bg-red-400'}`} />
-                      <span className="font-medium text-text-100 truncate">{d.name}</span>
-                      <span className="text-[10px] text-text-200 ml-2">{d.last_seen ? format(new Date(d.last_seen), "dd/MM HH:mm") : '—'}</span>
-                      <span className="text-[10px] font-mono text-text-300 ml-auto">{d.dev_eui}</span>
-                    </div>
-                  ))}
+                  {allDevices.filter(d => d.type_device === 'Gateway').map(d => {
+                    const lector = allDevices.find(l => l.id === d.id_device_father && l.type_device === 'Lector');
+                    return (
+                      <div key={d.id} onClick={() => { onSelectDevice(d); onToggleCard(null); }}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded text-[11px] hover:bg-bg-100/60 cursor-pointer transition-colors">
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${d.is_active && d.last_seen && (Date.now() - new Date(d.last_seen).getTime()) < 5 * 60 * 1000 ? 'bg-green-400' : 'bg-red-400'}`} />
+                        <span className="font-medium text-text-100 truncate">{d.name}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${lector ? 'bg-teal-500/10 text-teal-400' : 'bg-text-300/10 text-text-400'}`}>
+                          {lector ? `Lector: ${lector.name}` : 'Sin lector'}
+                        </span>
+                        <span className="text-[10px] text-text-200 ml-1">{d.last_seen ? format(new Date(d.last_seen), "dd/MM HH:mm") : '—'}</span>
+                        <span className="text-[10px] font-mono text-text-300 ml-auto">{d.dev_eui}</span>
+                      </div>
+                    );
+                  })}
                   {allDevices.filter(d => d.type_device === 'Gateway').length === 0 && <p className="text-center text-[11px] py-3 text-text-300">Sin gateways</p>}
                 </div>
               </div>
@@ -389,11 +404,15 @@ export default function MonitorDeviceList({
                     <th className="text-left py-2 px-2 font-medium">DevEUI</th>
                     <th className="text-left py-2 px-2 font-medium"><MonitorBatteryPopup><span className="flex items-center gap-1 cursor-help">Batería<svg className="w-3 h-3 text-text-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span></MonitorBatteryPopup></th>
                     <th className="text-left py-2 px-2 font-medium">Último dato</th>
+                    {deviceTab === 'Gps' && <th className="text-left py-2 px-2 font-medium">Modo</th>}
+                    {deviceTab === 'Gateway' && <th className="text-left py-2 px-2 font-medium">Lector asignado</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredDevices.map((d, i) => {
                     const voltage = (d as any).last_value ? Number((d as any).last_value) : null;
+                    const lector = allDevices.find(l => l.id === d.id_device_father && l.type_device === 'Lector');
+                    const modeMeta = d.operating_mode ? MODE_LABELS[d.operating_mode] : null;
                     return (
                       <tr key={d.id} onClick={() => onSelectDevice(d)}
                         className={`${i % 2 === 0 ? "bg-bg-100" : "bg-bg-200/30"} hover:bg-bg-200/60 transition-colors border-b border-border/20 cursor-pointer`}>
@@ -401,11 +420,33 @@ export default function MonitorDeviceList({
                         <td className="py-1.5 px-2 text-text-200 font-mono text-[10px]">{d.dev_eui}</td>
                         <td className={`py-1.5 px-2 text-[10px] ${batteryColor(voltage)}`}>{formatBattery(voltage)}</td>
                         <td className="py-1.5 px-2 text-text-300 text-[10px]">{d.last_seen ? format(new Date(d.last_seen), "dd MMM HH:mm") : '—'}</td>
+                        {deviceTab === 'Gps' && (
+                          <td className="py-1.5 px-2 text-[10px]">
+                            {modeMeta
+                              ? <span className={`inline-flex items-center px-1.5 py-0.5 rounded font-medium ${modeMeta.className}`}>{modeMeta.label}</span>
+                              : d.operating_mode
+                                ? <span className="text-text-300">{d.operating_mode}</span>
+                                : <span className="text-text-400">—</span>}
+                          </td>
+                        )}
+                        {deviceTab === 'Gateway' && (
+                          <td className="py-1.5 px-2 text-[10px]">
+                            {lector
+                              ? <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-teal-500/10 text-teal-400 font-medium">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-teal-400 shrink-0" />
+                                  {lector.name}
+                                </span>
+                              : <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-text-300/10 text-text-400">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-text-400 shrink-0" />
+                                  Sin lector
+                                </span>}
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
                   {filteredDevices.length === 0 && (
-                    <tr><td colSpan={4} className="px-4 py-8 text-center text-text-300 text-xs">Cargando dispositivos...</td></tr>
+                    <tr><td colSpan={deviceTab === 'Gps' || deviceTab === 'Gateway' ? 5 : 4} className="px-4 py-8 text-center text-text-300 text-xs">Cargando dispositivos...</td></tr>
                   )}
                 </tbody>
               </table>
