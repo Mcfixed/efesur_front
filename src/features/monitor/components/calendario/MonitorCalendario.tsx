@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useMonitorCalendar, useMonitorAlertsByDate } from "../../hooks/useMonitor";
+import { monitorService } from "../../services/monitor.service";
 import {
   IconChevronLeft, IconChevronRight,
   IconAlertTriangle, IconAlertCircle, IconMoodSearch, IconWifiOff,
@@ -28,42 +29,147 @@ const TYPE_BG: Record<string, string> = {
   desconexionGW: "bg-red-500",
 };
 
-function exportPDF(day: string, alerts: any[]) {
-  const rows = alerts || [];
+async function exportPDF(day: string, dayAlerts: any[]) {
+  const rows = dayAlerts || [];
   if (!rows.length) return;
-  const title = `Alertas - ${day}`;
-  const tableRows = rows.map((a: any) => {
-    const meta = a.metadata ? Object.entries(a.metadata).map(([k, v]) => `${k}: ${v}`).join(", ") : "";
-    return `<tr>
-      <td>${a.device_name}</td>
-      <td>${a.type_device}</td>
-      <td>${a.type}</td>
-      <td>${a.status}</td>
-      <td>${format(new Date(a.created_at), "HH:mm:ss")}</td>
-      <td>${meta}</td>
-    </tr>`;
-  }).join("");
-  const win = window.open("", "_blank");
-  win?.document.write(`
-    <html><head><title>${title}</title>
+  const title = `Alertas y Tracking - ${day}`;
+  const from = new Date(`${day}T00:00:00`).toISOString();
+  const to = new Date(`${day}T23:59:59`).toISOString();
+
+  // Obtener alertas con tracking_data (igual que el reporte general)
+  const deviceIds = [...new Set(rows.map(a => a.device_id).filter(Boolean))];
+  let alerts = rows;
+  try {
+    const res = await monitorService.getReportAlerts({ deviceIds, from, to });
+    if (res?.alerts?.length) alerts = res.alerts;
+  } catch { /* si falla, usar alertas locales */ }
+
+  const esc = (s: any) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+  const criticals = alerts.filter((a: any) => a.type === 'critica' || a.type === 'apertura');
+  const attentions = alerts.filter((a: any) => a.type === 'atencion' || a.type === 'apertura' || a.type === 'presencia');
+  const resolved = alerts.filter((a: any) => a.status === 'resolved' || a.resolved_at);
+
+  // Agrupar por dispositivo
+  const byDevice = new Map<number, { name: string; dev_eui: string; type_device: string; items: any[] }>();
+  alerts.forEach((a: any) => {
+    const id = a.device_id;
+    if (!byDevice.has(id)) byDevice.set(id, { name: a.device_name || `#${id}`, dev_eui: a.dev_eui || '—', type_device: a.type_device || '—', items: [] });
+    byDevice.get(id)!.items.push(a);
+  });
+
+  const trackMaps: { id: string; label: string; points: any[] }[] = [];
+  let mapCounter = 0;
+  const trackMapDiv = (pts: any[], label: string) => {
+    const valid = (pts || []).filter(p => Number.isFinite(parseFloat(p.latitude)) && Number.isFinite(parseFloat(p.longitude)));
+    if (valid.length < 2) return '';
+    const id = `track-map-${++mapCounter}`;
+    trackMaps.push({ id, label, points: valid });
+    const startT = format(new Date(valid[0].timestamp), "dd/MM HH:mm");
+    const endT = format(new Date(valid[valid.length - 1].timestamp), "dd/MM HH:mm");
+    return `<div style="margin-top:8px;page-break-inside:avoid">
+      <div id="${id}" class="track-map" style="width:690px;max-width:100%;height:280px;border:1px solid #e2e8f0;border-radius:8px;background:#e8e8e8;overflow:hidden"></div>
+      <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:8px;color:#888">
+        <span>🟢 Inicio ${startT}</span>
+        <span>${valid.length} puntos</span>
+        <span>🔴 Fin ${endT}</span>
+      </div>
+    </div>`;
+  };
+
+  const typeBadge = (type: string) => {
+    const critical = ['critica', 'apertura', 'presencia'].includes(type);
+    return `<span style="background:${critical ? '#fef2f2' : '#fefce8'};color:${critical ? '#dc2626' : '#a16207'};font-weight:700;font-size:10px;text-transform:uppercase;padding:3px 8px;border-radius:4px">${esc(type)}</span>`;
+  };
+
+  const deviceSections = [...byDevice.values()].map(d => `
+    <div style="page-break-after:always;font-family:Arial,sans-serif;padding:24px">
+      <div style="border-bottom:2px solid #e5e7eb;padding-bottom:10px;margin-bottom:14px">
+        <h2 style="font-size:15px;color:#111;margin:0">${esc(d.name)}</h2>
+        <p style="font-size:10px;color:#888;margin:2px 0 0">${esc(d.dev_eui)} · ${esc(d.type_device)}</p>
+      </div>
+      ${d.items.map((a: any) => `
+        <div style="border:1px solid #f3f4f6;border-radius:8px;margin-bottom:12px;padding:10px;background:#fff">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            ${typeBadge(a.type)}
+            <span style="font-size:10px;color:${a.resolved_at ? '#16a34a' : '#dc2626'};font-weight:600">${a.resolved_at ? '● Resuelta' : '● Activa'}</span>
+            <span style="font-size:10px;color:#666;white-space:nowrap">${format(new Date(a.created_at), "dd/MM HH:mm:ss")}</span>
+            ${a.resolved_at ? `<span style="font-size:9px;color:#888">→ ${format(new Date(a.resolved_at), "dd/MM HH:mm")}</span>` : ''}
+          </div>
+          ${a.metadata?.reason ? `<p style="font-size:10px;color:#555;margin:6px 0 0"><b>Motivo:</b> ${esc(a.metadata.reason)}</p>` : ''}
+          ${a.metadata?.details ? `<p style="font-size:9px;color:#888;margin:2px 0 0">${esc(typeof a.metadata.details === 'string' ? a.metadata.details : JSON.stringify(a.metadata.details))}</p>` : ''}
+          ${(a.type === 'critica' || a.type === 'apertura' || a.type === 'movimientos_anomalos') ? trackMapDiv(a.tracking_data, `${esc(a.type)} ${format(new Date(a.created_at), "dd/MM HH:mm")}`) : ''}
+        </div>`).join('')}
+    </div>`).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-      body{font-family:sans-serif;padding:20px;background:#fff;color:#222}
-      h2{margin-bottom:5px;color:#111}
-      .meta{color:#666;font-size:13px;margin-bottom:15px}
-      table{width:100%;border-collapse:collapse;font-size:11px}
-      th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}
-      th{background:#f5f5f5;font-weight:600}
-      tr:nth-child(even){background:#fafafa}
-    </style></head><body>
-    <h2>${title}</h2>
-    <p class="meta">Total alertas: ${rows.length} — Generado: ${format(new Date(), "yyyy-MM-dd HH:mm")}</p>
-    <table>
-      <thead><tr><th>Dispositivo</th><th>Tipo</th><th>Alerta</th><th>Estado</th><th>Hora</th><th>Metadata</th></tr></thead>
-      <tbody>${tableRows}</tbody>
-    </table></body></html>
-  `);
+      @page{margin:12mm 10mm}
+      body{font-family:Arial,sans-serif;color:#222;background:#fff;margin:0;padding:0}
+      .leaflet-container{background:#dfe6ea}
+      .leaflet-control-attribution{font-size:8px !important}
+      .track-map{page-break-inside:avoid}
+    </style>
+  </head><body>
+    <div style="font-family:Arial,sans-serif;padding:30px">
+      <div style="text-align:center;padding:30px 20px">
+        <h1 style="font-size:22px;color:#111;margin:0 0 6px">Reporte de Alertas y Tracking</h1>
+        <p style="font-size:12px;color:#666">${day} · ${alerts.length} alertas · Generado: ${format(new Date(), "yyyy-MM-dd HH:mm")}</p>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+        <div style="flex:1;min-width:100px;background:#fef2f2;border-radius:8px;padding:12px;text-align:center;border:1px solid #fecaca"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Críticas</p><p style="font-size:20px;font-weight:700;color:#ef4444;margin:2px 0 0">${criticals.length}</p></div>
+        <div style="flex:1;min-width:100px;background:#fffbeb;border-radius:8px;padding:12px;text-align:center;border:1px solid #fde68a"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Atención</p><p style="font-size:20px;font-weight:700;color:#d97706;margin:2px 0 0">${attentions.length}</p></div>
+        <div style="flex:1;min-width:100px;background:#f0fdf4;border-radius:8px;padding:12px;text-align:center;border:1px solid #bbf7d0"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Resueltas</p><p style="font-size:20px;font-weight:700;color:#16a34a;margin:2px 0 0">${resolved.length}</p></div>
+      </div>
+    </div>
+    ${deviceSections}
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>
+    <script>
+      window.__TRACK_MAPS__ = ${JSON.stringify(trackMaps)};
+      window.__MAPS__ = [];
+      function initMaps() {
+        var maps = window.__TRACK_MAPS__ || [];
+        if (maps.length === 0) { setTimeout(function(){ window.print(); }, 400); return; }
+        var pending = 0;
+        function checkDone() {
+          if (pending <= 0) {
+            setTimeout(function(){
+              window.__MAPS__.forEach(function(mm){ try { mm.invalidateSize(); } catch(e){} });
+              setTimeout(function(){ window.print(); }, 700);
+            }, 250);
+          }
+        }
+        maps.forEach(function(m) {
+          pending++;
+          var finished = false;
+          function done() { if (finished) return; finished = true; pending--; checkDone(); }
+          var el = document.getElementById(m.id);
+          if (!el) { done(); return; }
+          try {
+            var map = L.map(m.id, { zoomControl: false, attributionControl: true, scrollWheelZoom: false });
+            window.__MAPS__.push(map);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+            var pts = m.points.map(function(p){ return [parseFloat(p.latitude), parseFloat(p.longitude)]; });
+            L.polyline(pts, { color: '#ef4444', weight: 3, opacity: 0.85 }).addTo(map);
+            pts.forEach(function(pos, i) {
+              var isFirst = i === 0, isLast = i === pts.length - 1;
+              var color = isFirst ? '#22c55e' : isLast ? '#ef4444' : '#3b82f6';
+              L.circleMarker(pos, { radius: isFirst || isLast ? 8 : 4, color: '#fff', weight: 2, fillColor: color, fillOpacity: 0.9 }).addTo(map);
+            });
+            map.fitBounds(L.latLngBounds(pts), { padding: [30, 30] });
+            map.whenReady(function(){ setTimeout(function(){ map.invalidateSize(); }, 100); });
+            map.on('load', done);
+            setTimeout(done, 8000);
+          } catch (e) { done(); }
+        });
+      }
+      if (document.readyState === 'complete') initMaps();
+      else window.addEventListener('load', initMaps);
+    <\/script>
+  </body></html>`;
+  const win = window.open('', '_blank', 'width=1000,height=1400');
+  win?.document.write(html);
   win?.document.close();
-  win?.print();
 }
 
 export default function MonitorCalendario() {
@@ -172,8 +278,7 @@ export default function MonitorCalendario() {
                   className="flex items-center gap-1 text-[11px] text-white bg-green-600 hover:bg-green-700 px-2.5 py-1.5 rounded-lg transition-colors">
                   <IconFileReport size={14} /> PDF
                 </button>
-              )}
-              <button onClick={() => setSelectedDate(null)} className="p-1 rounded hover:bg-bg-200/60 text-text-300 hover:text-text-100 transition-colors">
+              )}              <button onClick={() => setSelectedDate(null)} className="p-1 rounded hover:bg-bg-200/60 text-text-300 hover:text-text-100 transition-colors">
                 <IconX size={16} />
               </button>
             </div>

@@ -50,6 +50,10 @@ export const monitorService = {
     const r = await apiClient.post<{data: { telemetry: any[]; alerts: any[]; total: number }}>("/monitor/report", params);
     return r.data.data;
   },
+  getReportGatewayStats: async (params: { deviceIds: number[]; from?: string; to?: string }) => {
+    const r = await apiClient.post<{data: { gateways: any[] }}>("/monitor/report/gateway-stats", params);
+    return r.data.data;
+  },
   getReportBattery: async (params: { deviceIds: number[]; from?: string; to?: string }) => {
     const r = await apiClient.post<{data: { telemetry: any[]; devices: any[]; total: number }}>("/monitor/report/battery", params);
     return r.data.data;

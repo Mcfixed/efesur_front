@@ -114,6 +114,19 @@ export default function MonitorReportModal({ onClose }: Props) {
         from: fromDate ? new Date(fromDate).toISOString() : undefined,
         to: toDate ? new Date(toDate + "T23:59:59").toISOString() : undefined,
       });
+      // Stats reales de gateways (sensores que reciben, registros, redundancia)
+      const gatewayDevices = selectedDevices.filter(d => d.type_device === 'Gateway');
+      let gatewayStatsById = new Map<number, any>();
+      if (gatewayDevices.length) {
+        try {
+          const gwStats = await monitorService.getReportGatewayStats({
+            deviceIds: gatewayDevices.map(d => d.id),
+            from: fromDate ? new Date(fromDate).toISOString() : undefined,
+            to: toDate ? new Date(toDate + "T23:59:59").toISOString() : undefined,
+          });
+          (gwStats?.gateways || []).forEach((g: any) => gatewayStatsById.set(g.id, g));
+        } catch { /* si falla, usar cálculo local */ }
+      }
       setReportData(data);
       const title = `Reporte EFESUR - ${format(new Date(), "yyyy-MM-dd")}`;
       const isSingleDay = fromDate === toDate;
@@ -223,9 +236,9 @@ export default function MonitorReportModal({ onClose }: Props) {
 
       // ─── Telemetría de lectores (para mostrar en los gateways) ───
       // Estructura del objeto lector:
-      // { mppt: { chargeState, panelPower_W, batteryVoltage_V, batteryCurrent_A, panelVoltage_V, loadCurrent_A, temp, loadState },
-      //   charger220: { State, Error, battery_V, battery_A },
-      //   sensores: { presenseSensor, distancePrecenseSensor, openingDoorSensor } }
+      // { Mppt: { chargeState, panelPower_W, batteryVoltage_V, batteryCurrent_A, panelVoltage_V, loadCurrent_A, internalTemp_C, loadState },
+      //   BlueSmartIP67: { estado, error, voltaje_V, corriente_A },
+      //   Security: { pirState, doorState, doorCounter } }
       const lectorMap = new Map<number, { volt: number[]; power: number[]; current: number[]; temp: number[]; panelV: number[]; loadA: number[]; loadState: number[]; chargeState: number[]; chargerState: string[]; sensores: any[]; ts: Date[] }>();
       (allDevices || []).filter(d => d.type_device === 'Lector').forEach(d => {
         lectorMap.set(d.id, { volt: [], power: [], current: [], temp: [], panelV: [], loadA: [], loadState: [], chargeState: [], chargerState: [], sensores: [], ts: [] });
@@ -259,17 +272,17 @@ export default function MonitorReportModal({ onClose }: Props) {
         const le = lectorMap.get(t.device_id);
         if (le) {
           const o = t.object || {};
-          const batV = o.charger220?.battery_V ?? o.mppt?.batteryVoltage_V;
+          const batV = o.BlueSmartIP67?.voltaje_V ?? o.Mppt?.batteryVoltage_V;
           if (batV != null) le.volt.push(Number(batV));
-          if (o.mppt?.panelPower_W != null) le.power.push(Number(o.mppt.panelPower_W));
-          if (o.mppt?.batteryCurrent_A != null) le.current.push(Number(o.mppt.batteryCurrent_A));
-          if (o.mppt?.temp != null) le.temp.push(Number(o.mppt.temp));
-          if (o.mppt?.panelVoltage_V != null) le.panelV.push(Number(o.mppt.panelVoltage_V));
-          if (o.mppt?.loadCurrent_A != null) le.loadA.push(Number(o.mppt.loadCurrent_A));
-          if (o.mppt?.loadState != null) le.loadState.push(Number(o.mppt.loadState));
-          if (o.mppt?.chargeState != null) le.chargeState.push(Number(o.mppt.chargeState));
-          if (o.charger220?.State != null) le.chargerState.push(String(o.charger220.State));
-          if (o.sensores) le.sensores.push(o.sensores);
+          if (o.Mppt?.panelPower_W != null) le.power.push(Number(o.Mppt.panelPower_W));
+          if (o.Mppt?.batteryCurrent_A != null) le.current.push(Number(o.Mppt.batteryCurrent_A));
+          if (o.Mppt?.internalTemp_C != null) le.temp.push(Number(o.Mppt.internalTemp_C));
+          if (o.Mppt?.panelVoltage_V != null) le.panelV.push(Number(o.Mppt.panelVoltage_V));
+          if (o.Mppt?.loadCurrent_A != null) le.loadA.push(Number(o.Mppt.loadCurrent_A));
+          if (o.Mppt?.loadState != null) le.loadState.push(Number(o.Mppt.loadState));
+          if (o.Mppt?.chargeState != null) le.chargeState.push(Number(o.Mppt.chargeState));
+          if (o.BlueSmartIP67?.estado != null) le.chargerState.push(String(o.BlueSmartIP67.estado));
+          if (o.Security) le.sensores.push(o.Security);
           le.ts.push(new Date(t.ts));
         }
       });
@@ -317,6 +330,35 @@ export default function MonitorReportModal({ onClose }: Props) {
             </div>
 
             <div style="display:flex;flex-direction:column;gap:10px">
+              ${device.type_device === 'Gateway' ? (() => {
+                // Métricas propias del gateway (reales desde el backend)
+                const gs = gatewayStatsById.get(device.id);
+                const gwSensors = gs?.sensores ?? 0;
+                const gwRegistros = gs?.registros ?? entryTs;
+                const avgRedundancy = gs?.redundancia != null ? gs.redundancia : null;
+                return `
+                <div style="background:#eff6ff;border-radius:8px;padding:12px;border:1px solid #bfdbfe">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                    <p style="font-size:12px;color:#2563eb;margin:0;text-transform:uppercase;font-weight:700">Sensores que recibe</p>
+                    <p style="font-size:20px;font-weight:700;color:#111;margin:0">${gwSensors}</p>
+                  </div>
+                  <p style="font-size:10px;color:#888;margin:0">Dispositivos únicos que reportaron a este gateway en el período</p>
+                </div>
+                <div style="background:#f9fafb;border-radius:8px;padding:12px;border:1px solid #e5e7eb">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                    <p style="font-size:12px;color:#555;margin:0;text-transform:uppercase;font-weight:700">Registros recibidos</p>
+                    <p style="font-size:20px;font-weight:700;color:#111;margin:0">${gwRegistros}</p>
+                  </div>
+                  <p style="font-size:10px;color:#888;margin:0">Total de mensajes que pasaron por este gateway en el período</p>
+                </div>
+                <div style="background:#f9fafb;border-radius:8px;padding:12px;border:1px solid #e5e7eb">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                    <p style="font-size:12px;color:#555;margin:0;text-transform:uppercase;font-weight:700">Redundancia de red</p>
+                    <p style="font-size:20px;font-weight:700;color:#111;margin:0">${avgRedundancy != null ? avgRedundancy.toFixed(1) + 'x' : '—'}</p>
+                  </div>
+                  <p style="font-size:10px;color:#888;margin:0">Promedio de gateways que escuchan cada mensaje (mayor = mejor cobertura)</p>
+                </div>`;
+              })() : `
               <div style="background:#f9fafb;border-radius:8px;padding:12px;border:1px solid #e5e7eb">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
                   <p style="font-size:12px;color:#555;margin:0;text-transform:uppercase;font-weight:700">Batería</p>
@@ -348,7 +390,7 @@ export default function MonitorReportModal({ onClose }: Props) {
                 </div>
                 ${bar(dRssiPct, dAvgRssi != null && dAvgRssi < -118 ? '#ef4444' : '#8b5cf6')}
                 <div style="margin-top:4px">${rssiSpark}</div>
-              </div>
+              </div>`}
             </div>
 
             ${devAlerts.length > 0 ? `
@@ -407,18 +449,18 @@ export default function MonitorReportModal({ onClose }: Props) {
                       <div style="flex:1;min-width:80px;background:#fff;border-radius:6px;padding:8px;text-align:center;border:1px solid #d1fae5"><p style="font-size:8px;color:#888;margin:0;text-transform:uppercase">Temp</p><p style="font-size:15px;font-weight:700;color:#111;margin:2px 0 0">${avgTemp != null ? avgTemp.toFixed(1) + '°C' : '—'}</p></div>
                     </div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-                      <div>${voltSpark ? `<p style="font-size:9px;color:#555;margin:0 0 2px;font-weight:600">Batería (V)</p>${voltSpark}` : ''}</div>
-                      <div>${powerSpark ? `<p style="font-size:9px;color:#555;margin:0 0 2px;font-weight:600">Potencia panel (W)</p>${powerSpark}` : ''}</div>
-                      <div>${currentSpark ? `<p style="font-size:9px;color:#555;margin:0 0 2px;font-weight:600">Corriente batería (A)</p>${currentSpark}` : ''}</div>
-                      <div>${tempSpark ? `<p style="font-size:9px;color:#555;margin:0 0 2px;font-weight:600">Temperatura (°C)</p>${tempSpark}` : ''}</div>
-                      <div>${panelVSpark ? `<p style="font-size:9px;color:#555;margin:0 0 2px;font-weight:600">Voltaje panel (V)</p>${panelVSpark}` : ''}</div>
-                      <div>${loadASpark ? `<p style="font-size:9px;color:#555;margin:0 0 2px;font-weight:600">Corriente carga (A)</p>${loadASpark}` : ''}</div>
+                      <div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:8px">${voltSpark ? `<p style="font-size:9px;color:#555;margin:0 0 2px;font-weight:600">Batería (V)</p>${voltSpark}` : '<p style="font-size:9px;color:#9ca3af;margin:0">Batería (V)</p><p style="font-size:9px;color:#9ca3af;margin:2px 0 0">Sin datos</p>'}</div>
+                      <div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:8px">${powerSpark ? `<p style="font-size:9px;color:#555;margin:0 0 2px;font-weight:600">Potencia panel (W)</p>${powerSpark}` : '<p style="font-size:9px;color:#9ca3af;margin:0">Potencia panel (W)</p><p style="font-size:9px;color:#9ca3af;margin:2px 0 0">Sin datos</p>'}</div>
+                      <div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:8px">${currentSpark ? `<p style="font-size:9px;color:#555;margin:0 0 2px;font-weight:600">Corriente batería (A)</p>${currentSpark}` : '<p style="font-size:9px;color:#9ca3af;margin:0">Corriente batería (A)</p><p style="font-size:9px;color:#9ca3af;margin:2px 0 0">Sin datos</p>'}</div>
+                      <div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:8px">${tempSpark ? `<p style="font-size:9px;color:#555;margin:0 0 2px;font-weight:600">Temperatura (°C)</p>${tempSpark}` : '<p style="font-size:9px;color:#9ca3af;margin:0">Temperatura (°C)</p><p style="font-size:9px;color:#9ca3af;margin:2px 0 0">Sin datos</p>'}</div>
+                      <div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:8px">${panelVSpark ? `<p style="font-size:9px;color:#555;margin:0 0 2px;font-weight:600">Voltaje panel (V)</p>${panelVSpark}` : '<p style="font-size:9px;color:#9ca3af;margin:0">Voltaje panel (V)</p><p style="font-size:9px;color:#9ca3af;margin:2px 0 0">Sin datos</p>'}</div>
+                      <div style="background:#fff;border:1px solid #d1fae5;border-radius:6px;padding:8px">${loadASpark ? `<p style="font-size:9px;color:#555;margin:0 0 2px;font-weight:600">Corriente carga (A)</p>${loadASpark}` : '<p style="font-size:9px;color:#9ca3af;margin:0">Corriente carga (A)</p><p style="font-size:9px;color:#9ca3af;margin:2px 0 0">Sin datos</p>'}</div>
                     </div>
                     ${sensors && Object.keys(sensors).length ? `
                     <div style="margin-top:8px;font-size:9px;color:#666;display:flex;gap:10px;flex-wrap:wrap">
-                      ${sensors.presenseSensor != null ? `<span>Presencia: <b>${sensors.presenseSensor ? 'Sí' : 'No'}</b></span>` : ''}
-                      ${sensors.openingDoorSensor != null ? `<span>Puerta: <b>${sensors.openingDoorSensor ? 'Abierta' : 'Cerrada'}</b></span>` : ''}
-                      ${sensors.distancePrecenseSensor != null ? `<span>Distancia: <b>${sensors.distancePrecenseSensor}</b></span>` : ''}
+                      ${sensors.pirState != null ? `<span>Presencia: <b>${sensors.pirState ? 'Sí' : 'No'}</b></span>` : ''}
+                      ${sensors.doorState != null ? `<span>Puerta: <b>${sensors.doorState ? 'Abierta' : 'Cerrada'}</b></span>` : ''}
+                      ${sensors.doorCounter != null ? `<span>Contador puerta: <b>${sensors.doorCounter}</b></span>` : ''}
                     </div>` : ''}
                     ${lectorAlerts.length > 0 ? `
                     <div style="margin-top:10px;border-top:1px solid #d1fae5;padding-top:8px">
@@ -478,7 +520,7 @@ export default function MonitorReportModal({ onClose }: Props) {
       sections.push(`<div style="font-family:Arial,sans-serif;padding:24px">
         <div style="border-bottom:2px solid #e5e7eb;padding-bottom:10px;margin-bottom:14px">
           <h2 style="font-size:15px;color:#111;margin:0">Telemetría completa</h2>
-          <p style="font-size:10px;color:#888;margin:2px 0 0">Todos los registros de telemetry_data_all en el período ${fromDate} → ${toDate} · ${data.telemetry?.length || 0} registros</p>
+          <p style="font-size:10px;color:#888;margin:2px 0 0">${fromDate} → ${toDate} · ${data.telemetry?.length || 0} registros</p>
         </div>
         <table style="width:100%;border-collapse:collapse;font-size:9px">
           <thead><tr style="background:#f3f4f6">
@@ -812,7 +854,6 @@ export default function MonitorReportModal({ onClose }: Props) {
       const selectedDevices = (allDevices || []).filter(d => selectedIds.has(d.id));
       const title = `Alertas y Tracking - ${format(new Date(), "yyyy-MM-dd")}`;
       const alerts = alertsData?.alerts || [];
-      const resTimes = alertsData?.resolutionTimes || [];
       const gpsDevices = selectedDevices.filter(d => d.type_device === 'Gps');
       const gpsIds = new Set(gpsDevices.map(d => d.id));
 
@@ -832,9 +873,7 @@ export default function MonitorReportModal({ onClose }: Props) {
           <div style="flex:1;min-width:100px;background:#fef2f2;border-radius:8px;padding:12px;text-align:center;border:1px solid #fecaca"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Críticas</p><p style="font-size:20px;font-weight:700;color:#ef4444;margin:2px 0 0">${criticals.length}</p></div>
           <div style="flex:1;min-width:100px;background:#fffbeb;border-radius:8px;padding:12px;text-align:center;border:1px solid #fde68a"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Atención</p><p style="font-size:20px;font-weight:700;color:#d97706;margin:2px 0 0">${attentions.length}</p></div>
           <div style="flex:1;min-width:100px;background:#f0fdf4;border-radius:8px;padding:12px;text-align:center;border:1px solid #bbf7d0"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Resueltas</p><p style="font-size:20px;font-weight:700;color:#16a34a;margin:2px 0 0">${alerts.filter((a: any) => a.status === 'resolved' || a.resolved_at).length}</p></div>
-          <div style="flex:1;min-width:100px;background:#f9fafb;border-radius:8px;padding:12px;text-align:center;border:1px solid #e5e7eb"><p style="font-size:10px;color:#888;margin:0;text-transform:uppercase">Tiempo prom. resolución</p><p style="font-size:20px;font-weight:700;color:#111;margin:2px 0 0">${resTimes.length > 0 ? (resTimes.reduce((s: number, r: any) => s + Number(r.avg_hours), 0) / resTimes.length).toFixed(1) + 'h' : '—'}</p></div>
         </div>
-        ${resTimes.length ? `<h2 style="font-size:13px;color:#333;margin:0 0 8px">Tiempo de resolución por tipo</h2><table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:16px"><thead><tr style="background:#f3f4f6"><th style="padding:6px 8px;text-align:left;border:1px solid #e5e7eb">Tipo</th><th style="padding:6px 8px;text-align:left;border:1px solid #e5e7eb">Promedio (horas)</th></tr></thead><tbody>${resTimes.map((r: any) => `<tr><td style="padding:5px 8px;border:1px solid #e5e7eb">${esc(r.type)}</td><td style="padding:5px 8px;border:1px solid #e5e7eb;font-weight:700">${Number(r.avg_hours).toFixed(1)}h</td></tr>`).join('')}</tbody></table>` : ''}
       </div>`];
 
       // Helper: mapa Leaflet real del recorrido de una alerta
@@ -881,7 +920,6 @@ export default function MonitorReportModal({ onClose }: Props) {
           <div style="border-bottom:2px solid #e5e7eb;padding-bottom:10px;margin-bottom:14px"><h2 style="font-size:15px;color:#111;margin:0">${esc(device.name)}</h2><p style="font-size:10px;color:#888;margin:2px 0 0">${esc(device.dev_eui)} · ${esc(device.type_device)}</p></div>
           ${isGps && e ? `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
             <div style="flex:1;min-width:70px;background:#f9fafb;border-radius:6px;padding:10px;text-align:center;border:1px solid #e5e7eb"><p style="font-size:9px;color:#888;margin:0;text-transform:uppercase">Puntos</p><p style="font-size:16px;font-weight:700;color:#111;margin:2px 0 0">${e.rows.length}</p></div>
-            <div style="flex:1;min-width:70px;background:#f9fafb;border-radius:6px;padding:10px;text-align:center;border:1px solid #e5e7eb"><p style="font-size:9px;color:#888;margin:0;text-transform:uppercase">Vel. Prom</p><p style="font-size:16px;font-weight:700;color:#111;margin:2px 0 0">${avg(e.speeds).toFixed(1)} m/s</p></div>
             <div style="flex:1;min-width:70px;background:#f9fafb;border-radius:6px;padding:10px;text-align:center;border:1px solid #e5e7eb"><p style="font-size:9px;color:#888;margin:0;text-transform:uppercase">Inicio</p><p style="font-size:11px;font-weight:600;color:#666;margin:2px 0 0">${e.timestamps.length ? format(e.timestamps[0], "dd/MM HH:mm") : '—'}</p></div>
             <div style="flex:1;min-width:70px;background:#f9fafb;border-radius:6px;padding:10px;text-align:center;border:1px solid #e5e7eb"><p style="font-size:9px;color:#888;margin:0;text-transform:uppercase">Fin</p><p style="font-size:11px;font-weight:600;color:#666;margin:2px 0 0">${e.timestamps.length ? format(e.timestamps[e.timestamps.length-1], "dd/MM HH:mm") : '—'}</p></div>
           </div>` : ''}
@@ -924,7 +962,7 @@ export default function MonitorReportModal({ onClose }: Props) {
         sections.push(`<div style="font-family:Arial,sans-serif;padding:24px">
           <div style="border-bottom:2px solid #e5e7eb;padding-bottom:10px;margin-bottom:14px">
             <h2 style="font-size:15px;color:#111;margin:0">Telemetría completa (GPS)</h2>
-            <p style="font-size:10px;color:#888;margin:2px 0 0">Todos los registros de telemetry_data_all en el período ${fromDate} → ${toDate} · ${gpsData.telemetry.length} registros</p>
+            <p style="font-size:10px;color:#888;margin:2px 0 0">${fromDate} → ${toDate} · ${gpsData.telemetry.length} registros</p>
           </div>
           <table style="width:100%;border-collapse:collapse;font-size:9px">
             <thead><tr style="background:#f3f4f6">

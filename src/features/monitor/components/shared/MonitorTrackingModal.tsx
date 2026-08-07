@@ -29,7 +29,10 @@ export default function MonitorTrackingModal({ alertId, alertTitle, onClose }: P
     }
 
     const map = mapInstance.current;
-    const points: [number, number][] = tracking.map(p => [parseFloat(p.latitude), parseFloat(p.longitude)]);
+    // Filtrar puntos con coordenadas válidas (evita NaN en Leaflet)
+    const points: [number, number][] = tracking
+      .map(p => [parseFloat(p.latitude), parseFloat(p.longitude)])
+      .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180);
 
     map.eachLayer(layer => {
       if (layer instanceof L.Marker || layer instanceof L.Polyline || layer instanceof L.CircleMarker) {
@@ -51,7 +54,11 @@ export default function MonitorTrackingModal({ alertId, alertTitle, onClose }: P
         .addTo(map);
     });
 
-    map.fitBounds(points.map(p => L.latLng(p[0], p[1])), { padding: [40, 40] });
+    if (points.length >= 2) {
+      map.fitBounds(points.map(p => L.latLng(p[0], p[1])), { padding: [40, 40] });
+    } else if (points.length === 1) {
+      map.setView([points[0][0], points[0][1]], 15);
+    }
 
     return () => { if (mapInstance.current) { mapInstance.current.remove(); mapInstance.current = null; } };
   }, [tracking]);

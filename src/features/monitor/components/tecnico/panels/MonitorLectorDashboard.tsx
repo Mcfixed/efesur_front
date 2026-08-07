@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import { useMonitorDevices, useMonitorLatestTelemetry } from "../../../hooks/useMonitor";
+import { useMonitorDevices, useMonitorLatestTelemetry, useMonitorDeviceTelemetry } from "../../../hooks/useMonitor";
 
 // ═══════════════════════════════════════════
 // Sin mock data — todo desde telemetría real
@@ -84,7 +84,7 @@ function SparklineChart({ data, dataKey, color, title, unit }: { data: any[], da
 // ═══════════════════════════════════════════
 // LECTOR DASHBOARD — Victron-style
 // ═══════════════════════════════════════════
-export default function MonitorLectorDashboard({ lectorDeviceId }: { lectorDeviceId?: number | null }) {
+export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = true, gatewayLastSeen }: { lectorDeviceId?: number | null; showHeader?: boolean; gatewayLastSeen?: string | null }) {
   const { data: allDevices } = useMonitorDevices();
   const { data: latestTelemetry } = useMonitorLatestTelemetry(5000);
 
@@ -101,6 +101,51 @@ export default function MonitorLectorDashboard({ lectorDeviceId }: { lectorDevic
     return list;
   }, [allDevices, lectorDeviceId]);
 
+  // ID del lector activo para el histórico
+  const lectorId = useMemo(() => {
+    return lectores[0]?.id ?? lectorDeviceId ?? null;
+  }, [lectores, lectorDeviceId]);
+
+  // Histórico del lector
+  const [historyLimit, setHistoryLimit] = useState(50);
+  const { data: historyData } = useMonitorDeviceTelemetry(lectorId, { limit: historyLimit });
+
+  const historyRows = useMemo(() => {
+    const telemetry = historyData?.telemetry || [];
+    return telemetry.map((t: any) => {
+      const obj = t.object || {};
+      const mppt = obj.Mppt || {};
+      const sec = obj.Security || {};
+      const blue = obj.BlueSmartIP67 || {};
+      const env = obj.Environment || {};
+      const health = obj.Esp32Health || {};
+      return {
+        ts: t.ts,
+        vBat: mppt.batteryVoltage_V ?? blue.voltaje_V ?? null,
+        iBat: mppt.batteryCurrent_A ?? null,
+        pPan: mppt.panelPower_W ?? null,
+        pvVolt: mppt.panelVoltage_V ?? null,
+        loadA: mppt.loadCurrent_A ?? null,
+        loadState: mppt.loadState ?? null,
+        temp: mppt.internalTemp_C ?? null,
+        chargeState: mppt.chargeState ?? null,
+        yieldToday: mppt.yieldToday_kWh ?? null,
+        maxPowerToday: mppt.maxPowerToday_W ?? null,
+        door: sec.doorState ?? null,
+        doorCounter: sec.doorCounter ?? null,
+        pir: sec.pirState ?? null,
+        chargerState: blue.estado ?? null,
+        chargerVolt: blue.voltaje_V ?? null,
+        chargerAmp: blue.corriente_A ?? null,
+        ambTemp: env.temperatura_C ?? null,
+        humidity: env.humedad_pct ?? null,
+        pressure: env.presion_Pa ?? null,
+        ramFree: health.ramLibre_bytes ?? null,
+        resetReason: health.resetReasonText ?? null,
+      };
+    });
+  }, [historyData]);
+
   // Extraer datos de telemetría del primer lector
   const dashboardData = useMemo(() => {
     if (!lectores.length) {
@@ -113,21 +158,23 @@ export default function MonitorLectorDashboard({ lectorDeviceId }: { lectorDevic
     );
     console.log('[LectorDash] lectores:', lectores.length, 'tel:', tel.length, 'lector:', lector.name, lector.dev_eui, lector.id, 'sampleTel:', latestTelemetry?.[0]?.device_id, latestTelemetry?.[0]?.dev_eui);
     if (!tel.length) return { tel: [], mpttTel: [], chartData: [], lector, lastT: null, sensores: {}, charger220: {}, vBat: null, pPan: null, iBat: null, iOut: null, loadState: null, chargeState: null, charging: false, charger220State: null, charger220Volt: null, temp: null };
-    const lastT = tel.find((t: any) => t.object?.mppt) || tel[0] || null;
+    const lastT = tel.find((t: any) => t.object?.Mppt) || tel[0] || null;
     const obj = lastT?.object || {};
-    const mppt = obj.mppt || {};
-    const mpttTel = tel.filter((t: any) => t.object?.mppt).sort((a: any, b: any) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
+    const mppt = obj.Mppt || {};
+    const security = obj.Security || {};
+    const blueSmart = obj.BlueSmartIP67 || {};
+    const mpttTel = tel.filter((t: any) => t.object?.Mppt).sort((a: any, b: any) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
     const cd = mpttTel.slice(-120).map((t: any) => ({
       time: format(new Date(t.ts), "HH:mm"),
-      volt: t.object?.mppt?.batteryVoltage_V ?? null,
-      power: t.object?.mppt?.panelPower_W ?? null,
-      current: t.object?.mppt?.batteryCurrent_A ?? null,
+      volt: t.object?.Mppt?.batteryVoltage_V ?? null,
+      power: t.object?.Mppt?.panelPower_W ?? null,
+      current: t.object?.Mppt?.batteryCurrent_A ?? null,
     }));
     return {
       tel, mpttTel, chartData: cd, lector, lastT,
-      sensores: obj.sensores || {},
-      charger220: obj.charger220 || {},
-      vBat: mppt.batteryVoltage_V ?? null,
+      sensores: security,
+      charger220: blueSmart,
+      vBat: mppt.batteryVoltage_V ?? blueSmart.voltaje_V ?? null,
       pPan: mppt.panelPower_W ?? null,
       iBat: mppt.batteryCurrent_A ?? null,
       iOut: mppt.loadCurrent_A ?? null,
@@ -135,9 +182,9 @@ export default function MonitorLectorDashboard({ lectorDeviceId }: { lectorDevic
       chargeState: mppt.chargeState ?? null,
       pvVolt: mppt.panelVoltage_V ?? null,
       charging: mppt.loadState === 1,
-      charger220State: (obj.charger220?.State) || null,
-      charger220Volt: obj.charger220?.battery_V ?? null,
-      temp: mppt.temp ?? null,
+      charger220State: blueSmart.estado || null,
+      charger220Volt: blueSmart.voltaje_V ?? null,
+      temp: mppt.internalTemp_C ?? obj.Environment?.temperatura_C ?? null,
     };
   }, [lectores, latestTelemetry]);
 
@@ -154,6 +201,16 @@ export default function MonitorLectorDashboard({ lectorDeviceId }: { lectorDevic
 
   const hasLector = lectores.length > 0;
   const { chartData, lector, lastT, sensores, charger220, vBat, pPan, iBat, iOut, loadState, chargeState, pvVolt, charging, charger220State, charger220Volt, temp } = dashboardData;
+
+  // Estado online del lector: diferencia absoluta <= 5 min (tolera reloj adelantado/atrasado y NaN)
+  const lastTsMs = lastT?.ts ? new Date(lastT.ts).getTime() : NaN;
+  const isLectorOnline = Number.isFinite(lastTsMs) && Math.abs(Date.now() - lastTsMs) < 300000;
+
+  // Estado real del gateway asociado (si se pasa): usa gatewayLastSeen; si no, cae al lector
+  const gwTsMs = gatewayLastSeen ? new Date(gatewayLastSeen).getTime() : NaN;
+  const isGatewayOnline = gatewayLastSeen
+    ? (Number.isFinite(gwTsMs) && Math.abs(Date.now() - gwTsMs) < 300000)
+    : isLectorOnline;
 
   const batPct = vBat != null ? Math.max(0, Math.min(100, ((vBat - 11) / (15 - 11)) * 100)) : null;
   const batColor = vBat != null ? (vBat >= 12.5 ? '#22c55e' : vBat >= 11.8 ? '#f97316' : '#ef4444') : '#6b7280';
@@ -173,7 +230,8 @@ export default function MonitorLectorDashboard({ lectorDeviceId }: { lectorDevic
     <div className={`flex-1 min-h-0 flex flex-col gap-2 p-2 bg-bg-200 rounded-md transition-all ${hasLector ? '' : 'opacity-40 grayscale'}`}>
       <style>{`@keyframes flowLine{to{stroke-dashoffset:-24}}@keyframes flowBack{to{stroke-dashoffset:24}}@keyframes pulseLive{0%{transform:scale(1)}50%{transform:scale(2)}100%{transform:scale(1)}}`}</style>
 
-      {/* HEADER */}
+      {/* HEADER (opcional — en la vista directa el MonitorDeviceDetailHeader ya lo muestra) */}
+      {showHeader && (
       <div className="rounded-lg px-4 py-2.5 flex items-center justify-between bg-bg-100 border border-border/30">
         <div className="flex items-center gap-3">
           <div className={`w-8 h-8 rounded-full flex items-center justify-center border ${hasLector ? 'bg-[#00a3e8]/10 border-[#00a3e8]/30' : 'bg-red-500/10 border-red-500/30'}`}>
@@ -185,19 +243,27 @@ export default function MonitorLectorDashboard({ lectorDeviceId }: { lectorDevic
           </div>
         </div>
         {hasLector ? (
-          <div className="flex items-center gap-2">
-            {charging && <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_#22c55e]" />}
-            <span className="text-[10px] font-bold tracking-wider" style={{ color: charging ? '#22c55e' : '#6b7280' }}>
-              {charging ? `CHARGING (${chargeMeta.label.toUpperCase()})` : 'SYSTEM IDLE'}
+          isLectorOnline ? (
+            <div className="flex items-center gap-2">
+              {charging && <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_#22c55e]" />}
+              <span className="text-[10px] font-bold tracking-wider" style={{ color: charging ? '#22c55e' : '#6b7280' }}>
+                {charging ? `CHARGING (${chargeMeta.label.toUpperCase()})` : 'SYSTEM IDLE'}
+              </span>
+            </div>
+          ) : (
+            <span className="text-[9px] font-bold uppercase tracking-wider text-red-400 border border-red-500/30 bg-red-500/10 px-2 py-1 rounded flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+              Lector offline
             </span>
-          </div>
+          )
         ) : (
           <span className="text-[9px] font-bold uppercase tracking-wider text-red-400 border border-red-500/30 bg-red-500/10 px-2 py-1 rounded">Sin lector asignado</span>
         )}
       </div>
+      )}
 
-      {/* MAIN GRID */}
-      <div className="grid grid-cols-12 gap-2 flex-1 min-h-0">
+      {/* MAIN GRID (gris si el lector está offline) */}
+      <div className={`grid grid-cols-12 gap-2 flex-1 min-h-0 transition-all ${isLectorOnline ? '' : 'opacity-40 grayscale'}`}>
         {/* LEFT COLUMN */}
         <div className="col-span-3 flex flex-col gap-2 min-h-0">
           <div className="rounded-lg p-4 flex-1 flex flex-col justify-center bg-bg-100 border border-border/30">
@@ -234,18 +300,18 @@ export default function MonitorLectorDashboard({ lectorDeviceId }: { lectorDevic
             <div className="absolute top-2 left-3 z-10 flex items-center gap-1.5">
               <span className="relative flex items-center justify-center w-4 h-4">
                 <span className="absolute inset-0 rounded-full" style={{
-                  background: lastT?.ts && Date.now() - new Date(lastT.ts).getTime() < 300000 ? '#22c55e' : '#ef4444',
+                  background: isLectorOnline ? '#22c55e' : '#ef4444',
                   opacity: 0.25, animation: 'pulseLive 2s infinite'
                 }} />
                 <span className="w-2.5 h-2.5 rounded-full" style={{
-                  background: lastT?.ts && Date.now() - new Date(lastT.ts).getTime() < 300000 ? '#22c55e' : '#ef4444',
-                  boxShadow: `0 0 8px ${lastT?.ts && Date.now() - new Date(lastT.ts).getTime() < 300000 ? '#22c55e' : '#ef4444'}`
+                  background: isLectorOnline ? '#22c55e' : '#ef4444',
+                  boxShadow: `0 0 8px ${isLectorOnline ? '#22c55e' : '#ef4444'}`
                 }} />
               </span>
               <span className="text-[10px] font-bold tracking-wider" style={{
-                color: lastT?.ts && Date.now() - new Date(lastT.ts).getTime() < 300000 ? '#22c55e' : '#ef4444'
+                color: isLectorOnline ? '#22c55e' : '#ef4444'
               }}>LIVE</span>
-              <span className="text-[8px] font-mono text-text-400 ml-1">
+              <span className="text-[8px] font-mono text-text-200 ml-1">
                 {lastT?.ts ? format(new Date(lastT.ts), "dd/MM HH:mm") : '—'}
               </span>
             </div>
@@ -313,14 +379,17 @@ export default function MonitorLectorDashboard({ lectorDeviceId }: { lectorDevic
                   <rect width="80" height="60" rx="8" fill="none" stroke={batColor} strokeWidth="1" />
                   <rect x="74" y="20" width="4" height="20" rx="1" fill={batColor} />
                   <circle cx="40" cy="15" r="3" fill={batColor} filter="url(#glowGreen)" />
-                  <text x="40" y="32" textAnchor="middle" fill="#e0e0e0" fontSize="10" fontWeight="bold">BATERÍA</text>
-                  <text x="40" y="46" textAnchor="middle" fill="#22c55e" fontSize="9" fontFamily="monospace">{iBat != null ? `+${Math.abs(iBat).toFixed(1)}A` : '—'}</text>
+                  <text x="40" y="27" textAnchor="middle" fill="#e0e0e0" fontSize="10" fontWeight="bold">BATERÍA</text>
+                  <text x="40" y="41" textAnchor="middle" fill={batColor} fontSize="9" fontFamily="monospace">{vBat != null ? `${vBat.toFixed(2)}V` : '—'}</text>
+                  <text x="40" y="53" textAnchor="middle" fill={iBat != null ? (iBat > 0 ? '#22c55e' : '#f97316') : '#888'} fontSize="8" fontFamily="monospace">
+                    {iBat != null ? `${iBat > 0 ? '+' : ''}${iBat.toFixed(2)}A` : '—'}
+                  </text>
                 </g>
                 <g transform="translate(170, 15)">
-                  <rect width="80" height="30" rx="6" fill="none" stroke={lastT?.ts && Date.now() - new Date(lastT.ts).getTime() < 300000 ? '#22c55e' : '#ef4444'} strokeWidth="1" />
+                  <rect width="80" height="30" rx="6" fill="none" stroke={isGatewayOnline ? '#22c55e' : '#ef4444'} strokeWidth={isGatewayOnline ? 1.2 : 1} />
                   <line x1="30" y1="0" x2="30" y2="-10" stroke="#666" strokeWidth="2" />
                   <line x1="50" y1="0" x2="50" y2="-10" stroke="#666" strokeWidth="2" />
-                  <circle cx="12" cy="15" r="3" fill={lastT?.ts && Date.now() - new Date(lastT.ts).getTime() < 300000 ? '#22c55e' : '#ef4444'} filter={lastT?.ts && Date.now() - new Date(lastT.ts).getTime() < 300000 ? 'url(#glowGreen)' : undefined} />
+                  <circle cx="12" cy="15" r="3" fill={isGatewayOnline ? '#22c55e' : '#ef4444'} filter={isGatewayOnline ? 'url(#glowGreen)' : undefined} />
                   <text x="40" y="20" textAnchor="middle" fill="#aaa" fontSize="8" fontWeight="bold">UG65 GW</text>
                 </g>
                 <g transform="translate(490, 90)">
@@ -335,9 +404,9 @@ export default function MonitorLectorDashboard({ lectorDeviceId }: { lectorDevic
                 <text x="67" y="181" fill={charging ? '#22c55e' : '#6b7280'} fontSize="7" fontWeight="bold">
                   {charging ? 'CARGANDO' : pPan > 0 ? 'ACTIVO' : 'INACTIVO'}
                 </text>
-                <circle cx="210" cy="178" r="3" fill={lastT?.ts && Date.now() - new Date(lastT.ts).getTime() < 300000 ? '#22c55e' : '#ef4444'} />
-                <text x="217" y="181" fill={lastT?.ts && Date.now() - new Date(lastT.ts).getTime() < 300000 ? '#22c55e' : '#ef4444'} fontSize="7" fontWeight="bold">
-                  {lastT?.ts && Date.now() - new Date(lastT.ts).getTime() < 300000 ? 'GW ONLINE' : 'GW OFFLINE'}
+                <circle cx="210" cy="178" r="3" fill={isGatewayOnline ? '#22c55e' : '#ef4444'} />
+                <text x="217" y="181" fill={isGatewayOnline ? '#22c55e' : '#ef4444'} fontSize="7" fontWeight="bold">
+                  {isGatewayOnline ? 'GW ONLINE' : 'GW OFFLINE'}
                 </text>
                 <circle cx="530" cy="178" r="3" fill="#3b82f6" />
                 <text x="537" y="181" fill="#3b82f6" fontSize="7" fontWeight="bold">
@@ -374,15 +443,15 @@ export default function MonitorLectorDashboard({ lectorDeviceId }: { lectorDevic
               <div className="flex items-center justify-between p-2 rounded bg-bg-200/50 border border-border/20">
                 <span className="text-[10px] text-text-200">Sensor Puerta gabinete</span>
                 <div className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: sensores.openingDoorSensor === 1 ? '#ef4444' : '#22c55e' }} />
-                  <span className="text-[10px] font-mono font-bold" style={{ color: sensores.openingDoorSensor === 1 ? '#ef4444' : '#22c55e' }}>{sensores.openingDoorSensor === 1 ? 'OPEN' : 'CLOSED'}</span>
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: sensores.doorState === 1 ? '#ef4444' : '#22c55e' }} />
+                  <span className="text-[10px] font-mono font-bold" style={{ color: sensores.doorState === 1 ? '#ef4444' : '#22c55e' }}>{sensores.doorState === 1 ? 'OPEN' : 'CLOSED'}</span>
                 </div>
               </div>
               <div className="flex items-center justify-between p-2 rounded bg-bg-200/50 border border-border/20">
                 <span className="text-[10px] text-text-200">Proximidad</span>
                 <div className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: sensores.presenseSensor === 1 ? '#eab308' : '#6b7280' }} />
-                  <span className="text-[10px] font-mono font-bold" style={{ color: sensores.presenseSensor === 1 ? '#eab308' : '#6b7280' }}>{sensores.presenseSensor === 1 ? 'DETECTED' : 'CLEAR'}</span>
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: sensores.pirState === 1 ? '#eab308' : '#6b7280' }} />
+                  <span className="text-[10px] font-mono font-bold" style={{ color: sensores.pirState === 1 ? '#eab308' : '#6b7280' }}>{sensores.pirState === 1 ? 'DETECTED' : 'CLEAR'}</span>
                 </div>
               </div>
             </div>
@@ -390,6 +459,117 @@ export default function MonitorLectorDashboard({ lectorDeviceId }: { lectorDevic
           <SparklineChart data={chartData} dataKey="power" color="#eab308" title="Potencia Solar" unit="W" />
         </div>
       </div>
+
+      {/* ─── Tabla de histórico ─── */}
+      {hasLector && (
+        <div className="rounded-lg bg-bg-100 border border-border/30 overflow-hidden flex flex-col min-h-0">
+          <div className="shrink-0 px-3 py-1.5 border-b border-border/20 flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#00a3e8]" />
+            <h3 className="text-[10px] font-semibold text-text-200 uppercase tracking-wider">Histórico del lector</h3>
+            <span className="ml-auto text-[10px] text-text-300 font-mono">{historyRows.length} registros</span>
+          </div>
+          <div className="overflow-auto max-h-56">
+            <table className="w-full text-[11px]" style={{ minWidth: 1100 }}>
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-bg-200 text-text-300 uppercase tracking-wider text-[9px]">
+                  <th className="text-left py-1.5 px-2 font-medium">Fecha</th>
+                  <th className="text-right py-1.5 px-2 font-medium">Batería</th>
+                  <th className="text-right py-1.5 px-2 font-medium">Corriente</th>
+                  <th className="text-right py-1.5 px-2 font-medium">Panel</th>
+                  <th className="text-right py-1.5 px-2 font-medium">Panel V</th>
+                  <th className="text-right py-1.5 px-2 font-medium">Carga A</th>
+                  <th className="text-center py-1.5 px-2 font-medium">Load</th>
+                  <th className="text-right py-1.5 px-2 font-medium">Temp</th>
+                  <th className="text-center py-1.5 px-2 font-medium">Carga</th>
+                  <th className="text-right py-1.5 px-2 font-medium">Yield hoy</th>
+                  <th className="text-center py-1.5 px-2 font-medium">Puerta</th>
+                  <th className="text-center py-1.5 px-2 font-medium">Aperturas</th>
+                  <th className="text-center py-1.5 px-2 font-medium">Prox</th>
+                  <th className="text-center py-1.5 px-2 font-medium">Chg 220</th>
+                  <th className="text-right py-1.5 px-2 font-medium">Chg V</th>
+                  <th className="text-right py-1.5 px-2 font-medium">Chg A</th>
+                  <th className="text-right py-1.5 px-2 font-medium">T° amb</th>
+                  <th className="text-right py-1.5 px-2 font-medium">Humedad</th>
+                  <th className="text-right py-1.5 px-2 font-medium">Presión</th>
+                  <th className="text-right py-1.5 px-2 font-medium">RAM libre</th>
+                </tr>
+              </thead>
+              <tbody>
+                {historyRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={20} className="px-4 py-6 text-center text-text-300">Sin datos históricos</td>
+                  </tr>
+                ) : (
+                  historyRows.map((r: any, i: number) => (
+                    <tr key={r.ts || i} className={`${i % 2 === 0 ? "bg-bg-100" : "bg-bg-200/30"} border-b border-border/20 hover:bg-bg-200/60 transition-colors`}>
+                      <td className="py-1.5 px-2 text-text-300 font-mono text-[10px] whitespace-nowrap">
+                        {r.ts ? format(new Date(r.ts), "dd/MM HH:mm:ss") : "—"}
+                      </td>
+                      <td className="py-1.5 px-2 text-right text-text-100 font-mono">{r.vBat != null ? `${r.vBat.toFixed(2)}V` : "—"}</td>
+                      <td className="py-1.5 px-2 text-right font-mono" style={{ color: r.iBat != null ? (r.iBat > 0 ? '#22c55e' : '#f97316') : undefined }}>
+                        {r.iBat != null ? `${r.iBat.toFixed(2)}A` : "—"}
+                      </td>
+                      <td className="py-1.5 px-2 text-right text-text-100 font-mono">{r.pPan != null ? `${r.pPan.toFixed(0)}W` : "—"}</td>
+                      <td className="py-1.5 px-2 text-right text-text-100 font-mono">{r.pvVolt != null ? `${r.pvVolt.toFixed(2)}V` : "—"}</td>
+                      <td className="py-1.5 px-2 text-right text-text-100 font-mono">{r.loadA != null ? `${r.loadA.toFixed(2)}A` : "—"}</td>
+                      <td className="py-1.5 px-2 text-center text-[10px]">
+                        {r.loadState === 1
+                          ? <span className="text-green-400 font-semibold">ON</span>
+                          : r.loadState === 0
+                            ? <span className="text-red-400 font-semibold">OFF</span>
+                            : "—"}
+                      </td>
+                      <td className="py-1.5 px-2 text-right text-text-100 font-mono">{r.temp != null ? `${r.temp.toFixed(1)}°C` : "—"}</td>
+                      <td className="py-1.5 px-2 text-center text-[10px]">
+                        {r.chargeState != null
+                          ? <span className="px-1.5 py-0.5 rounded bg-bg-300/40 text-text-200">{r.chargeState}</span>
+                          : "—"}
+                      </td>
+                      <td className="py-1.5 px-2 text-right text-text-100 font-mono">{r.yieldToday != null ? `${r.yieldToday.toFixed(3)}kWh` : "—"}</td>
+                      <td className="py-1.5 px-2 text-center">
+                        {r.door === 1
+                          ? <span className="text-red-400 font-semibold">OPEN</span>
+                          : r.door === 0
+                            ? <span className="text-green-400 font-semibold">CLOSED</span>
+                            : "—"}
+                      </td>
+                      <td className="py-1.5 px-2 text-center text-text-100 font-mono">{r.doorCounter ?? "—"}</td>
+                      <td className="py-1.5 px-2 text-center">
+                        {r.pir === 1
+                          ? <span className="text-yellow-400 font-semibold">DETECT</span>
+                          : r.pir === 0
+                            ? <span className="text-text-300 font-semibold">CLEAR</span>
+                            : "—"}
+                      </td>
+                      <td className="py-1.5 px-2 text-center text-[10px] text-text-200">
+                        {r.chargerState || "—"}
+                      </td>
+                      <td className="py-1.5 px-2 text-right text-text-100 font-mono">{r.chargerVolt != null ? `${r.chargerVolt.toFixed(2)}V` : "—"}</td>
+                      <td className="py-1.5 px-2 text-right text-text-100 font-mono">{r.chargerAmp != null ? `${r.chargerAmp.toFixed(2)}A` : "—"}</td>
+                      <td className="py-1.5 px-2 text-right text-text-100 font-mono">{r.ambTemp != null ? `${r.ambTemp.toFixed(1)}°C` : "—"}</td>
+                      <td className="py-1.5 px-2 text-right text-text-100 font-mono">{r.humidity != null ? `${r.humidity.toFixed(0)}%` : "—"}</td>
+                      <td className="py-1.5 px-2 text-right text-text-100 font-mono">{r.pressure != null ? `${(r.pressure / 1000).toFixed(1)}kPa` : "—"}</td>
+                      <td className="py-1.5 px-2 text-right text-text-300 font-mono text-[10px]">
+                        {r.ramFree != null ? `${(r.ramFree / 1024).toFixed(0)}KB` : "—"}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          {historyData && historyRows.length < (historyData.total || 0) && (
+            <div className="shrink-0 px-3 py-1.5 border-t border-border/20 flex items-center justify-center">
+              <button
+                onClick={() => setHistoryLimit(h => h + 50)}
+                className="text-[10px] font-medium text-brand-200 hover:text-brand-100 transition-colors"
+              >
+                Cargar más ({historyData.total - historyRows.length} restantes)
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

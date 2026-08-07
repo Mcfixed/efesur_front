@@ -213,18 +213,20 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
       t.dev_eui?.toLowerCase() === lector.dev_eui.toLowerCase() || t.device_id === lector.id
     );
     if (!tel.length) return null;
-    const lastT = tel.find((t: any) => t.object?.mppt) || tel[0];
+    const lastT = tel.find((t: any) => t.object?.Mppt) || tel[0];
     const obj = lastT?.object || {};
-    const mppt = obj.mppt || {};
+    const mppt = obj.Mppt || {};
+    const security = obj.Security || {};
+    const blueSmart = obj.BlueSmartIP67 || {};
     return {
       lectorName: lector.name,
       lectorEui: lector.dev_eui,
-      vBat: mppt.batteryVoltage_V ?? null,
+      vBat: mppt.batteryVoltage_V ?? blueSmart.voltaje_V ?? null,
       pPan: mppt.panelPower_W ?? null,
       iBat: mppt.batteryCurrent_A ?? null,
-      temp: mppt.temp ?? null,
-      sensores: obj.sensores || {},
-      charger220: obj.charger220 || {},
+      temp: mppt.internalTemp_C ?? obj.Environment?.temperatura_C ?? null,
+      sensores: security,
+      charger220: blueSmart,
       loadState: mppt.loadState ?? null,
       batPct: mppt.batteryVoltage_V != null ? Math.max(0, Math.min(100, ((mppt.batteryVoltage_V - 11) / (15 - 11)) * 100)) : null,
       lastTs: lastT?.ts || null,
@@ -339,10 +341,10 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
                     <rect x="0" y="0" width="110" height="44" rx="5" fill="none" stroke="#555" strokeWidth="0.8" opacity="0.5" />
                     <text x="55" y="10" textAnchor="middle" fill="#888" fontSize="6" fontWeight="bold">ALIMENTACIÓN</text>
                     {/* Charger 220V indicator */}
-                    <circle cx="20" cy="22" r="4" fill={lectorData?.charger220?.State ? '#22c55e' : '#3b82f6'} opacity={lectorData?.charger220?.State ? 0.8 : 0.5} />
+                    <circle cx="20" cy="22" r="4" fill={lectorData?.charger220?.estado ? '#22c55e' : '#3b82f6'} opacity={lectorData?.charger220?.estado ? 0.8 : 0.5} />
                     <text x="20" y="22" textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">~</text>
-                    <text x="32" y="25" textAnchor="middle" fill={lectorData?.charger220?.State ? '#22c55e' : '#aaa'} fontSize="6">
-                      {lectorData?.charger220?.State || 'CA 220V'}
+                    <text x="32" y="25" textAnchor="middle" fill={lectorData?.charger220?.estado ? '#22c55e' : '#aaa'} fontSize="6">
+                      {lectorData?.charger220?.estado || 'CA 220V'}
                     </text>
                     {/* Temperature */}
                     <text x="55" y="37" textAnchor="middle" fill="#aaa" fontSize="6">
@@ -359,13 +361,13 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
                     <rect x="0" y="0" width="236" height="28" rx="5" fill="none" stroke="#555" strokeWidth="0.8" opacity="0.5" />
                     <text x="118" y="10" textAnchor="middle" fill="#888" fontSize="6" fontWeight="bold">SENSORES</text>
                     {/* Door sensor */}
-                    <rect x="14" y="14" width="8" height="10" rx="1" fill="none" stroke={lectorData?.sensores?.openingDoorSensor === 1 ? '#ef4444' : '#22c55e'} strokeWidth="0.8" />
-                    <circle cx="18" cy="19" r="1.5" fill={lectorData?.sensores?.openingDoorSensor === 1 ? '#ef4444' : '#22c55e'} />
-                    <text x="26" y="22" fill="#aaa" fontSize="6">Puerta: {lectorData?.sensores?.openingDoorSensor === 1 ? 'OPEN' : lectorData?.sensores?.openingDoorSensor === 0 ? 'CLOSED' : '—'}</text>
+                    <rect x="14" y="14" width="8" height="10" rx="1" fill="none" stroke={lectorData?.sensores?.doorState === 1 ? '#ef4444' : '#22c55e'} strokeWidth="0.8" />
+                    <circle cx="18" cy="19" r="1.5" fill={lectorData?.sensores?.doorState === 1 ? '#ef4444' : '#22c55e'} />
+                    <text x="26" y="22" fill="#aaa" fontSize="6">Puerta: {lectorData?.sensores?.doorState === 1 ? 'OPEN' : lectorData?.sensores?.doorState === 0 ? 'CLOSED' : '—'}</text>
                     {/* Proximity sensor */}
-                    <circle cx="100" cy="19" r="4" fill="none" stroke={lectorData?.sensores?.presenseSensor === 1 ? '#eab308' : '#6b7280'} strokeWidth="0.8" />
-                    <circle cx="100" cy="19" r="1.5" fill={lectorData?.sensores?.presenseSensor === 1 ? '#eab308' : '#6b7280'} />
-                    <text x="108" y="22" fill="#aaa" fontSize="6">Prox: {lectorData?.sensores?.presenseSensor === 1 ? 'DET' : lectorData?.sensores?.presenseSensor === 0 ? 'CLEAR' : '—'}</text>
+                    <circle cx="100" cy="19" r="4" fill="none" stroke={lectorData?.sensores?.pirState === 1 ? '#eab308' : '#6b7280'} strokeWidth="0.8" />
+                    <circle cx="100" cy="19" r="1.5" fill={lectorData?.sensores?.pirState === 1 ? '#eab308' : '#6b7280'} />
+                    <text x="108" y="22" fill="#aaa" fontSize="6">Prox: {lectorData?.sensores?.pirState === 1 ? 'DET' : lectorData?.sensores?.pirState === 0 ? 'CLEAR' : '—'}</text>
                     {/* Uptime */}
                     <text x="190" y="22" fill="#888" fontSize="6">{uptimePct}% uptime</text>
                   </g>
@@ -478,7 +480,7 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
       )}
 
       {activeTab === "lector_asignado" && (
-        <MonitorLectorDashboard lectorDeviceId={allDevices?.find((d: any) => d.id === deviceId)?.id_device_father ?? null} />
+        <MonitorLectorDashboard lectorDeviceId={allDevices?.find((d: any) => d.id === deviceId)?.id_device_father ?? null} gatewayLastSeen={lastSeen} />
       )}
 
       {activeTab === "mapa" && (

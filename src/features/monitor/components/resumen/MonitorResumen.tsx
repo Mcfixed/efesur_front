@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { useMonitorSummary, useMonitorActiveSensors, useMonitorAlertsPerDay } from "../../hooks/useMonitor";
 import { BarChartWrapper, AreaChartWrapper } from "@/libs/recharts";
-import { IconDeviceSdCard, IconSignal5g, IconAlertTriangle, IconAlertCircle, IconDoor, IconUser, IconMoodSearch, IconWifiOff } from "@tabler/icons-react";
+import { IconDeviceSdCard, IconSignal5g, IconAlertTriangle, IconAlertCircle, IconDoor, IconUser, IconMoodSearch, IconWifiOff, IconFileReport } from "@tabler/icons-react";
+import MonitorReportModal from "../tecnico/MonitorReportModal";
 
 const cards = [
   { key: "totalSensores", label: "Total Sensores", icon: IconDeviceSdCard },
@@ -33,6 +34,7 @@ export default function MonitorResumen() {
   const { data: summary, isLoading } = useMonitorSummary();
   const { data: sensors } = useMonitorActiveSensors();
   const { data: alertsPerDay } = useMonitorAlertsPerDay();
+  const [reportOpen, setReportOpen] = useState(false);
 
   const sensorChart = useMemo(() => {
     if (!sensors?.length) return [];
@@ -62,10 +64,18 @@ export default function MonitorResumen() {
 
   return (
     <div className="p-2 h-full flex flex-col gap-2 overflow-hidden">
-      <div className="shrink-0">
-        <h1 className="text-base font-bold text-text-100 tracking-tight">Monitor</h1>
-        <p className="text-[10px] text-text-300">Resumen general del sistema</p>
+      <div className="shrink-0 flex items-center justify-between">
+        <div>
+          <h1 className="text-base font-bold text-text-100 tracking-tight">Monitor</h1>
+          <p className="text-[10px] text-text-300">Resumen general del sistema</p>
+        </div>
+        <button onClick={() => setReportOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors shadow-sm">
+          <IconFileReport size={14} /> Reporte
+        </button>
       </div>
+
+      {reportOpen && <MonitorReportModal onClose={() => setReportOpen(false)} />}
 
       <div className="grid grid-cols-8 gap-1.5 shrink-0">
         {cards.map(({ key, label, icon: Icon }) => {

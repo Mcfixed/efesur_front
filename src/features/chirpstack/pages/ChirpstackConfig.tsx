@@ -339,7 +339,7 @@ export default function ChirpstackConfig() {
                       : <span className="text-text-300">{d.operating_mode}</span>;
                   })()}
                 </span>
-                <span className="w-32 text-right text-[13px] font-mono text-text-200 truncate">
+                <span className="w-32 text-right text-[13px] font-mono text-text-100 truncate">
                   {d.last_seen ? new Date(d.last_seen).toLocaleString("es-CL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—"}
                 </span>
               </div>
