@@ -399,8 +399,8 @@ export default function MonitorReportModal({ onClose }: Props) {
               <div style="column-count:3;column-gap:16px;column-rule:1px solid #f3f4f6">
                 ${devAlerts.map((a: any) => `
                   <div style="font-size:10px;padding:3px 0;border-bottom:1px solid #f3f4f6;display:flex;align-items:center;gap:6px;break-inside:avoid">
-                    <span style="color:${a.type === 'critica' || a.type === 'apertura' ? '#ef4444' : '#f59e0b'};font-weight:600;flex-shrink:0">●</span>
-                    <span style="font-weight:600;color:#333;flex-shrink:0">${a.type}</span>
+                    <span style="color:${a.type === 'critica' || a.type === 'apertura' || a.type === 'desconexion220' || a.type === 'desconexionbatGW' ? '#ef4444' : '#f59e0b'};font-weight:600;flex-shrink:0">●</span>
+                    <span style="font-weight:600;color:#333;flex-shrink:0">${esc(typeLabel(a.type))}</span>
                     <span style="color:#888;flex-shrink:0">${format(new Date(a.created_at), "dd/MM HH:mm")}</span>
                     ${a.metadata?.reason ? `<span style="color:#999;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.metadata.reason}</span>` : ''}
                   </div>
@@ -468,8 +468,8 @@ export default function MonitorReportModal({ onClose }: Props) {
                       <div style="column-count:2;column-gap:12px;column-rule:1px solid #f3f4f6">
                         ${lectorAlerts.map((a: any) => `
                           <div style="font-size:9px;padding:2px 0;border-bottom:1px solid #f3f4f6;display:flex;align-items:center;gap:5px;break-inside:avoid">
-                            <span style="color:${a.type === 'critica' || a.type === 'apertura' ? '#ef4444' : '#f59e0b'};font-weight:600">●</span>
-                            <span style="font-weight:600;color:#333">${esc(a.type)}</span>
+                            <span style="color:${a.type === 'critica' || a.type === 'apertura' || a.type === 'desconexion220' || a.type === 'desconexionbatGW' ? '#ef4444' : '#f59e0b'};font-weight:600">●</span>
+                            <span style="font-weight:600;color:#333">${esc(typeLabel(a.type))}</span>
                             <span style="color:#888">${format(new Date(a.created_at), "dd/MM HH:mm")}</span>
                           </div>`).join('')}
                       </div>
@@ -864,6 +864,12 @@ export default function MonitorReportModal({ onClose }: Props) {
 
       const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
       const esc = (s: any) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+      const ALERT_TYPE_LABELS: Record<string, string> = {
+        critica: 'Crítica', atencion: 'Atención', apertura: 'Apertura', presencia: 'Presencia',
+        movimientos_anomalos: 'Mov. anómalo', desconexionGW: 'Desconexión GW', desconexionGPS: 'Desconexión GPS',
+        desconexion220: 'Desconexión CA 220', desconexionbatGW: 'Desconexión Batería GW',
+      };
+      const typeLabel = (t: any) => ALERT_TYPE_LABELS[String(t)] || esc(t);
       const criticals = alerts.filter((a: any) => a.type === 'critica' || a.type === 'apertura');
       const attentions = alerts.filter((a: any) => a.type === 'atencion' || a.type === 'apertura' || a.type === 'presencia');
 
@@ -906,7 +912,7 @@ export default function MonitorReportModal({ onClose }: Props) {
         const alertsHtml = devAlerts.length > 0 ? devAlerts.map((a: any) => `
           <div style="border:1px solid ${isGps ? '#fecaca' : '#f3f4f6'};border-radius:8px;margin-bottom:12px;padding:10px;background:#fff">
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <span style="background:${a.type === 'critica' || a.type === 'apertura' || a.type === 'presencia' ? '#fef2f2' : '#fefce8'};color:${a.type === 'critica' || a.type === 'apertura' || a.type === 'presencia' ? '#dc2626' : '#a16207'};font-weight:700;font-size:10px;text-transform:uppercase;padding:3px 8px;border-radius:4px">${esc(a.type)}</span>
+              <span style="background:${a.type === 'critica' || a.type === 'apertura' || a.type === 'presencia' || a.type === 'desconexion220' || a.type === 'desconexionbatGW' ? '#fef2f2' : '#fefce8'};color:${a.type === 'critica' || a.type === 'apertura' || a.type === 'presencia' || a.type === 'desconexion220' || a.type === 'desconexionbatGW' ? '#dc2626' : '#a16207'};font-weight:700;font-size:10px;text-transform:uppercase;padding:3px 8px;border-radius:4px">${esc(typeLabel(a.type))}</span>
               <span style="font-size:10px;color:${a.resolved_at ? '#16a34a' : '#dc2626'};font-weight:600">${a.resolved_at ? '● Resuelta' : '● Activa'}</span>
               <span style="font-size:10px;color:#666;white-space:nowrap">${format(new Date(a.created_at), "dd/MM HH:mm:ss")}</span>
               ${a.resolved_at ? `<span style="font-size:9px;color:#888">→ ${format(new Date(a.resolved_at), "dd/MM HH:mm")}</span>` : ''}

@@ -1,8 +1,9 @@
-import { useState } from "react";
-import { IconX, IconCheck, IconRadar, IconAlertTriangle, IconAlertCircle, IconDoor, IconUser, IconWifiOff, IconBellOff, IconRun } from "@tabler/icons-react";
+import { useMemo, useState } from "react";
+import { IconX, IconCheck, IconRadar, IconAlertTriangle, IconAlertCircle, IconDoor, IconUser, IconWifiOff, IconBellOff, IconRun, IconChevronDown, IconChevronUp } from "@tabler/icons-react";
 import { format } from "date-fns";
 import RightBar from "@/components/bars/RightBar";
 import { useResolveAlert } from "../hooks/useDashboard";
+import { useMonitorDevices } from "@/features/monitor/hooks/useMonitor";
 
 interface Props {
   timelineData: any[];
@@ -23,6 +24,30 @@ const ranges = [
 
 export default function RightBarDashboard({ timelineData, timelineRange, setTimelineRange, isLoading, isMobile, isOpen, setOpen }: Props) {
   const resolveMutation = useResolveAlert();
+  const { data: allDevices } = useMonitorDevices();
+
+  // Mapa dev_eui -> nombre para resolver EUIs dentro del metadata
+  const euiNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    (allDevices || []).forEach((d: any) => {
+      if (d.dev_eui) map.set(d.dev_eui.toLowerCase(), d.name);
+    });
+    return map;
+  }, [allDevices]);
+
+  const resolveEui = (value: string): string => {
+    if (!value) return value;
+    // Reemplazar cada dev_eui conocido que aparezca dentro del texto por su nombre
+    let out = value;
+    euiNameMap.forEach((name, eui) => {
+      if (out.toLowerCase().includes(eui)) {
+        out = out.replace(new RegExp(eui, 'gi'), name);
+      }
+    });
+    return out;
+  };
+
+  const [expandedMetaAlertId, setExpandedMetaAlertId] = useState<number | null>(null);
   const [resolvingAlertId, setResolvingAlertId] = useState<number | null>(null);
   const [resolveReason, setResolveReason] = useState("");
   const [showConfirmResolver, setShowConfirmResolver] = useState(false);
@@ -84,6 +109,8 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
     atencion:           { border: '1px solid rgba(234,179,8,0.10)', bg: 'linear-gradient(135deg, rgba(234,179,8,0.05), rgba(234,179,8,0.01))', bar: 'linear-gradient(180deg, rgba(253,224,71,0.80), rgba(234,179,8,0.15))', textColor: '#fde047', label: 'Atención', Icon: IconAlertCircle, iconColor: '#eab308' },
     desconexionGW:      { border: '1px solid rgba(249,115,22,0.15)', bg: 'linear-gradient(135deg, rgba(249,115,22,0.06), rgba(249,115,22,0.01))', bar: 'linear-gradient(180deg, rgba(249,115,22,0.60), rgba(249,115,22,0.15))', textColor: '#fdba74', label: 'GW Off', Icon: IconWifiOff, iconColor: '#f97316' },
     desconexionGPS:     { border: '1px solid rgba(249,115,22,0.15)', bg: 'linear-gradient(135deg, rgba(249,115,22,0.06), rgba(249,115,22,0.01))', bar: 'linear-gradient(180deg, rgba(249,115,22,0.60), rgba(249,115,22,0.15))', textColor: '#fdba74', label: 'GPS Off', Icon: IconWifiOff, iconColor: '#f97316' },
+    desconexion220:     { border: '1px solid rgba(249,115,22,0.15)', bg: 'linear-gradient(135deg, rgba(249,115,22,0.06), rgba(249,115,22,0.01))', bar: 'linear-gradient(180deg, rgba(249,115,22,0.60), rgba(249,115,22,0.15))', textColor: '#fdba74', label: 'CA 220 Off', Icon: IconWifiOff, iconColor: '#f97316' },
+    desconexionbatGW:   { border: '1px solid rgba(249,115,22,0.15)', bg: 'linear-gradient(135deg, rgba(249,115,22,0.06), rgba(249,115,22,0.01))', bar: 'linear-gradient(180deg, rgba(249,115,22,0.60), rgba(249,115,22,0.15))', textColor: '#fdba74', label: 'Batería GW Off', Icon: IconWifiOff, iconColor: '#f97316' },
     movimientos_anomalos: { border: '1px solid rgba(168,85,247,0.12)', bg: 'linear-gradient(135deg, rgba(168,85,247,0.06), rgba(168,85,247,0.01))', bar: 'linear-gradient(180deg, rgba(192,132,252,0.80), rgba(168,85,247,0.15))', textColor: '#d8b4fe', label: 'Mov. Anómalo', Icon: IconRadar, iconColor: '#a855f7' },
   };
   const getAlertCfg = (type: string) => ALERT_CONFIG[type] || { border: '1px solid rgba(255,255,255,0.08)', bg: 'linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))', bar: 'linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.03))', textColor: '#9ca3af', label: type, Icon: IconAlertCircle, iconColor: '#6b7280' };
@@ -180,6 +207,16 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
                       </div>
                       {alert.metadata?.reason && (
                         <p className="text-[9px] leading-tight truncate mt-1" style={{ color: 'rgba(255,255,255,0.35)' }}>{alert.metadata.reason}</p>
+                      )}
+                      {alert.type === 'movimientos_anomalos' && alert.metadata && Object.keys(alert.metadata).length > 0 && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setExpandedMetaAlertId(expandedMetaAlertId === alert.id ? null : alert.id); }}
+                          className="mt-1.5 flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded transition-colors"
+                          style={{ color: '#d8b4fe', backgroundColor: 'rgba(168,85,247,0.12)' }}
+                        >
+                          {expandedMetaAlertId === alert.id ? <IconChevronUp size={11} /> : <IconChevronDown size={11} />}
+                          {expandedMetaAlertId === alert.id ? 'Ocultar detalle' : 'Ver detalle'}
+                        </button>
                       )}
                     </div>
                   </div>
@@ -307,7 +344,43 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
     </div>
   );
 
-  const allModals = <>{resolveModal}{reasonModal}{confirmResolveModal}</>;
+  // ─── Popup de metadata (movimientos anómalos) ───
+  const expandedAlert = expandedMetaAlertId != null ? timelineData.find((a: any) => a.id === expandedMetaAlertId) : null;
+  const metaModal = expandedAlert && expandedAlert.metadata && Object.keys(expandedAlert.metadata).length > 0 && (
+    <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setExpandedMetaAlertId(null)}>
+      <div className="bg-bg-100 border border-border/50 rounded-xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border/20">
+          <div className="flex items-center gap-2">
+            <IconRadar size={16} className="text-purple-400" />
+            <h3 className="text-sm font-bold text-text-100">Detalle Mov. Anómalo</h3>
+          </div>
+          <button onClick={() => setExpandedMetaAlertId(null)} className="p-1 rounded hover:bg-bg-200/60 text-text-300 hover:text-text-100 transition-colors">
+            <IconX size={16} />
+          </button>
+        </div>
+        <div className="px-4 py-3 border-b border-border/10 flex items-center justify-between text-[11px]">
+          <span className="font-semibold text-text-100">{expandedAlert.device_name}</span>
+          <span className="font-mono text-text-300">{format(new Date(expandedAlert.created_at), "dd/MM HH:mm:ss")}</span>
+        </div>
+        <div className="px-4 py-3 max-h-64 overflow-y-auto space-y-1.5">
+          {Object.entries(expandedAlert.metadata).map(([k, v]) => {
+            const rawValue = typeof v === 'object' ? JSON.stringify(v) : String(v ?? '');
+            const displayValue = resolveEui(rawValue);
+            const isDevEui = euiNameMap.has(String(v).toLowerCase());
+            return (
+              <div key={k} className="flex items-start gap-2 text-[11px]">
+                <span className="font-semibold text-purple-300 capitalize shrink-0 w-28 truncate">{k.replace(/_/g, ' ')}</span>
+                <span className="text-text-200" style={{ overflowWrap: 'break-word' }}>{displayValue}</span>
+                {isDevEui && <span className="text-[9px] text-teal-400 shrink-0 ml-auto">✓</span>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+
+  const allModals = <>{resolveModal}{reasonModal}{confirmResolveModal}{metaModal}</>;
 
   if (isMobile && isOpen) {
     return (

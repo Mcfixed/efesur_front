@@ -1,5 +1,6 @@
 import BaseMap from "@/components/baseMap/components/BaseMap";
 import { useBreakpoint } from "@/hooks/useBreakpoints";
+import { useFps } from "@/hooks/useFps";
 import { useState, useRef, useEffect, useMemo } from "react";
 import type { MapRef } from "react-map-gl";
 
@@ -29,6 +30,9 @@ export default function Dashboard() {
   const [mapLoaded, setMapLoaded] = useState(false);
   const lastCriticalIds = useRef<string | null>(null);
 
+  // Medidor de FPS en tiempo real (se muestra en el overlay del mapa)
+  const fps = useFps(mapLoaded);
+
   // Data fetching
   const { data, isLoading } = useDashboardData();
   const { data: gatewayData } = useGatewayStatus();
@@ -44,7 +48,7 @@ export default function Dashboard() {
   useAlertSound({
     critical: (data?.alerts?.critical?.length ?? 0) + (data?.alerts?.apertura?.length ?? 0),
     atencion: (data?.alerts?.atencion?.length ?? 0) + (data?.alerts?.presencia?.length ?? 0),
-    desconexionGW: data?.alerts?.desconexionGW?.length ?? 0,
+    desconexionGW: (data?.alerts?.desconexionGW?.length ?? 0) + (data?.alerts?.desconexion220?.length ?? 0) + (data?.alerts?.desconexionbatGW?.length ?? 0),
     movimientos_anomalos: data?.alerts?.movimientos_anomalos?.length ?? 0,
   });
 
@@ -97,12 +101,14 @@ export default function Dashboard() {
   }, []);
 
   // ─── TRACK MAP ZOOM ────────────────────────────────────────
+  // IMPORTANTE: usamos 'moveend' (no 'move') para no hacer setState ~60 veces/seg
+  // mientras se arrastra/rota el mapa, que re-renderizaba todo el dashboard.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const onMove = () => { setMapZoom(map.getZoom()); setMapPitch(map.getPitch()); setMapBearing(map.getBearing()); };
-    map.on('move', onMove);
-    return () => { map.off('move', onMove); };
+    const onMoveEnd = () => { setMapZoom(map.getZoom()); setMapPitch(map.getPitch()); setMapBearing(map.getBearing()); };
+    map.on('moveend', onMoveEnd);
+    return () => { map.off('moveend', onMoveEnd); };
   }, [mapLoaded]);
 
   // ─── AUTO ZOOM ─────────────────────────────────────────────
@@ -161,16 +167,12 @@ export default function Dashboard() {
     <div className="w-full h-full flex flex-col overflow-hidden">
       <style>{`
         @keyframes map-alert-pulse-red {
-          0%, 100% { box-shadow: inset 0 0 0 0 rgba(239,68,68,0); }
-          25% { box-shadow: inset 0 0 120px 20px rgba(239,68,68,0.4); }
-          50% { box-shadow: inset 0 0 150px 30px rgba(239,68,68,0.25); }
-          75% { box-shadow: inset 0 0 120px 20px rgba(239,68,68,0.4); }
+          0%, 100% { opacity: 0; }
+          50% { opacity: 0.5; }
         }
         @keyframes map-alert-pulse-purple {
-          0%, 100% { box-shadow: inset 0 0 0 0 rgba(168,85,247,0); }
-          25% { box-shadow: inset 0 0 120px 20px rgba(168,85,247,0.4); }
-          50% { box-shadow: inset 0 0 150px 30px rgba(168,85,247,0.25); }
-          75% { box-shadow: inset 0 0 120px 20px rgba(168,85,247,0.4); }
+          0%, 100% { opacity: 0; }
+          50% { opacity: 0.5; }
         }
       `}</style>
       <AlertTickerBanner data={data} />
@@ -199,15 +201,16 @@ export default function Dashboard() {
               {pulseClass && (
                 <div
                   className="absolute inset-0 z-10 pointer-events-none"
-                  style={{ animation: `${pulseClass} 2s ease-in-out infinite`, borderRadius: 'inherit' }}
+                  style={{ animation: `${pulseClass} 2s ease-in-out infinite`, borderRadius: 'inherit', background: hasCritical ? 'radial-gradient(ellipse at center, rgba(239,68,68,0.25) 0%, transparent 70%)' : 'radial-gradient(ellipse at center, rgba(168,85,247,0.25) 0%, transparent 70%)' }}
                 />
               )}
               <MapOverlayInfo data={data} />
 
-              {/* Indicadores de inclinación y rotación */}
+              {/* Indicadores de inclinación, rotación y FPS */}
               <div className="absolute bottom-2 left-2 z-20 bg-black/70 border border-white/20 rounded px-3 py-1.5 text-[11px] font-mono text-white/90 shadow-lg space-y-0.5">
                 <div className="flex items-center gap-2"><span className="text-white/50">Pitch</span><span className="font-bold text-cyan-300">{Math.round(mapPitch)}°</span></div>
                 <div className="flex items-center gap-2"><span className="text-white/50">Bear</span><span className="font-bold text-amber-300">{Math.round(mapBearing)}°</span></div>
+                <div className="flex items-center gap-2"><span className="text-white/50">FPS</span><span className="font-bold" style={{ color: fps === null ? '#9ca3af' : fps >= 50 ? '#4ade80' : fps >= 30 ? '#facc15' : '#f87171' }}>{fps ?? '—'}</span></div>
               </div>
 
               {gateways.length > 0 && (
@@ -230,10 +233,10 @@ export default function Dashboard() {
                     <circle cx="0" cy="0" r="8" fill="#ef4444" />
                     <text x="0" y="4" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold">!</text>
                   </svg>
-                  <span className="text-[11px] font-semibold text-red-400">{data.alerts.critical.length} críticas</span>
+                  <span className="text-[11px] font-semibold text-red-400">{(data?.alerts?.critical?.length ?? 0)} críticas</span>
                 </div>
               )}
-              <MapLayers data={data} gateways={gateways} showAllSensors={showAllSensors} onToggleShowAll={() => setShowAllSensors(s => !s)} mapZoom={mapZoom} />
+              <MapLayers data={data} gateways={gateways} showAllSensors={showAllSensors} onToggleShowAll={() => setShowAllSensors(s => !s)} mapZoom={mapZoom} mapRef={mapRef} mapLoaded={mapLoaded} />
             </BaseMap>
           </MapErrorBoundary>
 

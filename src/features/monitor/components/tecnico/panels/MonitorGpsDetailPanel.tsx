@@ -259,6 +259,9 @@ export default function MonitorGpsDetailPanel({
                   presencia:          { bg: 'bg-yellow-500/8', border: 'border-yellow-500/40', dot: 'bg-yellow-500', text: 'text-yellow-300', label: 'Presencia' },
                   movimientos_anomalos: { bg: 'bg-purple-500/8', border: 'border-purple-500/40', dot: 'bg-purple-500', text: 'text-purple-300', label: 'Mov. anómalo' },
                   desconexionGW:      { bg: 'bg-orange-500/8', border: 'border-orange-500/40', dot: 'bg-orange-500', text: 'text-orange-300', label: 'GW desconectado' },
+                  desconexionGPS:     { bg: 'bg-orange-500/8', border: 'border-orange-500/40', dot: 'bg-orange-500', text: 'text-orange-300', label: 'GPS desconectado' },
+                  desconexion220:     { bg: 'bg-orange-500/8', border: 'border-orange-500/40', dot: 'bg-orange-500', text: 'text-orange-300', label: 'CA 220 desconectado' },
+                  desconexionbatGW:   { bg: 'bg-orange-500/8', border: 'border-orange-500/40', dot: 'bg-orange-500', text: 'text-orange-300', label: 'Batería GW desconectada' },
                 };
                 const c = typeColors[alert.type] || { bg: 'bg-border/10', border: 'border-border/30', dot: 'bg-border', text: 'text-text-300', label: alert.type };
                 const isResolved = alert.status === 'resolved' || alert.status_system === 'resolved';

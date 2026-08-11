@@ -18,6 +18,8 @@ const TYPE_LABELS: Record<string, { label: string; color: string; icon: any }> =
   movimientos_anomalos: { label: "Mov. Anómalo", color: "text-orange-400 bg-orange-500/10", icon: IconMoodSearch },
   desconexionGW:      { label: "Desconexión GW", color: "text-red-400 bg-red-500/10", icon: IconWifiOff },
   desconexionGPS:     { label: "Desconexión GPS", color: "text-red-400 bg-red-500/10", icon: IconWifiOff },
+  desconexion220:     { label: "Desconexión CA 220", color: "text-orange-400 bg-orange-500/10", icon: IconWifiOff },
+  desconexionbatGW:   { label: "Desconexión Batería GW", color: "text-orange-400 bg-orange-500/10", icon: IconWifiOff },
 };
 
 const TYPE_BG: Record<string, string> = {
@@ -27,6 +29,8 @@ const TYPE_BG: Record<string, string> = {
   presencia: "bg-yellow-500",
   movimientos_anomalos: "bg-orange-500",
   desconexionGW: "bg-red-500",
+  desconexion220: "bg-orange-500",
+  desconexionbatGW: "bg-orange-500",
 };
 
 async function exportPDF(day: string, dayAlerts: any[]) {

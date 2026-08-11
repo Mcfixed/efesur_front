@@ -131,7 +131,7 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
   const timelineData = useMemo(() => {
     const now = Date.now();
     const rangeStart = rangeHours > 0 ? now - rangeHours * 3600000 : 0;
-    const desconexiones = (deviceAlerts || []).filter((a: any) => a.type === 'desconexionGW')
+    const desconexiones = (deviceAlerts || []).filter((a: any) => a.type === 'desconexionGW' || a.type === 'desconexion220' || a.type === 'desconexionbatGW')
       .filter((a: any) => rangeHours === 0 || new Date(a.created_at).getTime() >= rangeStart);
     const currentlyOnline = !!lastSeen && (now - new Date(lastSeen).getTime() < 300000);
     const segments: { start: number; end: number; online: boolean }[] = [];
@@ -450,6 +450,9 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
                         apertura: { bg: 'bg-red-500/8', border: 'border-red-500/40', dot: 'bg-red-500', text: 'text-red-300', label: 'Apertura' },
                         presencia: { bg: 'bg-yellow-500/8', border: 'border-yellow-500/40', dot: 'bg-yellow-500', text: 'text-yellow-300', label: 'Presencia' },
                         desconexionGW: { bg: 'bg-orange-500/8', border: 'border-orange-500/40', dot: 'bg-orange-500', text: 'text-orange-300', label: 'Desconexión' },
+                        desconexionGPS: { bg: 'bg-orange-500/8', border: 'border-orange-500/40', dot: 'bg-orange-500', text: 'text-orange-300', label: 'Desconexión GPS' },
+                        desconexion220: { bg: 'bg-orange-500/8', border: 'border-orange-500/40', dot: 'bg-orange-500', text: 'text-orange-300', label: 'Desconexión CA 220' },
+                        desconexionbatGW: { bg: 'bg-orange-500/8', border: 'border-orange-500/40', dot: 'bg-orange-500', text: 'text-orange-300', label: 'Desconexión Batería GW' },
                       };
                       const c = alertTypeMap[alert.type] || { bg: 'bg-border/10', border: 'border-border/30', dot: 'bg-border', text: 'text-text-300', label: alert.type };
                       const isResolved = alert.status === 'resolved' || alert.status_system === 'resolved';
