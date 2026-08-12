@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { useMonitorDevices, useMonitorLatestTelemetry, useMonitorDeviceTelemetry } from "../../../hooks/useMonitor";
+import { cleanVoltage, cleanCurrent, cleanPower, cleanState, cleanTemp } from "../../../utils/mppt";
 
 // ═══════════════════════════════════════════
 // Sin mock data — todo desde telemetría real
@@ -84,7 +85,7 @@ function SparklineChart({ data, dataKey, color, title, unit }: { data: any[], da
 // ═══════════════════════════════════════════
 // LECTOR DASHBOARD — Victron-style
 // ═══════════════════════════════════════════
-export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = true, gatewayLastSeen }: { lectorDeviceId?: number | null; showHeader?: boolean; gatewayLastSeen?: string | null }) {
+export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = true, gatewayLastSeen, gatewayName: gatewayNameProp }: { lectorDeviceId?: number | null; showHeader?: boolean; gatewayLastSeen?: string | null; gatewayName?: string | null }) {
   const { data: allDevices } = useMonitorDevices();
   const { data: latestTelemetry } = useMonitorLatestTelemetry(5000);
 
@@ -106,9 +107,18 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
     return lectores[0]?.id ?? lectorDeviceId ?? null;
   }, [lectores, lectorDeviceId]);
 
-  // Histórico del lector
-  const [historyLimit, setHistoryLimit] = useState(50);
-  const { data: historyData } = useMonitorDeviceTelemetry(lectorId, { limit: historyLimit });
+  // Gateway asociado al lector: prioridad a la prop pasada (vista desde el panel del gateway);
+  // si no, se busca por convención (el Gateway tiene id_device_father apuntando a su Lector)
+  const gatewayName = useMemo(() => {
+    if (gatewayNameProp) return gatewayNameProp;
+    if (!allDevices || !lectorId) return null;
+    const gw = allDevices.find((d: any) => d.type_device === 'Gateway' && d.id_device_father === lectorId);
+    return gw?.name || null;
+  }, [allDevices, lectorId, gatewayNameProp]);
+
+  // Histórico del lector (límite fijo — sin botón "Cargar más")
+  const HISTORY_LIMIT = 200;
+  const { data: historyData } = useMonitorDeviceTelemetry(lectorId, { limit: HISTORY_LIMIT });
 
   const historyRows = useMemo(() => {
     const telemetry = historyData?.telemetry || [];
@@ -121,23 +131,23 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
       const health = obj.Esp32Health || {};
       return {
         ts: t.ts,
-        vBat: mppt.batteryVoltage_V ?? blue.voltaje_V ?? null,
-        iBat: mppt.batteryCurrent_A ?? null,
-        pPan: mppt.panelPower_W ?? null,
-        pvVolt: mppt.panelVoltage_V ?? null,
-        loadA: mppt.loadCurrent_A ?? null,
-        loadState: mppt.loadState ?? null,
-        temp: mppt.internalTemp_C ?? null,
-        chargeState: mppt.chargeState ?? null,
-        yieldToday: mppt.yieldToday_kWh ?? null,
-        maxPowerToday: mppt.maxPowerToday_W ?? null,
+        vBat: cleanVoltage(mppt.batteryVoltage_V) ?? cleanVoltage(blue.voltaje_V) ?? null,
+        iBat: cleanCurrent(mppt.batteryCurrent_A) ?? null,
+        pPan: cleanPower(mppt.panelPower_W) ?? null,
+        pvVolt: cleanVoltage(mppt.panelVoltage_V) ?? null,
+        loadA: cleanCurrent(mppt.loadCurrent_A) ?? null,
+        loadState: cleanState(mppt.loadState) ?? null,
+        temp: cleanTemp(mppt.internalTemp_C) ?? null,
+        chargeState: cleanState(mppt.chargeState) ?? null,
+        yieldToday: cleanVoltage(mppt.yieldToday_kWh) ?? null,
+        maxPowerToday: cleanPower(mppt.maxPowerToday_W) ?? null,
         door: sec.doorState ?? null,
         doorCounter: sec.doorCounter ?? null,
         pir: sec.pirState ?? null,
         chargerState: blue.estado ?? null,
-        chargerVolt: blue.voltaje_V ?? null,
-        chargerAmp: blue.corriente_A ?? null,
-        ambTemp: env.temperatura_C ?? null,
+        chargerVolt: cleanVoltage(blue.voltaje_V) ?? null,
+        chargerAmp: cleanCurrent(blue.corriente_A) ?? null,
+        ambTemp: cleanTemp(env.temperatura_C) ?? null,
         humidity: env.humedad_pct ?? null,
         pressure: env.presion_Pa ?? null,
         ramFree: health.ramLibre_bytes ?? null,
@@ -166,25 +176,25 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
     const mpttTel = tel.filter((t: any) => t.object?.Mppt).sort((a: any, b: any) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
     const cd = mpttTel.slice(-120).map((t: any) => ({
       time: format(new Date(t.ts), "HH:mm"),
-      volt: t.object?.Mppt?.batteryVoltage_V ?? null,
-      power: t.object?.Mppt?.panelPower_W ?? null,
-      current: t.object?.Mppt?.batteryCurrent_A ?? null,
+      volt: cleanVoltage(t.object?.Mppt?.batteryVoltage_V) ?? null,
+      power: cleanPower(t.object?.Mppt?.panelPower_W) ?? null,
+      current: cleanCurrent(t.object?.Mppt?.batteryCurrent_A) ?? null,
     }));
     return {
       tel, mpttTel, chartData: cd, lector, lastT,
       sensores: security,
       charger220: blueSmart,
-      vBat: mppt.batteryVoltage_V ?? blueSmart.voltaje_V ?? null,
-      pPan: mppt.panelPower_W ?? null,
-      iBat: mppt.batteryCurrent_A ?? null,
-      iOut: mppt.loadCurrent_A ?? null,
-      loadState: mppt.loadState ?? null,
-      chargeState: mppt.chargeState ?? null,
-      pvVolt: mppt.panelVoltage_V ?? null,
-      charging: mppt.loadState === 1,
+      vBat: cleanVoltage(mppt.batteryVoltage_V) ?? cleanVoltage(blueSmart.voltaje_V) ?? null,
+      pPan: cleanPower(mppt.panelPower_W) ?? null,
+      iBat: cleanCurrent(mppt.batteryCurrent_A) ?? null,
+      iOut: cleanCurrent(mppt.loadCurrent_A) ?? null,
+      loadState: cleanState(mppt.loadState) ?? null,
+      chargeState: cleanState(mppt.chargeState) ?? null,
+      pvVolt: cleanVoltage(mppt.panelVoltage_V) ?? null,
+      charging: cleanState(mppt.loadState) === 1,
       charger220State: blueSmart.estado || null,
-      charger220Volt: blueSmart.voltaje_V ?? null,
-      temp: mppt.internalTemp_C ?? obj.Environment?.temperatura_C ?? null,
+      charger220Volt: cleanVoltage(blueSmart.voltaje_V) ?? null,
+      temp: cleanTemp(mppt.internalTemp_C) ?? cleanTemp(obj.Environment?.temperatura_C) ?? null,
     };
   }, [lectores, latestTelemetry]);
 
@@ -272,7 +282,7 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
               <svg width="80" height="80" viewBox="0 0 72 72">
                 <circle cx="36" cy="36" r="32" fill="none" stroke="#333" strokeWidth="4" />
                 <circle cx="36" cy="36" r="32" fill="none" stroke={batColor} strokeWidth="4"
-                  strokeDasharray={`${(batPct / 100) * 201} 201`} strokeLinecap="round" transform="rotate(-90 36 36)" 
+                  strokeDasharray={`${((batPct ?? 0) / 100) * 201} 201`} strokeLinecap="round" transform="rotate(-90 36 36)" 
                   style={{ filter: `drop-shadow(0 0 4px ${batColor}80)` }} />
                 <text x="36" y="32" textAnchor="middle" fill="#e0e0e0" fontSize="16" fontFamily="monospace" fontWeight="bold">{batPct != null ? `${Math.round(batPct)}%` : '—'}</text>
                 <text x="36" y="46" textAnchor="middle" fill="#888" fontSize="9">SOC</text>
@@ -334,7 +344,7 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
 
                 {/* FLOW LINES */}
                 <path d="M 100 120 L 170 120" stroke="#333" strokeWidth="4" fill="none" />
-                {pPan > 0 && (
+                {pPan != null && pPan > 0 && (
                   <path d="M 100 120 L 170 120" stroke="#eab308" strokeWidth="2.5" fill="none" strokeDasharray="8 6"
                     style={{ animation: 'flowLine 1.5s linear infinite', strokeDashoffset: 0 }} />
                 )}
@@ -363,10 +373,10 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
 
                 {/* Nodes */}
                 <g transform="translate(20, 95)">
-                  <rect width="80" height="50" rx="6" fill="none" stroke={pPan > 0 ? '#eab308' : '#555'} strokeWidth={pPan > 0 ? 1.5 : 1} />
-                  <rect x="4" y="4" width="72" height="42" rx="4" fill={pPan > 0 ? '#eab308' : '#00a3e8'} opacity={pPan > 0 ? 0.12 : 0.06} />
-                  {pPan > 0 && <circle cx="12" cy="11" r="3" fill="#eab308" filter="url(#glowYellow)" />}
-                  <text x="40" y="22" textAnchor="middle" fill={pPan > 0 ? '#eab308' : '#888'} fontSize="8" fontWeight="bold">SOLAR</text>
+                  <rect width="80" height="50" rx="6" fill="none" stroke={(pPan ?? 0) > 0 ? '#eab308' : '#555'} strokeWidth={(pPan ?? 0) > 0 ? 1.5 : 1} />
+                  <rect x="4" y="4" width="72" height="42" rx="4" fill={(pPan ?? 0) > 0 ? '#eab308' : '#00a3e8'} opacity={(pPan ?? 0) > 0 ? 0.12 : 0.06} />
+                  {(pPan ?? 0) > 0 && <circle cx="12" cy="11" r="3" fill="#eab308" filter="url(#glowYellow)" />}
+                  <text x="40" y="22" textAnchor="middle" fill={(pPan ?? 0) > 0 ? '#eab308' : '#888'} fontSize="8" fontWeight="bold">SOLAR</text>
                   <text x="40" y="38" textAnchor="middle" fill="#e0e0e0" fontSize="12" fontFamily="monospace">{pPan != null ? `${pPan}W` : '—'}</text>
                 </g>
                 <g transform="translate(170, 90)">
@@ -390,7 +400,9 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
                   <line x1="30" y1="0" x2="30" y2="-10" stroke="#666" strokeWidth="2" />
                   <line x1="50" y1="0" x2="50" y2="-10" stroke="#666" strokeWidth="2" />
                   <circle cx="12" cy="15" r="3" fill={isGatewayOnline ? '#22c55e' : '#ef4444'} filter={isGatewayOnline ? 'url(#glowGreen)' : undefined} />
-                  <text x="40" y="20" textAnchor="middle" fill="#aaa" fontSize="8" fontWeight="bold">UG65 GW</text>
+                  <text x="40" y="20" textAnchor="middle" fill="#aaa" fontSize="8" fontWeight="bold">
+                    {gatewayName || 'GATEWAY'}
+                  </text>
                 </g>
                 <g transform="translate(490, 90)">
                   <rect width="80" height="60" rx="8" fill="none" stroke="#3b82f6" strokeWidth="1" />
@@ -402,7 +414,7 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
                 {/* Status labels */}
                 <circle cx="60" cy="178" r="3" fill={charging ? '#22c55e' : '#6b7280'} />
                 <text x="67" y="181" fill={charging ? '#22c55e' : '#6b7280'} fontSize="7" fontWeight="bold">
-                  {charging ? 'CARGANDO' : pPan > 0 ? 'ACTIVO' : 'INACTIVO'}
+                  {charging ? 'CARGANDO' : (pPan ?? 0) > 0 ? 'ACTIVO' : 'INACTIVO'}
                 </text>
                 <circle cx="210" cy="178" r="3" fill={isGatewayOnline ? '#22c55e' : '#ef4444'} />
                 <text x="217" y="181" fill={isGatewayOnline ? '#22c55e' : '#ef4444'} fontSize="7" fontWeight="bold">
@@ -558,16 +570,6 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
               </tbody>
             </table>
           </div>
-          {historyData && historyRows.length < (historyData.total || 0) && (
-            <div className="shrink-0 px-3 py-1.5 border-t border-border/20 flex items-center justify-center">
-              <button
-                onClick={() => setHistoryLimit(h => h + 50)}
-                className="text-[10px] font-medium text-brand-200 hover:text-brand-100 transition-colors"
-              >
-                Cargar más ({historyData.total - historyRows.length} restantes)
-              </button>
-            </div>
-          )}
         </div>
       )}
     </div>

@@ -110,15 +110,11 @@ export default function MonitorDeviceDetailHeader({ device, onBack, lastTs, reco
         )}
 
         {/* Gateways */}
-        {(lastGwNames && lastGwNames.length > 0) || lastGwCount != null ? (
+        {lastGwNames && lastGwNames.length > 0 ? (
           <div className="rounded-lg bg-bg-300/30 border border-border/15 px-2.5 py-1.5">
             <p className="text-[9px] uppercase tracking-wider text-text-300 font-semibold">Gateways</p>
             <p className="text-[13px] font-bold mt-0.5 text-blue-400 truncate">
-              {lastGwNames && lastGwNames.length > 0
-                ? lastGwNames.join(', ')
-                : lastGwCount != null
-                  ? String(lastGwCount)
-                  : '—'}
+              {lastGwNames.join(', ')}
             </p>
           </div>
         ) : null}

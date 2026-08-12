@@ -1,9 +1,9 @@
-import { useState, useMemo, useEffect, useCallback, Fragment } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { Marker, Source, Layer, Popup } from "react-map-gl";
-import type { MapRef } from "react-map-gl";
 import type { DashboardData, GatewayDevice, GpsDevice } from "../types/dashboard.types";
 import DevicePopup from "./DevicePopup";
 import { IconEye, IconEyeOff } from "@tabler/icons-react";
+import roboIcon from "@/assets/iconsdashboard/robo.png";
 
 interface Props {
   data?: DashboardData;
@@ -11,8 +11,6 @@ interface Props {
   showAllSensors?: boolean;
   onToggleShowAll?: () => void;
   mapZoom?: number;
-  mapRef?: React.RefObject<MapRef | null>;
-  mapLoaded?: boolean;
 }
 
 function createCircleGeoJSON(lng: number, lat: number, radiusKm: number) {
@@ -34,13 +32,13 @@ function createCircleGeoJSON(lng: number, lat: number, radiusKm: number) {
 
 const ZOOM_THRESHOLD = 13;
 
-export default function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 0, mapRef, mapLoaded }: Props) {
+export default function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 0 }: Props) {
   const showSensors = showAllSensors || mapZoom >= ZOOM_THRESHOLD;
   const [selectedDevice, setSelectedDevice] = useState<GpsDevice | null>(null);
   const [selectedGateway, setSelectedGateway] = useState<GatewayDevice | null>(null);
   const [selectedTrackingAlert, setSelectedTrackingAlert] = useState<number | null>(null);
 
-  // ─── PRE-INDEXADO DE ALERTAS POR DEVICE (Fix: evita .some() O(N×M) por cada render) ───
+  // ─── PRE-INDEXADO DE ALERTAS POR DEVICE (evita .some() O(N×M) por cada render) ───
   const alertsByDevice = useMemo(() => {
     const map = new Map<number, { critical?: boolean; atencion?: boolean; movimientos_anomalos?: boolean; apertura?: boolean; presencia?: boolean }>();
     const idx = (arr: any[] | undefined, key: 'critical' | 'atencion' | 'movimientos_anomalos' | 'apertura' | 'presencia') => {
@@ -58,73 +56,6 @@ export default function MapLayers({ data, gateways, showAllSensors, onToggleShow
     idx(data?.alerts?.presencia, 'presencia');
     return map;
   }, [data?.alerts]);
-
-  // Mapa device.id → device para el popup (evita .find() en cada click)
-  const devicesById = useMemo(() => {
-    const map = new Map<number, GpsDevice>();
-    (data?.devices || []).forEach(d => map.set(d.id, d));
-    return map;
-  }, [data?.devices]);
-
-  // Sensor normal SIN alerta → se pinta como capa GL (canvas) en lugar de <Marker> DOM
-  const normalSensorsGeoJSON = useMemo(() => {
-    if (!data?.devices) return null;
-    const features: any[] = [];
-    for (const device of data.devices) {
-      if (!device.latitude_current || !device.longitude_current) continue;
-      const dAlert = alertsByDevice.get(device.id);
-      const hasAlert = !!(dAlert?.critical || dAlert?.atencion || dAlert?.movimientos_anomalos || dAlert?.apertura || dAlert?.presencia);
-      if (hasAlert) continue; // con alerta → se renderiza como <Marker> individual
-      if (!showSensors) continue; // sin alerta y zoom bajo → oculto
-      const typeColors: Record<string, string> = {
-        Gps: '#3b82f6', Gateway: '#10b981', SubEstacion: '#8b5cf6', Lector: '#f97316',
-      };
-      features.push({
-        type: 'Feature',
-        properties: {
-          id: device.id,
-          color: typeColors[device.type_device] || '#3b82f6',
-          letter: device.type_device === 'SubEstacion' ? 'S' : (device.type_device?.[0] || 'G'),
-        },
-        geometry: { type: 'Point', coordinates: [Number(device.longitude_current), Number(device.latitude_current)] },
-      });
-    }
-    return { type: 'FeatureCollection', features };
-  }, [data?.devices, alertsByDevice, showSensors]);
-
-  // Click en la capa GL de sensores normales → abre popup del device
-  const handleSensorLayerClick = useCallback((e: any) => {
-    const feature = e?.features?.[0];
-    if (!feature) return;
-    const device = devicesById.get(feature.properties?.id);
-    if (device) setSelectedDevice(device);
-  }, [devicesById]);
-
-  useEffect(() => {
-    if (!mapLoaded) return;
-    const map = mapRef?.current?.getMap?.();
-    if (!map) return;
-    map.on('click', 'normal-sensors-symbol', handleSensorLayerClick);
-    return () => { map.off('click', 'normal-sensors-symbol', handleSensorLayerClick); };
-  }, [mapRef, mapLoaded, handleSensorLayerClick]);
-
-  // Cargar la imagen del pin (SDF) para la capa de sensores normales — una sola vez
-  useEffect(() => {
-    if (!mapLoaded) return;
-    const map = mapRef?.current?.getMap?.();
-    if (!map || map.hasImage('sensor-pin')) return;
-    const svg = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="30" viewBox="0 0 28 36">
-        <path d="M14 1C6.8 1 1 6.8 1 14c0 9.5 13 19.5 13 19.5S27 23.5 27 14C27 6.8 21.2 1 14 1z"
-          fill="#ffffff" fill-opacity="1" stroke="#ffffff" stroke-width="2"/>
-      </svg>
-    `;
-    const url = 'data:image/svg+xml;base64,' + btoa(svg);
-    map.loadImage(url, (err: any, image: any) => {
-      if (err || !image) return;
-      if (!map.hasImage('sensor-pin')) map.addImage('sensor-pin', image, { sdf: true });
-    });
-  }, [mapRef, mapLoaded]);
 
   // Tracking routes — solo para críticas
   const trackingRoutes = useMemo(() => {
@@ -179,9 +110,8 @@ export default function MapLayers({ data, gateways, showAllSensors, onToggleShow
             height: size + 16,
             backgroundColor: glowColor,
             opacity: 0.15,
-            boxShadow: `0 0 16px 6px ${glowColor}44`,
           }} />
-        <div className="relative drop-shadow-2xl transition-transform group-hover:scale-125">
+        <div className="relative transition-transform group-hover:scale-125">
           <svg width={size} height={size} viewBox="-24 -24 48 48">
             {isCrit ? (
               <>
@@ -264,14 +194,17 @@ export default function MapLayers({ data, gateways, showAllSensors, onToggleShow
 
     return (
       <div className="relative flex items-center justify-center group cursor-default">
-        <span className="absolute w-14 h-14 rounded-full"
+        {/* Anillo ping expansivo con más recorrido (estilo marcs.html) */}
+        <span className="absolute marker-pulse-gw"
           style={{
-            animation: 'aura-ping 3s ease-out infinite',
-            backgroundColor: color,
-            opacity: hasLectorAlert ? 0.25 : 0.15,
-            boxShadow: `0 0 14px 5px ${color}44`,
+            width: 30,
+            height: 30,
+            borderRadius: '50%',
+            border: `2px solid ${color}`,
+            top: '50%',
+            left: '50%',
           }} />
-        <div className="relative drop-shadow-xl transition-transform group-hover:scale-125">
+        <div className="relative transition-transform group-hover:scale-125">
           {hasLectorAlert ? (
             <svg width="38" height="38" viewBox="-19 -19 38 38">
               {/* Círculo rojo de alerta alrededor */}
@@ -337,12 +270,29 @@ export default function MapLayers({ data, gateways, showAllSensors, onToggleShow
           background: transparent !important;
         }
         @keyframes aura-ping {
-          0% { transform: scale(0.8); opacity: 0.6; }
-          50% { transform: scale(1.5); opacity: 0.3; }
-          100% { transform: scale(2); opacity: 0; }
+          0% { transform: scale(0.6); opacity: 0.45; }
+          60% { transform: scale(1.7); opacity: 0.45; }
+          85% { transform: scale(2); opacity: 0.2; }
+          100% { transform: scale(2.3); opacity: 0; }
         }
         .aura-ping {
-          animation: aura-ping 2.5s ease-out infinite;
+          animation: aura-ping 4s ease-out infinite;
+        }
+        /* Efecto ping (anillo expansivo con borde) — replicado de marcs.html */
+        @keyframes markerPulse {
+          0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0.85; }
+          100% { transform: translate(-50%, -50%) scale(2.1); opacity: 0; }
+        }
+        .marker-pulse {
+          animation: markerPulse 1.8s ease-out infinite;
+        }
+        /* Ping del gateway: más recorrido (expande hasta scale 3.4) */
+        @keyframes markerPulseGw {
+          0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0.85; }
+          100% { transform: translate(-50%, -50%) scale(3.4); opacity: 0; }
+        }
+        .marker-pulse-gw {
+          animation: markerPulseGw 2.2s ease-out infinite;
         }
       `}</style>
 
@@ -370,18 +320,11 @@ export default function MapLayers({ data, gateways, showAllSensors, onToggleShow
                 {/* Ondas expansivas */}
                 <span className="absolute w-10 h-10 rounded-full border-2 border-red-500/30"
                   style={{
-                    animation: 'aura-ping 2s ease-out infinite',
+                    animation: 'aura-ping 3.5s ease-out infinite',
                   }} />
-                {/* Warning negro */}
-                <svg width="32" height="32" viewBox="-16 -16 32 32" className="drop-shadow-xl">
-                  {/* Círculo negro */}
-                  <circle cx="0" cy="0" r="14" fill="#1a1a1a" />
-                  {/* Triángulo de advertencia blanco */}
-                  <path d="M0 -7.5 L6.5 5 L-6.5 5 Z" fill="white" />
-                  {/* Signo de exclamación negro */}
-                  <rect x="-1.3" y="-4.5" width="2.6" height="5.5" rx="0.9" fill="#1a1a1a" />
-                  <circle cx="0" cy="3.5" r="1.6" fill="#1a1a1a" />
-                </svg>
+                {/* Icono robo (ladrón) */}
+                <img src={roboIcon} alt="Robo" width={34} height={34}
+                  className="relative drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" />
               </div>
             </Marker>
           )}
@@ -414,45 +357,36 @@ export default function MapLayers({ data, gateways, showAllSensors, onToggleShow
         </button>
       </div>
 
-      {/* Sensores normales SIN alerta → capa GL (canvas). Mucho más rápido que <Marker> DOM */}
-      {normalSensorsGeoJSON && normalSensorsGeoJSON.features.length > 0 && (
-        <Source id="normal-sensors" type="geojson" data={normalSensorsGeoJSON}>
-          <Layer
-            id="normal-sensors-symbol"
-            type="symbol"
-            source="normal-sensors"
-            layout={{
-              "icon-image": "sensor-pin",
-              "icon-size": 0.55,
-              "icon-allow-overlap": true,
-              "icon-ignore-placement": true,
-              "text-field": ["get", "letter"],
-              "text-size": 8,
-              "text-offset": [0, 0.6],
-              "text-anchor": "top",
-              "text-allow-overlap": true,
-            }}
-            paint={{
-              "icon-color": ["get", "color"],
-              "text-color": "#ffffff",
-              "text-halo-color": "rgba(0,0,0,0.7)",
-              "text-halo-width": 1,
-            }}
-          />
-        </Source>
-      )}
-
-      {/* Device markers - con alerta no-crítica (siempre visibles) */}
+      {/* Device markers - normales (con alertas siempre visibles, sin alertas solo si zoom >= threshold) */}
       {data?.devices?.map(device => {
         if (!device.latitude_current || !device.longitude_current) return null;
         const dAlert = alertsByDevice.get(device.id);
+        const isCritical = !!dAlert?.critical;
         const isAtencion = !!dAlert?.atencion;
         const isMovAnomalos = !!dAlert?.movimientos_anomalos;
         const isApertura = !!dAlert?.apertura;
         const isPresencia = !!dAlert?.presencia;
-        const isCritical = !!dAlert?.critical;
-        if (!isAtencion && !isMovAnomalos && !isApertura && !isPresencia) return null; // sin alerta → capa GL
+        const hasAnyAlert = isCritical || isAtencion || isMovAnomalos || isApertura || isPresencia;
+        if (!hasAnyAlert && !showSensors) return null; // Sin alertas y zoom bajo → oculto
         if (isCritical) return null; // Los críticos se renderizan al final
+
+        // Color del pin por tipo de dispositivo
+        const typeColors: Record<string, { fill: string; stroke: string }> = {
+          Gps:         { fill: '#3b82f6', stroke: '#60a5fa' },
+          Gateway:     { fill: '#10b981', stroke: '#34d399' },
+          SubEstacion: { fill: '#8b5cf6', stroke: '#a78bfa' },
+          Lector:      { fill: '#f97316', stroke: '#fb923c' },
+        };
+        const tc = typeColors[device.type_device] || typeColors.Gps;
+
+        // Color del aura por SNR
+        const getAuraColor = () => {
+          if (device.best_snr == null) return '#3b82f6';
+          if (device.best_snr > -115) return '#22c55e';
+          if (device.best_snr >= -120) return '#f97316';
+          return '#ef4444';
+        };
+        const auraColor = getAuraColor();
 
         return (
           <Marker
@@ -461,7 +395,36 @@ export default function MapLayers({ data, gateways, showAllSensors, onToggleShow
             latitude={Number(device.latitude_current)}
             onClick={e => { e.originalEvent.stopPropagation(); setSelectedDevice(device); }}
           >
-            {isMovAnomalos ? renderAlertIcon('movimientos_anomalos') : isApertura ? renderAlertIcon('apertura') : isPresencia ? renderAlertIcon('presencia') : renderAlertIcon('atencion')}
+            {isMovAnomalos ? renderAlertIcon('movimientos_anomalos') : isApertura ? renderAlertIcon('apertura') : isPresencia ? renderAlertIcon('presencia') : isAtencion ? renderAlertIcon('atencion') : (
+              <div className="relative flex items-center justify-center cursor-pointer group">
+                {/* Anillo ping expansivo (estilo marcs.html) */}
+                <span className="absolute marker-pulse"
+                  style={{
+                    width: 18,
+                    height: 18,
+                    borderRadius: '50%',
+                    border: `2px solid ${auraColor}`,
+                    top: '50%',
+                    left: '50%',
+                  }} />
+                <div className="relative transition-all duration-200 group-hover:scale-125 hover:-translate-y-1">
+                  <svg width="18" height="23" viewBox="0 0 28 36">
+                    <defs>
+                      <linearGradient id={`pin-${tc.fill.slice(1)}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor={tc.stroke} />
+                        <stop offset="100%" stopColor={tc.fill} />
+                      </linearGradient>
+                    </defs>
+                    <path d="M14 1C6.8 1 1 6.8 1 14c0 9.5 13 19.5 13 19.5S27 23.5 27 14C27 6.8 21.2 1 14 1z"
+                      fill={`url(#pin-${tc.fill.slice(1)})`} stroke={tc.fill} strokeWidth="1.3" />
+                    <circle cx="14" cy="13" r="6" fill="white" />
+                    <text x="14" y="16" textAnchor="middle" fill={tc.fill} fontSize="8" fontWeight="800" fontFamily="sans-serif">
+                      {device.type_device === 'SubEstacion' ? 'S' : device.type_device[0]}
+                    </text>
+                  </svg>
+                </div>
+              </div>
+            )}
           </Marker>
         );
       })}

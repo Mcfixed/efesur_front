@@ -4,6 +4,7 @@ import { useMonitorDevices, useMonitorLatestTelemetry, useMonitorDeviceAlerts, u
 import { IconAntennaBars3, IconWifi, IconAlertTriangle } from "@tabler/icons-react";
 import MonitorTelemetryMap from "../MonitorTelemetryMap";
 import MonitorLectorDashboard from "./MonitorLectorDashboard";
+import { cleanVoltage, cleanCurrent, cleanPower, cleanState, cleanTemp } from "../../../utils/mppt";
 
 interface Props {
   deviceId: number;
@@ -221,14 +222,14 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
     return {
       lectorName: lector.name,
       lectorEui: lector.dev_eui,
-      vBat: mppt.batteryVoltage_V ?? blueSmart.voltaje_V ?? null,
-      pPan: mppt.panelPower_W ?? null,
-      iBat: mppt.batteryCurrent_A ?? null,
-      temp: mppt.internalTemp_C ?? obj.Environment?.temperatura_C ?? null,
+      vBat: cleanVoltage(mppt.batteryVoltage_V) ?? cleanVoltage(blueSmart.voltaje_V) ?? null,
+      pPan: cleanPower(mppt.panelPower_W) ?? null,
+      iBat: cleanCurrent(mppt.batteryCurrent_A) ?? null,
+      temp: cleanTemp(mppt.internalTemp_C) ?? cleanTemp(obj.Environment?.temperatura_C) ?? null,
       sensores: security,
       charger220: blueSmart,
-      loadState: mppt.loadState ?? null,
-      batPct: mppt.batteryVoltage_V != null ? Math.max(0, Math.min(100, ((mppt.batteryVoltage_V - 11) / (15 - 11)) * 100)) : null,
+      loadState: cleanState(mppt.loadState) ?? null,
+      batPct: mppt.batteryVoltage_V != null && mppt.batteryVoltage_V < 500 ? Math.max(0, Math.min(100, ((mppt.batteryVoltage_V - 11) / (15 - 11)) * 100)) : null,
       lastTs: lastT?.ts || null,
     };
   }, [allDevices, latestTelemetry, deviceId]);
@@ -423,7 +424,7 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
                   if (rangeHours <= 24) return [0,6,12,18,24].map(h => { const d = new Date(Date.now() - (24 - h) * 3600000); return <span key={h}>{format(d, "HH:mm")}</span>; });
                   if (rangeHours <= 168) { const days = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb']; return [6,5,4,3,2,1,0].map(i => { const d = new Date(Date.now() - i * 86400000); return <span key={i}>{days[d.getDay()]}</span>; }); }
                   if (rangeHours <= 720) { const m = []; for (let i = 0; i <= 30; i += 5) { const d = new Date(Date.now() - (30 - i) * 86400000); m.push(<span key={i}>{format(d, "dd/MM")}</span>); } return m; }
-                  const m = [0]; for (let i = 10; i <= 60; i += 10) { const d = new Date(Date.now() - i * 86400000); m.push(<span key={i}>{format(d, "dd/MM")}</span>); } return m;
+                  const m: any[] = [0]; for (let i = 10; i <= 60; i += 10) { const d = new Date(Date.now() - i * 86400000); m.push(<span key={i}>{format(d, "dd/MM")}</span>); } return m;
                 })()}</div>
                 <div className="flex items-center gap-4 mt-3 text-[11px]">
                   <span><span className="w-2 h-2 rounded-full bg-green-400 inline-block mr-1" /><span className="font-semibold text-green-400">{Math.round(timelineData.filter(s => s.online).reduce((s, seg) => s + (seg.end - seg.start), 0) / 60000)} min</span> <span className="text-text-200">online</span></span>
@@ -483,7 +484,7 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
       )}
 
       {activeTab === "lector_asignado" && (
-        <MonitorLectorDashboard lectorDeviceId={allDevices?.find((d: any) => d.id === deviceId)?.id_device_father ?? null} gatewayLastSeen={lastSeen} />
+        <MonitorLectorDashboard lectorDeviceId={allDevices?.find((d: any) => d.id === deviceId)?.id_device_father ?? null} gatewayLastSeen={lastSeen} gatewayName={deviceName} />
       )}
 
       {activeTab === "mapa" && (

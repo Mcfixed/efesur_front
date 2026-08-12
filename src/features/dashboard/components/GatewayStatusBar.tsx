@@ -1,6 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import type { GatewayDevice } from "../types/dashboard.types";
 
+// Formatea la fecha del último dato del gateway en formato local legible
+const formatLastSeen = (lastSeen?: string | null): string => {
+  if (!lastSeen) return 'Sin último dato';
+  const d = new Date(lastSeen);
+  if (isNaN(d.getTime())) return 'Sin último dato';
+  return d.toLocaleString('es-CL', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+};
+
 export default function GatewayStatusBar({ gateways }: { gateways: GatewayDevice[] }) {
   if (gateways.length === 0) return null;
 
@@ -84,9 +95,9 @@ return (
           {gw.name.replace(/^Gateway\s/, '')}
         </span>
         <span className="text-[9px] font-bold text-red-500 uppercase tracking-wider">Off</span>
-        {/* Tooltip */}
+        {/* Tooltip — muestra la fecha del último dato (last_seen) en desconectados */}
         <div className="absolute left-43 top-1/2 -translate-y-1/2 ml-2 px-2 py-1 bg-bg-300/95 backdrop-blur-md border border-border/40 rounded shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 text-[10px] text-text-200">
-          {gw.ip_internal || '—'} · sin respuesta
+          Último dato: {formatLastSeen(gw.last_seen)}
         </div>
       </div>
     ))}

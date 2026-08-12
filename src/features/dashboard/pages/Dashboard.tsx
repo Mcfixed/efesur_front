@@ -236,7 +236,7 @@ export default function Dashboard() {
                   <span className="text-[11px] font-semibold text-red-400">{(data?.alerts?.critical?.length ?? 0)} críticas</span>
                 </div>
               )}
-              <MapLayers data={data} gateways={gateways} showAllSensors={showAllSensors} onToggleShowAll={() => setShowAllSensors(s => !s)} mapZoom={mapZoom} mapRef={mapRef} mapLoaded={mapLoaded} />
+              <MapLayers data={data} gateways={gateways} showAllSensors={showAllSensors} onToggleShowAll={() => setShowAllSensors(s => !s)} mapZoom={mapZoom} />
             </BaseMap>
           </MapErrorBoundary>
 
