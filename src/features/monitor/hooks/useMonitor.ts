@@ -14,3 +14,4 @@ export const useMonitorDeviceAlerts = (deviceId: number | null) => useQuery({ qu
 export const useMonitorGatewayPositions = () => useQuery({ queryKey: [...KEYS.all, "gateways"], queryFn: () => monitorService.getGatewayPositions(), staleTime: 300000 });
 export const useMonitorAlertTracking = (alertId: number | null) => useQuery({ queryKey: [...KEYS.all, "tracking", alertId], queryFn: () => monitorService.getAlertTracking(alertId!), enabled: !!alertId, refetchInterval: false });
 export const useMonitorLatestTelemetry = (limit?: number) => useQuery({ queryKey: [...KEYS.all, "latest", limit], queryFn: () => monitorService.getLatestTelemetry(limit), refetchInterval: 15000 });
+export const useSystemServices = () => useQuery({ queryKey: [...KEYS.all, "system-services"], queryFn: () => monitorService.getSystemServices(), refetchInterval: 30000 });

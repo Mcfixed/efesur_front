@@ -1,5 +1,5 @@
 import { apiClient } from "@/apis";
-import type { MonitorSummary, MonitorSensorDay, MonitorAlertDay, MonitorCalendarDay, MonitorAlertDetail, MonitorDevice } from "../types/monitor.types";
+import type { MonitorSummary, MonitorSensorDay, MonitorAlertDay, MonitorCalendarDay, MonitorAlertDetail, MonitorDevice, SystemServicesStatus } from "../types/monitor.types";
 
 export const monitorService = {
   getSummary: async () => {
@@ -44,6 +44,10 @@ export const monitorService = {
   },
   getLatestTelemetry: async (limit?: number) => {
     const r = await apiClient.get<{data: any[]}>("/monitor/devices/latest", { limit });
+    return r.data.data;
+  },
+  getSystemServices: async () => {
+    const r = await apiClient.get<{data: SystemServicesStatus}>("/monitor/system/services");
     return r.data.data;
   },
   getReport: async (params: { deviceIds: number[]; from?: string; to?: string }) => {

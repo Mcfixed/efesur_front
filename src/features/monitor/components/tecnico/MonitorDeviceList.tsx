@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { MonitorSectionDivider } from "../shared/MonitorSectionDivider";
-import { IconSearch, IconServer, IconWifi, IconMapPin, IconDatabase, IconCloud, IconAlertTriangle, IconFileReport } from "@tabler/icons-react";
+import { IconSearch, IconServer, IconWifi, IconMapPin, IconDatabase, IconCloud, IconAlertTriangle, IconFileReport, IconRefresh } from "@tabler/icons-react";
 import { format } from "date-fns";
 import { formatBattery, batteryColor } from "../../utils/battery";
 import MonitorBatteryPopup from "../shared/MonitorBatteryPopup";
 import MonitorReportModal from "./MonitorReportModal";
+import { useSystemServices } from "../../hooks/useMonitor";
 import type { MonitorDevice } from "../../types/monitor.types";
 
 const DEVICE_TYPES = ["Gps", "Gateway", "SubEstacion", "Lector"];
@@ -47,6 +48,7 @@ export default function MonitorDeviceList({
 }: Props) {
   const [miniTab, setMiniTab] = useState("sistema");
   const [reportOpen, setReportOpen] = useState(false);
+  const { data: systemServices, refetch: refetchServices, isFetching: servicesLoading } = useSystemServices();
 
   return (
     <div className="p-1.5 flex-1 flex flex-col gap-1 overflow-hidden min-h-0">
@@ -76,13 +78,35 @@ export default function MonitorDeviceList({
         <div className="relative grid grid-cols-5 gap-1.5 text-[10px]">
           <div className="relative flex items-start justify-between gap-3 border border-border-200/40 p-3 rounded-lg bg-bg-100">
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-text-200 uppercase tracking-wide truncate mb-2">Servicios del Sistema</p>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
-                <span className="flex items-center gap-1.5 text-text-200 font-medium"><span className="w-1.5 h-1.5 rounded-full bg-green-400" />Node-RED</span>
-                <span className="flex items-center gap-1.5 text-text-200 font-medium"><span className="w-1.5 h-1.5 rounded-full bg-green-400" />LoRaWAN</span>
-                <span className="flex items-center gap-1.5 text-text-200 font-medium"><span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />WhatsApp</span>
-                <span className="flex items-center gap-1.5 text-text-200 font-medium"><span className="w-1.5 h-1.5 rounded-full bg-green-400" />Base de Datos</span>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-medium text-text-200 uppercase tracking-wide truncate mb-1">Servicios del Sistema</p>
+                <button onClick={() => refetchServices()} disabled={servicesLoading}
+                  className="text-text-300 hover:text-text-100 transition-colors shrink-0" title="Actualizar estado">
+                  <IconRefresh size={13} className={servicesLoading ? 'animate-spin' : ''} />
+                </button>
               </div>
+              {servicesLoading && !systemServices ? (
+                <p className="text-[11px] text-text-300 animate-pulse">Verificando servicios...</p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                    {(systemServices?.services || []).map(s => (
+                      <span key={s.key} className="flex items-center gap-1.5 text-text-200 font-medium" title={s.error || (s.online ? `${s.detail ?? ''} · ${s.latencyMs}ms` : 'Offline')}>
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${s.online ? 'bg-green-400 shadow-[0_0_4px_rgba(74,222,128,0.6)]' : 'bg-red-500 shadow-[0_0_4px_rgba(248,113,113,0.6)]'} ${s.online ? '' : 'animate-pulse'}`} />
+                        {s.label}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className={`text-[10px] font-semibold ${systemServices?.offline ? 'text-red-400' : 'text-green-400'}`}>
+                      {systemServices?.online}/{systemServices?.total} en línea
+                    </span>
+                    <span className="text-[9px] text-text-300">
+                      {systemServices ? format(new Date(systemServices.checkedAt), "HH:mm:ss") : '—'}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
             <div className="shrink-0 p-2.5 rounded-lg bg-bg-300" style={{ color: '#14b8a6' }}>
               <IconServer size={20} />
