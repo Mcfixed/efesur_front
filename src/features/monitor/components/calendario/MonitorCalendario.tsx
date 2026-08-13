@@ -22,17 +22,6 @@ const TYPE_LABELS: Record<string, { label: string; color: string; icon: any }> =
   desconexionbatGW:   { label: "Desconexión Batería GW", color: "text-orange-400 bg-orange-500/10", icon: IconWifiOff },
 };
 
-const TYPE_BG: Record<string, string> = {
-  critica: "bg-red-500",
-  atencion: "bg-yellow-500",
-  apertura: "bg-red-500",
-  presencia: "bg-yellow-500",
-  movimientos_anomalos: "bg-orange-500",
-  desconexionGW: "bg-red-500",
-  desconexion220: "bg-orange-500",
-  desconexionbatGW: "bg-orange-500",
-};
-
 async function exportPDF(day: string, dayAlerts: any[]) {
   const rows = dayAlerts || [];
   if (!rows.length) return;
@@ -187,8 +176,8 @@ export default function MonitorCalendario() {
   const { data: alerts, isLoading } = useMonitorAlertsByDate(selectedDate);
 
   const calendarMap = useMemo(() => {
-    const map = new Map<number, typeof calendar>();
-    (calendar || []).forEach(d => map.set(Number(d.dia), d));
+    const map = new Map<number, MonitorCalendarDay>();
+    (calendar || []).forEach(d => map.set(Number(d.dia), d as MonitorCalendarDay));
     return map;
   }, [calendar]);
 
@@ -203,26 +192,37 @@ export default function MonitorCalendario() {
       {/* ─── CALENDAR ─── */}
       <div className={`rounded-xl bg-bg-100 border border-border/30 shadow overflow-hidden flex flex-col min-h-0 ${selectedDate ? "w-[55%]" : "w-full"}`}>
         {/* Header */}
-        <div className="shrink-0 px-4 py-3 border-b border-border/20 flex items-center justify-between">
-          <button onClick={prevMonth} className="p-1 rounded hover:bg-bg-200/60 text-text-300 hover:text-text-100 transition-colors">
-            <IconChevronLeft size={18} />
-          </button>
-          <h3 className="text-sm font-bold text-text-100 capitalize">{format(new Date(year, month - 1), "MMMM yyyy", { locale: es })}</h3>
-          <button onClick={nextMonth} className="p-1 rounded hover:bg-bg-200/60 text-text-300 hover:text-text-100 transition-colors">
-            <IconChevronRight size={18} />
+        <div className="shrink-0 px-4 py-3 border-b border-border/20 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <button onClick={prevMonth} className="p-1.5 rounded-lg bg-bg-200/40 hover:bg-bg-200/70 text-text-200 hover:text-text-100 transition-colors border border-border/20">
+              <IconChevronLeft size={18} />
+            </button>
+            <button onClick={nextMonth} className="p-1.5 rounded-lg bg-bg-200/40 hover:bg-bg-200/70 text-text-200 hover:text-text-100 transition-colors border border-border/20">
+              <IconChevronRight size={18} />
+            </button>
+          </div>
+          <div className="text-center">
+            <h3 className="text-base font-extrabold text-text-100 capitalize tracking-tight">{format(new Date(year, month - 1), "MMMM yyyy", { locale: es })}</h3>
+            <p className="text-[10px] text-text-300 mt-0.5">
+              {daysInMonth} días · {calendar?.reduce((s, d) => s + (d.total || 0), 0) || 0} alertas
+            </p>
+          </div>
+          <button onClick={() => { setYear(today.getFullYear()); setMonth(today.getMonth() + 1); setSelectedDate(null); }}
+            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors border ${year === today.getFullYear() && month === today.getMonth() + 1 ? "bg-brand-100/15 text-brand-100 border-brand-100/30" : "bg-bg-200/40 text-text-200 hover:bg-bg-200/70 border-border/20"}`}>
+            Hoy
           </button>
         </div>
 
         {/* Day names */}
-        <div className="shrink-0 grid grid-cols-7 px-2 py-1.5 text-[10px] font-semibold text-text-300 uppercase tracking-wider text-center">
+        <div className="shrink-0 grid grid-cols-7 px-2 py-1.5 text-[10px] font-bold text-text-300 uppercase tracking-wider text-center border-b border-border/10">
           {["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"].map(d => (
-            <span key={d}>{d}</span>
+            <span key={d} className="py-0.5">{d}</span>
           ))}
         </div>
 
         {/* Calendar grid */}
-        <div className="flex-1 overflow-auto p-2">
-          <div className="grid grid-cols-7 gap-1">
+        <div className="flex-1 overflow-auto p-2 bg-bg-100">
+          <div className="grid grid-cols-7 gap-1.5">
             {Array.from({ length: firstDay }).map((_, i) => (
               <div key={`empty-${i}`} />
             ))}
@@ -233,30 +233,37 @@ export default function MonitorCalendario() {
               const isS = selectedDate === dayStr;
               const hasAlerts = dayData && dayData.total > 0;
 
-              let severity = "none";
+              let severity: "none" | "critical" | "warning" = "none";
               if (hasAlerts) {
                 if (dayData!.criticas > 0 || dayData!.apertura > 0 || dayData!.presencia > 0 || dayData!.desconexion > 0) severity = "critical";
                 else if (dayData!.atencion > 0 || dayData!.movimientos > 0) severity = "warning";
               }
 
-              const severityStyle = {
+              const severityStyle: Record<"critical" | "warning", { background: string; borderLeft: string }> = {
                 critical: { background: "rgba(239,68,68,0.25)", borderLeft: "3px solid rgb(239,68,68)" },
                 warning:  { background: "rgba(234,179,8,0.25)", borderLeft: "3px solid rgb(234,179,8)" },
               };
 
               return (
                 <button key={day} onClick={() => setSelectedDate(isS ? null : dayStr)}
-                  style={severity !== "none" ? severityStyle[severity] : undefined}
-                  className={`relative rounded-lg p-1.5 text-left transition-all min-h-[56px] ${isS ? "ring-2 ring-brand-100/50" : isT && severity === "none" ? "ring-1 ring-brand-200/30" : severity === "none" ? "hover:bg-bg-200/40" : ""}`}>
-                  <span className={`text-[11px] font-semibold ${severity === "critical" ? "text-red-400" : severity === "warning" ? "text-yellow-400" : isT ? "text-brand-200" : "text-text-100"}`}>{day}</span>
+                  style={severity !== "none" ? { ...severityStyle[severity], borderRadius: 10 } : undefined}
+                  className={`relative rounded-lg p-1.5 text-left transition-all min-h-[64px] border group ${isS ? "ring-2 ring-brand-100/60 border-brand-100/40 shadow-lg shadow-brand-100/5" : isT && severity === "none" ? "ring-1 ring-brand-200/30 border-brand-200/20" : severity === "none" ? "border-transparent hover:border-border/30 hover:bg-bg-200/50 hover:shadow-sm" : "border-transparent hover:border-border/30 hover:shadow-sm"}`}>
+                  <div className="flex items-start justify-between gap-1">
+                    <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-md text-[11px] font-bold ${isT ? "bg-brand-100/20 text-brand-100" : severity === "critical" ? "bg-red-500/15 text-red-400" : severity === "warning" ? "bg-yellow-500/15 text-yellow-400" : "text-text-200"}`}>{day}</span>
+                    {hasAlerts && (
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${severity === "critical" ? "bg-red-500/20 text-red-300" : severity === "warning" ? "bg-yellow-500/20 text-yellow-300" : "bg-bg-200/60 text-text-300"}`}>
+                        {dayData!.total}
+                      </span>
+                    )}
+                  </div>
                   {hasAlerts && (
-                    <div className="mt-0.5 space-y-[2px]">
-                      {dayData!.criticas > 0 && <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" /><span className="text-[9px] text-red-300 font-medium">Crítica {dayData!.criticas}</span></div>}
-                      {dayData!.apertura > 0 && <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" /><span className="text-[9px] text-red-300 font-medium">Apertura {dayData!.apertura}</span></div>}
-                      {dayData!.presencia > 0 && <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" /><span className="text-[9px] text-red-300 font-medium">Presencia {dayData!.presencia}</span></div>}
-                      {dayData!.atencion > 0 && <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0" /><span className="text-[9px] text-yellow-300 font-medium">Atención {dayData!.atencion}</span></div>}
-                      {dayData!.movimientos > 0 && <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" /><span className="text-[9px] text-orange-300 font-medium">Mov. {dayData!.movimientos}</span></div>}
-                      {dayData!.desconexion > 0 && <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" /><span className="text-[9px] text-red-300 font-medium">Descon. {dayData!.desconexion}</span></div>}
+                    <div className="mt-1 space-y-[2px]">
+                      {dayData!.criticas > 0 && <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0 shadow-[0_0_4px_rgba(248,113,113,0.6)]" /><span className="text-[9px] text-red-300 font-medium truncate">Crítica {dayData!.criticas}</span></div>}
+                      {dayData!.apertura > 0 && <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" /><span className="text-[9px] text-red-300 font-medium truncate">Apertura {dayData!.apertura}</span></div>}
+                      {dayData!.presencia > 0 && <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" /><span className="text-[9px] text-rose-300 font-medium truncate">Presencia {dayData!.presencia}</span></div>}
+                      {dayData!.atencion > 0 && <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0" /><span className="text-[9px] text-yellow-300 font-medium truncate">Atención {dayData!.atencion}</span></div>}
+                      {dayData!.movimientos > 0 && <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" /><span className="text-[9px] text-orange-300 font-medium truncate">Mov. {dayData!.movimientos}</span></div>}
+                      {dayData!.desconexion > 0 && <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" /><span className="text-[9px] text-amber-300 font-medium truncate">Descon. {dayData!.desconexion}</span></div>}
                     </div>
                   )}
                 </button>
@@ -268,21 +275,24 @@ export default function MonitorCalendario() {
 
       {/* ─── SIDE PANEL ─── */}
       {selectedDate && (
-        <div className="w-[45%] rounded-xl bg-bg-100 border border-border/30 shadow overflow-hidden flex flex-col min-h-0">
-          <div className="shrink-0 px-4 py-3 border-b border-border/20 flex items-center justify-between">
+        <div className="w-[45%] rounded-xl bg-bg-100 border border-border/30 shadow overflow-hidden flex flex-col min-h-0 animate-fade-in-up">
+          <div className="shrink-0 px-4 py-3 border-b border-border/20 flex items-center justify-between bg-bg-200/30">
             <div>
               <h3 className="text-sm font-bold text-text-100">
                 Alertas del {format(new Date(selectedDate), "d 'de' MMMM", { locale: es })}
               </h3>
-              <p className="text-[11px] text-text-300 mt-0.5">{alerts?.length || 0} alertas</p>
+              <p className="text-[11px] text-text-300 mt-0.5 flex items-center gap-1.5">
+                <span className={`inline-block w-1.5 h-1.5 rounded-full ${alerts && alerts.length > 0 ? "bg-green-400" : "bg-text-300"}`} />
+                {alerts?.length || 0} alertas
+              </p>
             </div>
             <div className="flex items-center gap-1.5">
               {alerts && alerts.length > 0 && (
                 <button onClick={() => exportPDF(selectedDate, alerts)}
-                  className="flex items-center gap-1 text-[11px] text-white bg-green-600 hover:bg-green-700 px-2.5 py-1.5 rounded-lg transition-colors">
+                  className="flex items-center gap-1.5 text-[11px] font-semibold text-white bg-green-600 hover:bg-green-700 px-2.5 py-1.5 rounded-lg transition-colors shadow-sm shadow-green-600/20">
                   <IconFileReport size={14} /> PDF
                 </button>
-              )}              <button onClick={() => setSelectedDate(null)} className="p-1 rounded hover:bg-bg-200/60 text-text-300 hover:text-text-100 transition-colors">
+              )}              <button onClick={() => setSelectedDate(null)} className="p-1.5 rounded-lg hover:bg-bg-200/60 text-text-300 hover:text-text-100 transition-colors">
                 <IconX size={16} />
               </button>
             </div>
@@ -291,7 +301,10 @@ export default function MonitorCalendario() {
             {isLoading ? (
               <div className="flex items-center justify-center h-full"><p className="text-[13px] text-text-300 animate-pulse">Cargando...</p></div>
             ) : !alerts || alerts.length === 0 ? (
-              <div className="flex items-center justify-center h-full"><p className="text-[13px] text-text-300">Sin alertas este día</p></div>
+              <div className="flex flex-col items-center justify-center h-full gap-2">
+                <IconAlertCircle size={28} className="text-text-300/60" />
+                <p className="text-[13px] text-text-300">Sin alertas este día</p>
+              </div>
             ) : (
               <table className="w-full text-xs">
                 <thead className="sticky top-0 z-10">
