@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { speak, unlockAudio, registerAudioUnlock } from "../utils/audio";
+import { notifyAlert, requestNotificationPermission } from "../utils/notifications";
 
 // Tipos de alerta que NO se recitan por voz (las de desconexión no suenan)
 const VOICE_EXCLUDED_TYPES = new Set([
@@ -75,6 +76,15 @@ export function useAlertVoice({ alerts = [] }: AlertVoiceOptions) {
     };
   }, []);
 
+  // Pedir permiso de notificaciones del sistema en la primera interacción
+  // (gesto real). Así las alertas críticas pueden avisar aunque la pestaña
+  // esté en segundo plano.
+  useEffect(() => {
+    const request = () => requestNotificationPermission();
+    window.addEventListener("pointerdown", request, { once: true });
+    return () => window.removeEventListener("pointerdown", request);
+  }, []);
+
   // Bienvenida (voz TTS). IMPORTANTE: `welcomed` se marca DENTRO del setTimeout,
   // no antes. En React StrictMode el efecto corre mount→cleanup→mount: si lo
   // marcáramos antes, el cleanup cancela el timer y el segundo mount ya no
@@ -120,6 +130,7 @@ export function useAlertVoice({ alerts = [] }: AlertVoiceOptions) {
 
     for (const alert of newAlerts) {
       speak(buildAlertMessage(alert));
+      notifyAlert(alert); // notificación del sistema (críticas)
     }
 
     lastAlertIds.current = currentIds;
