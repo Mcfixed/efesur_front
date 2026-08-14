@@ -53,6 +53,7 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
   const [showConfirmResolver, setShowConfirmResolver] = useState(false);
   const [showReasonInput, setShowReasonInput] = useState(false);
   const [lastCommandMsg, setLastCommandMsg] = useState<string | null>(null);
+  const [lastCommandAction, setLastCommandAction] = useState<string | null>(null);
   const [commandsSent, setCommandsSent] = useState<Set<number>>(() => {
     try { return new Set(JSON.parse(localStorage.getItem('cs_cmd') || '[]')); } catch { return new Set(); }
   });
@@ -67,6 +68,7 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
     setShowConfirmResolver(false);
     setShowReasonInput(false);
     setLastCommandMsg(null);
+    setLastCommandAction(null);
   };
   // Enviar solo comando (abortar/persecucion) SIN resolver la alerta
   const handleSendCommand = (action: string) => {
@@ -75,8 +77,9 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
       { id: resolvingAlertId, reason: '', action },
       {
         onSuccess: () => {
-          const labels: Record<string, string> = { abortar: '🚫 Abortar emergencia enviado al sensor', persecucion: '🏃 Modo persecución activado en el sensor' };
+          const labels: Record<string, string> = { abortar: 'Abortar emergencia enviado al sensor', persecucion: 'Modo persecución activado en el sensor' };
           setLastCommandMsg(labels[action] || `Comando ${action} enviado`);
+          setLastCommandAction(action);
           setCommandsSent(prev => {
             const next = new Set(prev).add(resolvingAlertId!);
             localStorage.setItem('cs_cmd', JSON.stringify([...next]));
@@ -97,6 +100,7 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
     setShowConfirmResolver(false);
     setShowReasonInput(false);
     setLastCommandMsg(null);
+    setLastCommandAction(null);
   };
 
   const criticalActive = timelineData.filter((a: any) => a.priority === 0);
@@ -138,7 +142,10 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
             {/* ── PINNED: Active critical alerts ── */}
             {criticalActive.length > 0 && (
               <div className="mb-2">
-                <p className="text-[8px] font-bold uppercase tracking-widest text-red-400/70 px-1 mb-1.5">⚠ Críticas activas</p>
+                <p className="text-[8px] font-bold uppercase tracking-widest text-red-400/70 px-1 mb-1.5 flex items-center gap-1">
+                  <IconAlertTriangle size={10} />
+                  Críticas activas
+                </p>
                 {criticalActive.map((alert: any) => {
                   const cfg = getAlertCfg(alert.type);
                   const Icon = cfg.Icon;
@@ -240,15 +247,21 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
 
         {lastCommandMsg ? (
           <div className="text-center py-4">
-            <p className="text-[14px] font-semibold text-green-400 mb-2">{lastCommandMsg}</p>
+            <p className="text-[14px] font-semibold text-green-400 mb-2 flex items-center justify-center gap-2">
+              {lastCommandAction === 'persecucion' ? <IconRun size={16} /> : <IconBellOff size={16} />}
+              <span>{lastCommandMsg}</span>
+            </p>
             <p className="text-[11px] text-text-400 mb-4">La alerta crítica continúa activa en el panel</p>
-            <button onClick={() => { setResolvingAlertId(null); setLastCommandMsg(null); }}
+            <button onClick={() => { setResolvingAlertId(null); setLastCommandMsg(null); setLastCommandAction(null); }}
               className="px-4 py-2 text-xs text-text-300 bg-bg-200 hover:bg-bg-300 rounded-lg transition-colors">Cerrar</button>
           </div>
         ) : commandsSent.has(resolvingAlertId) ? (
           <>
             <div className="text-center py-2 mb-3">
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-green-400 bg-green-500/10 px-3 py-1 rounded-full">✓ Comando ya enviado al sensor</span>
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-green-400 bg-green-500/10 px-3 py-1 rounded-full">
+                <IconCheck size={12} />
+                Comando ya enviado al sensor
+              </span>
             </div>
             <button onClick={handleOpenResolverOnly}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-[12px] font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors">
@@ -307,7 +320,10 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
           rows={3} autoFocus
         />
         {!commandsSent.has(resolvingAlertId) && (
-          <p className="text-[10px] text-yellow-400/80 mt-2 mb-3">⚠ El sensor <span className="text-red-400">no recibirá ningún comando</span>. Seguirá enviando alertas por 6 horas.</p>
+          <p className="text-[10px] text-yellow-400/80 mt-2 mb-3 flex items-center gap-1">
+            <IconAlertTriangle size={11} className="shrink-0" />
+            <span>El sensor <span className="text-red-400">no recibirá ningún comando</span>. Seguirá enviando alertas por 6 horas.</span>
+          </p>
         )}
         <div className="flex items-center justify-end gap-2 mt-3">
           <button onClick={() => { setShowReasonInput(false); setResolveReason(""); }} className="px-3 py-1.5 text-xs text-text-300 hover:text-text-100 bg-bg-200 hover:bg-bg-300 rounded-lg transition-colors">Cancelar</button>
@@ -330,7 +346,10 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
           <button onClick={() => setShowConfirmResolver(false)} className="text-text-300 hover:text-text-100 outline-none"><IconX size={18} /></button>
         </div>
         {commandsSent.has(resolvingAlertId) ? (
-          <p className="text-xs text-green-400 mb-4">✓ Comando ya enviado al sensor. Solo se resolverá la alerta visualmente.</p>
+          <p className="text-xs text-green-400 mb-4 flex items-center gap-1.5">
+            <IconCheck size={13} className="shrink-0" />
+            <span>Comando ya enviado al sensor. Solo se resolverá la alerta visualmente.</span>
+          </p>
         ) : (
           <p className="text-xs text-text-300 mb-4">El sensor seguirá enviando alertas críticas durante 6 horas si no se envía un comando de abortar emergencia o modo persecución.</p>
         )}
@@ -338,7 +357,7 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
           <button onClick={() => setShowConfirmResolver(false)} className="px-3 py-1.5 text-xs text-text-300 hover:text-text-100 bg-bg-200 hover:bg-bg-300 rounded-lg transition-colors">Volver</button>
           <button onClick={handleConfirmResolverOnly} disabled={resolveMutation.isPending}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors disabled:opacity-50"
-          >{resolveMutation.isPending ? "Resolviendo..." : "✓ Resolver igual"} </button>
+          >{resolveMutation.isPending ? "Resolviendo..." : (<><IconCheck size={13} /> Resolver igual</>)}</button>
         </div>
       </div>
     </div>
@@ -371,7 +390,7 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
               <div key={k} className="flex items-start gap-2 text-[11px]">
                 <span className="font-semibold text-purple-300 capitalize shrink-0 w-28 truncate">{k.replace(/_/g, ' ')}</span>
                 <span className="text-text-200" style={{ overflowWrap: 'break-word' }}>{displayValue}</span>
-                {isDevEui && <span className="text-[9px] text-teal-400 shrink-0 ml-auto">✓</span>}
+                {isDevEui && <IconCheck size={12} className="text-teal-400 shrink-0 ml-auto" />}
               </div>
             );
           })}

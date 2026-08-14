@@ -275,7 +275,7 @@ export default function Dashboard() {
               />
               {/* Warning rojo flotante en esquina superior derecha del mapa */}
               {(data?.alerts?.critical?.length ?? 0) > 0 && (
-                <div className="absolute top-2 right-2 z-20 flex items-center gap-1.5 bg-red-950/80 border border-red-500/50 rounded-lg px-2.5 py-1.5 shadow-lg backdrop-blur-sm animate-pulse">
+                <div className="absolute top-12 right-12 z-20 flex items-center gap-1.5 bg-red-950/80 border border-red-500/50 rounded-lg px-2.5 py-1.5 shadow-lg backdrop-blur-sm animate-pulse">
                   <svg width="18" height="18" viewBox="-9 -9 18 18">
                     <circle cx="0" cy="0" r="8" fill="#ef4444" />
                     <text x="0" y="4" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold">!</text>

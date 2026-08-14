@@ -1,4 +1,4 @@
-import { IconX } from "@tabler/icons-react";
+import { IconX, IconAlertTriangle, IconAlertCircle, IconRadar, IconWifiOff } from "@tabler/icons-react";
 import { format } from "date-fns";
 import type { GpsDevice, DashboardData } from "../types/dashboard.types";
 
@@ -64,12 +64,15 @@ export default function DevicePopup({ device, alerts, onClose }: { device: GpsDe
               alert.type === 'desconexion220' || alert.type === 'desconexionbatGW' ? 'bg-orange-500/10 text-orange-400' :
               'bg-yellow-500/10 text-yellow-400'
             }`}>
-              <span className="font-semibold">{
-                alert.type === 'critica' ? '🔴' :
-                alert.type === 'movimientos_anomalos' ? '🟣' :
-                alert.type === 'desconexion220' ? '🟠 CA 220 off' :
-                alert.type === 'desconexionbatGW' ? '🟠 Batería GW off' : '🟡'
-              } {alert.type === 'movimientos_anomalos' ? 'mov. anómalo' : (alert.type === 'desconexion220' || alert.type === 'desconexionbatGW') ? '' : alert.type}</span>
+              <span className="font-semibold inline-flex items-center gap-1">
+                {alert.type === 'critica' ? <IconAlertTriangle size={10} className="text-red-400" /> :
+                 alert.type === 'movimientos_anomalos' ? <IconRadar size={10} className="text-purple-400" /> :
+                 alert.type === 'desconexion220' || alert.type === 'desconexionbatGW' || alert.type === 'desconexionGW' || alert.type === 'desconexionGPS' ? <IconWifiOff size={10} className="text-orange-400" /> :
+                 <IconAlertCircle size={10} className="text-yellow-400" />}
+                {alert.type === 'movimientos_anomalos' ? 'mov. anómalo' :
+                 alert.type === 'desconexion220' ? 'CA 220 off' :
+                 alert.type === 'desconexionbatGW' ? 'Batería GW off' : alert.type}
+              </span>
               <span className="text-text-300 ml-1">• {format(new Date(alert.created_at), "HH:mm")}</span>
               {alert.metadata?.reason && <p className="text-[9px] text-text-300 truncate mt-0.5">{alert.metadata.reason}</p>}
             </div>
