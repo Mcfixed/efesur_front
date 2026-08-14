@@ -3,11 +3,15 @@ import { useBreakpoint } from "@/hooks/useBreakpoints";
 import { useFps } from "@/hooks/useFps";
 import { useState, useRef, useEffect, useMemo } from "react";
 import type { MapRef } from "react-map-gl";
+import { toast } from "sonner";
+import { IconVolume3 } from "@tabler/icons-react";
 
 // Custom Hooks
 import { useDashboardData, useGatewayStatus, useAlertTimeline } from "../hooks/useDashboard";
-import { useAlertSound } from "../hooks/useCriticalAlertSound";
 import { useAlertVoice } from "../hooks/useAlertVoice";
+
+// Audio
+import { isAudioBlocked, registerAudioUnlock } from "../utils/audio";
 
 // Components
 import AlertTickerBanner from "../components/AlertTickerBanner";
@@ -44,21 +48,64 @@ export default function Dashboard() {
     alerts: chartTimeline?.alerts || [],
   }), [chartTimeline]);
 
-  // Side effects
-  useAlertSound({
-    critical: (data?.alerts?.critical?.length ?? 0) + (data?.alerts?.apertura?.length ?? 0),
-    atencion: (data?.alerts?.atencion?.length ?? 0) + (data?.alerts?.presencia?.length ?? 0),
-    desconexionGW: (data?.alerts?.desconexionGW?.length ?? 0) + (data?.alerts?.desconexion220?.length ?? 0) + (data?.alerts?.desconexionbatGW?.length ?? 0),
-    movimientos_anomalos: data?.alerts?.movimientos_anomalos?.length ?? 0,
-  });
-
-  // Voz de bienvenida y anuncio de alertas
+  // Voz de bienvenida y anuncio de alertas (TTS: todas las alertas con nombre)
   const { muted, toggleMute } = useAlertVoice({
     alerts: [
       ...(data?.alerts?.critical || []),
       ...(data?.alerts?.atencion || []),
+      ...(data?.alerts?.apertura || []),
+      ...(data?.alerts?.presencia || []),
+      ...(data?.alerts?.movimientos_anomalos || []),
+      ...(data?.alerts?.desconexionGW || []),
+      ...(data?.alerts?.desconexion220 || []),
+      ...(data?.alerts?.desconexionbatGW || []),
     ],
   });
+
+  // Notificación de esquina (sonner, top-right): solo aparece si la voz
+  // realmente no arranca (navegador que la bloquea). Como speechSynthesis
+  // normalmente funciona sin gesto, se revisa con un pequeño retraso para
+  // no mostrar un aviso innecesario; se cierra sola al primer gesto.
+  const AUDIO_TOAST_ID = "audio-blocked-toast";
+  const audioToastShown = useRef(false);
+  useEffect(() => {
+    let active = true;
+    const check = () => {
+      const blocked = isAudioBlocked();
+      if (blocked && !audioToastShown.current && !muted) {
+        audioToastShown.current = true;
+        toast.error(
+          <div className="flex items-center gap-3 py-1">
+            <IconVolume3
+              size={40}
+              stroke={1.8}
+              className="shrink-0 text-red-400"
+            />
+            <span className="text-sm">
+              Haz clic para activar el sonido y escuchar las alertas de monitoreo de catenarias
+            </span>
+          </div>,
+          { id: AUDIO_TOAST_ID, duration: Infinity, position: "top-center" }
+        );
+      } else if (!blocked && audioToastShown.current) {
+        audioToastShown.current = false;
+        toast.dismiss(AUDIO_TOAST_ID);
+      }
+    };
+    const initial = setTimeout(check, 1500);
+    const interval = setInterval(check, 1500);
+    registerAudioUnlock(() => {
+      if (active) {
+        audioToastShown.current = false;
+        toast.dismiss(AUDIO_TOAST_ID);
+      }
+    });
+    return () => {
+      active = false;
+      clearTimeout(initial);
+      clearInterval(interval);
+    };
+  }, [muted]);
 
   // Global error handler para suprimir errores de Mapbox GL durante source cleanup
   useEffect(() => {

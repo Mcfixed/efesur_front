@@ -1,64 +1,5 @@
 import { useEffect, useRef } from "react";
-
-function playBeep(frequency = 880, duration = 0.15) {
-  try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.setValueAtTime(frequency, ctx.currentTime);
-    osc.frequency.setValueAtTime(frequency * 0.75, ctx.currentTime + duration * 0.5);
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + duration);
-  } catch { /* fallback silencioso */ }
-}
-
-function playCriticalAlarm() {
-  try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const now = ctx.currentTime;
-
-    // Dos osciladores para un sonido más agresivo
-    const osc1 = ctx.createOscillator();
-    const osc2 = ctx.createOscillator();
-    const gain = ctx.createGain();
-
-    osc1.type = 'sawtooth';
-    osc2.type = 'square';
-
-    osc1.connect(gain);
-    osc2.connect(gain);
-    gain.connect(ctx.destination);
-
-    // Alternancia rápida tipo sirena: 440 → 880 → 440 → 880
-    osc1.frequency.setValueAtTime(440, now);
-    osc1.frequency.setValueAtTime(880, now + 0.1);
-    osc1.frequency.setValueAtTime(440, now + 0.2);
-    osc1.frequency.setValueAtTime(880, now + 0.3);
-    osc1.frequency.setValueAtTime(440, now + 0.4);
-
-    osc2.frequency.setValueAtTime(660, now);
-    osc2.frequency.setValueAtTime(1100, now + 0.1);
-    osc2.frequency.setValueAtTime(660, now + 0.2);
-    osc2.frequency.setValueAtTime(1100, now + 0.3);
-    osc2.frequency.setValueAtTime(660, now + 0.4);
-
-    // Volumen más alto y sostenido
-    gain.gain.setValueAtTime(0.4, now);
-    gain.gain.setValueAtTime(0.5, now + 0.1);
-    gain.gain.setValueAtTime(0.4, now + 0.2);
-    gain.gain.setValueAtTime(0.5, now + 0.3);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
-
-    osc1.start(now);
-    osc2.start(now);
-    osc1.stop(now + 0.6);
-    osc2.stop(now + 0.6);
-  } catch { /* fallback silencioso */ }
-}
+import { playSound, unlockAudio, registerAudioUnlock } from "../utils/audio";
 
 export function useAlertSound(alertCounts: {
   critical: number;
@@ -69,35 +10,46 @@ export function useAlertSound(alertCounts: {
   const prev = useRef({ critical: 0, atencion: 0, desconexionGW: 0, movimientos_anomalos: 0 });
   const isFirstRender = useRef(true);
 
+  // Desbloquear el audio al montar + registrar gesto global de refuerzo
   useEffect(() => {
-    // Primer render: solo registrar, sin sonido
+    unlockAudio();
+    registerAudioUnlock();
+  }, []);
+
+  useEffect(() => {
+    // Primer render: si ya hay críticas activas, suenan DESPUÉS de la bienvenida
+    // (la bienvenida se encola a los 1.2s; la crítica a los 3.5s para respetar el orden).
     if (isFirstRender.current) {
       isFirstRender.current = false;
-      prev.current = { ...alertCounts };
+      const first = { ...alertCounts };
+      if (first.critical > 0) {
+        setTimeout(() => playSound("critica"), 3500);
+      }
+      prev.current = first;
       return;
     }
 
-    // Críticas nuevas → alarma distintiva
+    // Críticas nuevas → sonido de crítica
     if (alertCounts.critical > prev.current.critical) {
-      playCriticalAlarm();
+      playSound("critica");
     }
 
-    // Movimientos anómalos nuevos → beep intermedio (550Hz, tono medio)
+    // Movimientos anómalos nuevos
     const diffMov = alertCounts.movimientos_anomalos - prev.current.movimientos_anomalos;
     for (let i = 0; i < diffMov && i < 5; i++) {
-      setTimeout(() => playBeep(550, 0.15), i * 220);
+      setTimeout(() => playSound("movimientos_anomalos"), i * 220);
     }
 
-    // Atención nuevas → beep estándar
+    // Atención nuevas
     const diffAtencion = alertCounts.atencion - prev.current.atencion;
     for (let i = 0; i < diffAtencion && i < 5; i++) {
-      setTimeout(() => playBeep(660, 0.12), i * 200);
+      setTimeout(() => playSound("atencion"), i * 200);
     }
 
-    // Desconexión GW nuevas → beep más grave
+    // Desconexión GW nuevas
     const diffDesconexion = alertCounts.desconexionGW - prev.current.desconexionGW;
     for (let i = 0; i < diffDesconexion && i < 5; i++) {
-      setTimeout(() => playBeep(330, 0.2), i * 250);
+      setTimeout(() => playSound("desconexion"), i * 250);
     }
 
     prev.current = { ...alertCounts };

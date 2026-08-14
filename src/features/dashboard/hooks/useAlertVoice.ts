@@ -1,41 +1,37 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { speak, unlockAudio, registerAudioUnlock } from "../utils/audio";
 
-const WELCOME_MESSAGE = "Bienvenido al sistema de monitoreo catenaria";
+// Tipos de alerta que NO se recitan por voz (las de desconexión no suenan)
+const VOICE_EXCLUDED_TYPES = new Set([
+  "desconexionGW",
+  "desconexionGPS",
+  "desconexion220",
+  "desconexionbatGW",
+]);
 
+// Etiquetas para la voz (las alertas se recitan con nombre de dispositivo)
 const TYPE_LABELS: Record<string, string> = {
   critica: "crítica",
   atencion: "atención",
+  apertura: "apertura",
+  presencia: "presencia",
+  movimientos_anomalos: "movimientos anómalos",
 };
 
-let audioUnlocked = false;
-
-/** Desbloquea el audio en Chrome/Edge (requiere un gesto o contexto silencioso) */
-function unlockAudio() {
-  if (audioUnlocked || typeof window === "undefined") return;
-  audioUnlocked = true;
-  try {
-    // Crear un contexto de audio silencioso para desbloquear el autoplay
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    osc.frequency.value = 0;
-    osc.connect(ctx.destination);
-    osc.start();
-    osc.stop(0.001);
-    ctx.resume();
-  } catch {}
-}
-
-function speak(text: string) {
-  try {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "es-MX";
-    utterance.rate = 1.1;
-    const voices = speechSynthesis.getVoices();
-    const esVoice = voices.find(v => v.lang.startsWith("es"));
-    if (esVoice) utterance.voice = esVoice;
-    // IMPORTANTE: No llamar a cancel() — rompe el speech en Chrome
-    speechSynthesis.speak(utterance);
-  } catch {}
+/** Construye el mensaje de voz según el tipo de alerta. */
+function buildAlertMessage(alert: { type: string; device_name: string }): string {
+  // Críticas: mensaje urgente repetido x3 + protocolo
+  if (alert.type === "critica") {
+    const d = alert.device_name || "el dispositivo";
+    return (
+      `ALERTA CRÍTICA en ${d}. ` +
+      `ALERTA CRÍTICA en ${d}. ` +
+      `ALERTA CRÍTICA en ${d}. ` +
+      `Revise inmediatamente la plataforma y ejecute el protocolo establecido.`
+    );
+  }
+  const label = TYPE_LABELS[alert.type] || alert.type;
+  return `Alerta ${label} en ${alert.device_name}`;
 }
 
 interface AlertVoiceOptions {
@@ -48,47 +44,73 @@ export function useAlertVoice({ alerts = [] }: AlertVoiceOptions) {
   const welcomed = useRef(false);
   const [ready, setReady] = useState(false);
 
-  // Inicializar al montar
+  // Inicializar: desbloquear audio + robustecer la carga de voces.
+  // `voiceschanged` puede dispararse antes de registrarse el listener,
+  // así que también hacemos polling para no quedar en ready=false.
   useEffect(() => {
     unlockAudio();
-    // Precargar voces
-    if (typeof window !== "undefined" && speechSynthesis) {
-      speechSynthesis.getVoices();
-      speechSynthesis.addEventListener("voiceschanged", () => setReady(true), { once: true });
-      // Si ya están cargadas
-      if (speechSynthesis.getVoices().length > 0) setReady(true);
+    registerAudioUnlock();
+
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      setReady(false);
+      return;
     }
+
+    const checkVoices = () => {
+      try {
+        if (speechSynthesis.getVoices().length > 0) setReady(true);
+      } catch { /* noop */ }
+    };
+
+    checkVoices();
+    speechSynthesis.addEventListener("voiceschanged", checkVoices);
+    // Polling de respaldo (Chrome a veces no dispara voiceschanged a tiempo)
+    const poll = setInterval(checkVoices, 400);
+    const timeout = setTimeout(() => setReady(true), 2500);
+
+    return () => {
+      speechSynthesis.removeEventListener("voiceschanged", checkVoices);
+      clearInterval(poll);
+      clearTimeout(timeout);
+    };
   }, []);
 
-  // Bienvenida
+  // Bienvenida (voz TTS). IMPORTANTE: `welcomed` se marca DENTRO del setTimeout,
+  // no antes. En React StrictMode el efecto corre mount→cleanup→mount: si lo
+  // marcáramos antes, el cleanup cancela el timer y el segundo mount ya no
+  // reprograma la bienvenida (nunca sonaría).
   useEffect(() => {
-    if (muted || welcomed.current || !ready) return;
-    welcomed.current = true;
-    const timer = setTimeout(() => speak(WELCOME_MESSAGE), 1500);
+    if (muted || welcomed.current) return;
+    const timer = setTimeout(() => {
+      welcomed.current = true;
+      speak("Bienvenido al sistema de monitoreo catenaria");
+    }, 1200);
     return () => clearTimeout(timer);
-  }, [muted, ready]);
+  }, [muted]);
 
   // Anunciar alertas (primer lote + nuevas)
   const initialAnnounced = useRef(false);
 
   useEffect(() => {
     if (muted || !ready) return;
-    const active = alerts.filter(a => a.type === "critica" || a.type === "atencion");
+    // La voz anuncia las alertas activas con nombre, EXCEPTO las de desconexión
+    const active = alerts.filter(
+      a => a.type && a.type !== "resolved" && !VOICE_EXCLUDED_TYPES.has(a.type)
+    );
     if (active.length === 0) return;
 
     const currentIds = active.map(a => a.id).sort().join(",");
     if (currentIds === lastAlertIds.current) return;
 
-    // Primer lote: anunciar después de la bienvenida (4s)
+    // Primer lote: anunciar después de la bienvenida (3.5s)
     if (!initialAnnounced.current) {
       initialAnnounced.current = true;
       lastAlertIds.current = currentIds;
       setTimeout(() => {
-        for (const alert of active) {
-          const label = TYPE_LABELS[alert.type] || alert.type;
-          speak(`Alerta ${label} en ${alert.device_name}`);
+        for (const alert of active.slice(0, 5)) {
+          speak(buildAlertMessage(alert));
         }
-      }, 4000);
+      }, 3500);
       return;
     }
 
@@ -97,14 +119,15 @@ export function useAlertVoice({ alerts = [] }: AlertVoiceOptions) {
     const newAlerts = active.filter(a => !prevIds.has(String(a.id)));
 
     for (const alert of newAlerts) {
-      const label = TYPE_LABELS[alert.type] || alert.type;
-      speak(`Alerta ${label} en ${alert.device_name}`);
+      speak(buildAlertMessage(alert));
     }
 
     lastAlertIds.current = currentIds;
   }, [alerts, muted, ready]);
 
   const toggleMute = useCallback(() => {
+    // Al hacer clic, también forzamos el desbloqueo de audio (gesto real)
+    unlockAudio();
     setMuted(m => !m);
   }, []);
 
