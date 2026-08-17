@@ -229,6 +229,14 @@ export default function MonitorReportModal({ onClose }: Props) {
       // ─── Helper: escape HTML ───
       const esc = (s: any) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 
+      // ─── Helper: etiqueta de tipo de alerta ───
+      const ALERT_TYPE_LABELS: Record<string, string> = {
+        critica: 'Crítica', atencion: 'Atención', apertura: 'Apertura', presencia: 'Presencia',
+        movimientos_anomalos: 'Mov. anómalo', desconexionGW: 'Desconexión GW', desconexionGPS: 'Desconexión GPS',
+        desconexion220: 'Desconexión CA 220', desconexionbatGW: 'Desconexión Batería GW',
+      };
+      const typeLabel = (t: any) => ALERT_TYPE_LABELS[String(t)] || esc(t);
+
       // ─── Agrupar telemetría por dispositivo ───
       const deviceMap = new Map<number, { bat: number[]; temp: number[]; snr: number[]; rssi: number[]; ts: Date[]; gwCount: number[] }>();
 
