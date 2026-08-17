@@ -15,12 +15,13 @@ interface ThemeProviderProps {
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-        // Initialize theme from localStorage or system preference
+        // Inicializar desde localStorage o, si no hay preferencia guardada
+        // (p.ej. ventana de incógnito), usar dark por defecto
         const storedTheme = localStorage.getItem('theme');
         if (storedTheme) {
             return storedTheme as 'light' | 'dark';
         }
-        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        return 'dark';
     });
 
     useEffect(() => {

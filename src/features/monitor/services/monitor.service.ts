@@ -26,7 +26,7 @@ export const monitorService = {
     const r = await apiClient.get<{data: MonitorDevice[]}>("/monitor/devices");
     return r.data.data;
   },
-  getDeviceTelemetry: async (deviceId: number, params?: { from?: string; limit?: number; offset?: number }) => {
+  getDeviceTelemetry: async (deviceId: number, params?: { from?: string; to?: string; limit?: number; offset?: number }) => {
     const r = await apiClient.get<{data: { telemetry: any[]; total: number }}>(`/monitor/devices/${deviceId}/telemetry`, params as any);
     return r.data.data;
   },
