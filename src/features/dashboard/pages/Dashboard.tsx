@@ -1,11 +1,10 @@
 import BaseMap from "@/components/baseMap/components/BaseMap";
 import { useBreakpoint } from "@/hooks/useBreakpoints";
-import { useFps } from "@/hooks/useFps";
 import { useState, useRef, useEffect, useMemo } from "react";
 import type { MapRef } from "react-map-gl";
 import { toast } from "sonner";
 import { IconVolume3 } from "@tabler/icons-react";
-
+import { useCallback } from "react";
 // Custom Hooks
 import { useDashboardData, useGatewayStatus, useAlertTimeline } from "../hooks/useDashboard";
 import { useAlertVoice } from "../hooks/useAlertVoice";
@@ -20,6 +19,7 @@ import MapOverlayInfo from "../components/MapOverlayInfo";
 import MapLayers from "../components/MapLayers";
 import MapSearchBox from "../components/MapSearchBox";
 import AlertsChart from "../components/AlertsChart";
+import FpsIndicator from "../components/FpsIndicator";
 import MapErrorBoundary from "../components/MapErrorBoundary";
 import GatewayStatusBar from "../components/GatewayStatusBar";
 
@@ -34,8 +34,6 @@ export default function Dashboard() {
   const [mapLoaded, setMapLoaded] = useState(false);
   const lastCriticalIds = useRef<string | null>(null);
 
-  // Medidor de FPS en tiempo real (se muestra en el overlay del mapa)
-  const fps = useFps(mapLoaded);
 
   // Data fetching
   const { data, isLoading } = useDashboardData();
@@ -49,23 +47,21 @@ export default function Dashboard() {
   }), [chartTimeline]);
 
   // Voz de bienvenida y anuncio de alertas (TTS: todas las alertas con nombre)
-  const { muted, toggleMute } = useAlertVoice({
-    alerts: [
-      ...(data?.alerts?.critical || []),
-      ...(data?.alerts?.atencion || []),
-      ...(data?.alerts?.apertura || []),
-      ...(data?.alerts?.presencia || []),
-      ...(data?.alerts?.movimientos_anomalos || []),
-      ...(data?.alerts?.desconexionGW || []),
-      ...(data?.alerts?.desconexion220 || []),
-      ...(data?.alerts?.desconexionbatGW || []),
-    ],
-  });
+  const voiceAlerts = useMemo(() => [
+    ...(data?.alerts?.critical || []),
+    ...(data?.alerts?.atencion || []),
+    ...(data?.alerts?.apertura || []),
+    ...(data?.alerts?.presencia || []),
+    ...(data?.alerts?.movimientos_anomalos || []),
+    ...(data?.alerts?.desconexionGW || []),
+    ...(data?.alerts?.desconexion220 || []),
+    ...(data?.alerts?.desconexionbatGW || []),
+  ], [data?.alerts]);
+
+  const { muted, toggleMute } = useAlertVoice({ alerts: voiceAlerts });
 
   // Notificación de esquina (sonner, top-right): solo aparece si la voz
   // realmente no arranca (navegador que la bloquea). Como speechSynthesis
-  // normalmente funciona sin gesto, se revisa con un pequeño retraso para
-  // no mostrar un aviso innecesario; se cierra sola al primer gesto.
   const AUDIO_TOAST_ID = "audio-blocked-toast";
   const audioToastShown = useRef(false);
   useEffect(() => {
@@ -203,12 +199,21 @@ export default function Dashboard() {
     }
   }, [data, mapLoaded, gatewayData]);
 
-  const gateways = gatewayData?.gateways || [];
+  //const gateways = gatewayData?.gateways || [];
 
   // Determinar color del parpadeo del mapa
   const hasCritical = (data?.alerts?.critical?.length ?? 0) > 0;
   const hasMovements = (data?.alerts?.movimientos_anomalos?.length ?? 0) > 0;
   const pulseClass = hasCritical ? 'map-alert-pulse-red' : hasMovements ? 'map-alert-pulse-purple' : null;
+
+  const handleToggleShowAll = useCallback(() => {
+    setShowAllSensors(s => !s);
+  }, []);
+
+  // 2. Congela el arreglo de gateways para que no se recree si viene undefined
+  const gateways = useMemo(() => gatewayData?.gateways || [], [gatewayData?.gateways]);
+
+
 
   return (
     <div className="w-full h-full flex flex-col overflow-hidden">
@@ -257,7 +262,8 @@ export default function Dashboard() {
               <div className="absolute bottom-2 left-2 z-20 bg-black/70 border border-white/20 rounded px-3 py-1.5 text-[11px] font-mono text-white/90 shadow-lg space-y-0.5">
                 <div className="flex items-center gap-2"><span className="text-white/50">Pitch</span><span className="font-bold text-cyan-300">{Math.round(mapPitch)}°</span></div>
                 <div className="flex items-center gap-2"><span className="text-white/50">Bear</span><span className="font-bold text-amber-300">{Math.round(mapBearing)}°</span></div>
-                <div className="flex items-center gap-2"><span className="text-white/50">FPS</span><span className="font-bold" style={{ color: fps === null ? '#9ca3af' : fps >= 50 ? '#4ade80' : fps >= 30 ? '#facc15' : '#f87171' }}>{fps ?? '—'}</span></div>
+                {/* <div className="flex items-center gap-2"><span className="text-white/50">FPS</span><span className="font-bold" style={{ color: fps === null ? '#9ca3af' : fps >= 50 ? '#4ade80' : fps >= 30 ? '#facc15' : '#f87171' }}>{fps ?? '—'}</span></div> */}
+                <FpsIndicator mapLoaded={mapLoaded} />
               </div>
 
               {gateways.length > 0 && (
@@ -283,7 +289,7 @@ export default function Dashboard() {
                   <span className="text-[11px] font-semibold text-red-400">{(data?.alerts?.critical?.length ?? 0)} críticas</span>
                 </div>
               )}
-              <MapLayers data={data} gateways={gateways} showAllSensors={showAllSensors} onToggleShowAll={() => setShowAllSensors(s => !s)} mapZoom={mapZoom} />
+              <MapLayers data={data} gateways={gateways} showAllSensors={showAllSensors} onToggleShowAll={handleToggleShowAll} mapZoom={mapZoom} />
             </BaseMap>
           </MapErrorBoundary>
 

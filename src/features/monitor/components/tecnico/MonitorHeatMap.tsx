@@ -103,11 +103,14 @@ export default function MonitorRadarMap() {
       const isGateway = d.type_device === 'Gateway';
 
       const size = isGateway ? 24 : 14;
-      const borderRadius = isGateway ? '4px' : '50%';
+      const borderRadius = '50%';
       const zIndexOffset = isGateway ? 1000 : 0;
       
       // Desfase aleatorio para que los pings no parpadeen todos exactamente al mismo tiempo
       const animationDelay = (Math.random() * 2).toFixed(2);
+
+      // Ícono de antena para los gateways (mismo que en el popup)
+      const gatewayIconSvg = isGateway ? renderToString(<IconAntenna size={14} stroke={2} />) : '';
 
       const icon = L.divIcon({
         html: `
@@ -116,7 +119,7 @@ export default function MonitorRadarMap() {
           width:${size}px;height:${size}px;
           border-radius:${borderRadius};
           background:rgba(15,23,42,1);
-          border:${isGateway ? '2px' : '2px'} solid ${color};
+          border:2px solid ${color};
           box-shadow: 0 0 12px ${color}aa;
           display:flex;align-items:center;justify-content:center;
           cursor:pointer;
@@ -129,7 +132,7 @@ export default function MonitorRadarMap() {
             animation-delay: ${animationDelay}s;
           "></div>
           
-          ${isGateway ? `<div style="width:8px;height:8px;background:${color};border-radius:1px;box-shadow:0 0 8px ${color};"></div>` : ''}
+          ${isGateway ? `<div style="display:flex;align-items:center;justify-content:center;color:${color};">${gatewayIconSvg}</div>` : ''}
         </div>`,
         className: "",
         iconSize: [size, size],

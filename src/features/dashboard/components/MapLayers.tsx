@@ -4,6 +4,7 @@ import type { DashboardData, GatewayDevice, GpsDevice } from "../types/dashboard
 import DevicePopup from "./DevicePopup";
 import { IconEye, IconEyeOff } from "@tabler/icons-react";
 import roboIcon from "@/assets/iconsdashboard/robo.png";
+import { memo } from "react";
 
 interface Props {
   data?: DashboardData;
@@ -32,7 +33,7 @@ function createCircleGeoJSON(lng: number, lat: number, radiusKm: number) {
 
 const ZOOM_THRESHOLD = 13;
 
-export default function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 0 }: Props) {
+function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 0 }: Props) {
   const showSensors = showAllSensors || mapZoom >= ZOOM_THRESHOLD;
   const [selectedDevice, setSelectedDevice] = useState<GpsDevice | null>(null);
   const [selectedGateway, setSelectedGateway] = useState<GatewayDevice | null>(null);
@@ -77,19 +78,16 @@ export default function MapLayers({ data, gateways, showAllSensors, onToggleShow
       }));
   }, [data?.alerts?.critical]);
 
-  // Gateway coverage circles
-  const gatewayCoverage = useMemo(() => {
-    return gateways
-      .filter(gw => gw.latitude_current && gw.longitude_current)
-      .map(gw => ({
-        id: gw.id,
-        isOnline: gw.is_online,
-        geojson: {
-          type: "Feature" as const,
-          properties: { id: gw.id, is_online: gw.is_online },
-          geometry: createCircleGeoJSON(gw.longitude_current, gw.latitude_current, 5),
-        },
-      }));
+  const gatewayCoverageGeoJSON = useMemo(() => {
+    const validGws = gateways.filter(gw => gw.latitude_current && gw.longitude_current);
+    return {
+      type: "FeatureCollection" as const,
+      features: validGws.map(gw => ({
+        type: "Feature" as const,
+        properties: { id: gw.id, is_online: gw.is_online },
+        geometry: createCircleGeoJSON(Number(gw.longitude_current), Number(gw.latitude_current), 5),
+      }))
+    };
   }, [gateways]);
 
   // ─── FUNCIONES DE RENDERIZADO DE ICONOS ─────────────────────────────────
@@ -332,18 +330,28 @@ export default function MapLayers({ data, gateways, showAllSensors, onToggleShow
       ))}
 
       {/* Gateway coverage */}
-      {gatewayCoverage.map(cov => (
-        <Source key={cov.id} id={`gateway-aura-${cov.id}`} type="geojson" data={cov.geojson}>
-          <Layer
-            id={`gateway-aura-fill-${cov.id}`} type="fill" source={`gateway-aura-${cov.id}`}
-            paint={{ "fill-color": cov.isOnline ? "#22c55e" : "#ef4444", "fill-opacity": 0.03 }}
-          />
-          <Layer
-            id={`gateway-aura-border-${cov.id}`} type="line" source={`gateway-aura-${cov.id}`}
-            paint={{ "line-color": cov.isOnline ? "#22c55e" : "#ef4444", "line-width": 1.5, "line-opacity": 0.2, "line-dasharray": [2, 4] }}
-          />
-        </Source>
-      ))}
+      
+      <Source id="gateway-auras" type="geojson" data={gatewayCoverageGeoJSON}>
+    <Layer
+      id="gateway-aura-fill"
+      type="fill"
+      paint={{
+        // Usamos una expresión "case" de Mapbox para leer el is_online de las properties
+        "fill-color": ["case", ["==", ["get", "is_online"], true], "#22c55e", "#ef4444"],
+        "fill-opacity": 0.03
+      }}
+    />
+    <Layer
+      id="gateway-aura-border"
+      type="line"
+      paint={{
+        "line-color": ["case", ["==", ["get", "is_online"], true], "#22c55e", "#ef4444"],
+        "line-width": 1.5,
+        "line-opacity": 0.2,
+        "line-dasharray": [2, 4]
+      }}
+    />
+  </Source>
 
       {/* Toggle mostrar/ocultar sensores */}
       <div className="absolute top-20 left-2 z-20">
@@ -595,3 +603,4 @@ export default function MapLayers({ data, gateways, showAllSensors, onToggleShow
     </>
   );
 }
+export default memo(MapLayers);
