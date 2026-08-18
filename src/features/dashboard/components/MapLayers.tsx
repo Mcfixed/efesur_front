@@ -456,7 +456,7 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
           type="circle"
           paint={{
             "circle-color": "transparent",
-            "circle-radius": 8,
+            "circle-radius": 4,
             "circle-stroke-width": 2,
             "circle-stroke-color": ["get", "auraColor"],
             "circle-stroke-opacity": 0.8
