@@ -1,10 +1,9 @@
-import { useState, useMemo, Fragment } from "react";
-import { Marker, Source, Layer, Popup } from "react-map-gl";
+import { useState, useMemo, Fragment, useEffect, memo } from "react";
+import { Marker, Source, Layer, Popup, useMap } from "react-map-gl";
 import type { DashboardData, GatewayDevice, GpsDevice } from "../types/dashboard.types";
 import DevicePopup from "./DevicePopup";
 import { IconEye, IconEyeOff } from "@tabler/icons-react";
 import roboIcon from "@/assets/iconsdashboard/robo.png";
-import { memo } from "react";
 
 interface Props {
   data?: DashboardData;
@@ -33,13 +32,62 @@ function createCircleGeoJSON(lng: number, lat: number, radiusKm: number) {
 
 const ZOOM_THRESHOLD = 13;
 
+// ─── COLORES Y CONFIGURACIÓN PARA LOS PINES WEBGL ───
+const TYPE_COLORS: Record<string, { fill: string; stroke: string; letter: string }> = {
+  Gps:         { fill: '#3b82f6', stroke: '#60a5fa', letter: 'G' },
+  Gateway:     { fill: '#10b981', stroke: '#34d399', letter: 'G' },
+  SubEstacion: { fill: '#8b5cf6', stroke: '#a78bfa', letter: 'S' },
+  Lector:      { fill: '#f97316', stroke: '#fb923c', letter: 'L' },
+};
+
+const getAuraColor = (snr?: number | null) => {
+  if (snr == null) return '#3b82f6';
+  if (snr > -115) return '#22c55e';
+  if (snr >= -120) return '#f97316';
+  return '#ef4444';
+};
+
 function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 0 }: Props) {
+  const { current: map } = useMap();
   const showSensors = showAllSensors || mapZoom >= ZOOM_THRESHOLD;
   const [selectedDevice, setSelectedDevice] = useState<GpsDevice | null>(null);
   const [selectedGateway, setSelectedGateway] = useState<GatewayDevice | null>(null);
   const [selectedTrackingAlert, setSelectedTrackingAlert] = useState<number | null>(null);
 
-  // ─── PRE-INDEXADO DE ALERTAS POR DEVICE (evita .some() O(N×M) por cada render) ───
+  // ─── CARGAR TUS SVGS PERSONALIZADOS A MAPBOX (WEBGL) ───
+  useEffect(() => {
+    if (!map) return;
+
+    Object.entries(TYPE_COLORS).forEach(([type, colors]) => {
+      const imageId = `pin-${type}`;
+      if (map.hasImage(imageId)) return;
+
+      // Generamos tu SVG exacto como un string para inyectarlo en Mapbox
+      const svgString = `
+        <svg width="28" height="36" viewBox="0 0 28 36" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="grad-${type}" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="${colors.stroke}" />
+              <stop offset="100%" stop-color="${colors.fill}" />
+            </linearGradient>
+          </defs>
+          <path d="M14 1C6.8 1 1 6.8 1 14c0 9.5 13 19.5 13 19.5S27 23.5 27 14C27 6.8 21.2 1 14 1z" fill="url(#grad-${type})" stroke="${colors.fill}" stroke-width="1.3" />
+          <circle cx="14" cy="13" r="6" fill="white" />
+          <text x="14" y="16.5" text-anchor="middle" fill="${colors.fill}" font-size="8" font-weight="800" font-family="sans-serif">${colors.letter}</text>
+        </svg>
+      `;
+
+      const img = new Image(28, 36);
+      img.onload = () => {
+        if (!map.hasImage(imageId)) {
+          map.addImage(imageId, img);
+        }
+      };
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString);
+    });
+  }, [map]);
+
+  // ─── PRE-INDEXADO DE ALERTAS ───
   const alertsByDevice = useMemo(() => {
     const map = new Map<number, { critical?: boolean; atencion?: boolean; movimientos_anomalos?: boolean; apertura?: boolean; presencia?: boolean }>();
     const idx = (arr: any[] | undefined, key: 'critical' | 'atencion' | 'movimientos_anomalos' | 'apertura' | 'presencia') => {
@@ -58,7 +106,7 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
     return map;
   }, [data?.alerts]);
 
-  // Tracking routes — solo para críticas
+  // Tracking routes
   const trackingRoutes = useMemo(() => {
     if (!data?.alerts?.critical) return [];
     return data.alerts.critical
@@ -73,7 +121,6 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
             coordinates: alert.tracking_data!.map(p => [p.longitude, p.latitude]),
           },
         },
-        // Punto más reciente (el tracking viene ORDER BY DESC, index 0 = más reciente)
         lastPoint: alert.tracking_data![0],
       }));
   }, [data?.alerts?.critical]);
@@ -90,7 +137,72 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
     };
   }, [gateways]);
 
-  // ─── FUNCIONES DE RENDERIZADO DE ICONOS ─────────────────────────────────
+  // ─── FUENTE DE DATOS PARA SENSORES NORMALES (WEBGL) ───
+  const normalDevicesGeoJSON = useMemo(() => {
+    const features: any[] = [];
+    
+    if (!showSensors) return { type: "FeatureCollection", features };
+
+    (data?.devices || []).forEach(device => {
+      if (!device.latitude_current || !device.longitude_current) return;
+      
+      const dAlert = alertsByDevice.get(device.id);
+      const hasAnyAlert = !!dAlert?.critical || !!dAlert?.atencion || 
+                          !!dAlert?.movimientos_anomalos || !!dAlert?.apertura || 
+                          !!dAlert?.presencia;
+
+      if (hasAnyAlert) return; // Se dibuja como <Marker> HTML más abajo
+
+      const auraColor = getAuraColor(device.best_snr);
+      const iconId = `pin-${device.type_device || 'Gps'}`;
+
+      features.push({
+        type: "Feature",
+        geometry: { 
+          type: "Point", 
+          coordinates: [Number(device.longitude_current), Number(device.latitude_current)] 
+        },
+        properties: {
+          deviceId: device.id,
+          iconId: iconId,
+          auraColor: auraColor,
+        }
+      });
+    });
+
+    return { type: "FeatureCollection", features };
+  }, [data?.devices, alertsByDevice, showSensors]);
+
+  // ─── INTERACTIVIDAD CLICS (WEBGL) ───
+  useEffect(() => {
+    if (!map) return;
+
+    const onLayerClick = (e: mapboxgl.MapLayerMouseEvent) => {
+      if (!e.features || e.features.length === 0) return;
+      const deviceId = e.features[0].properties?.deviceId;
+      
+      const device = data?.devices?.find(d => d.id === deviceId);
+      if (device) {
+        e.originalEvent.stopPropagation(); 
+        setSelectedDevice(device);
+      }
+    };
+
+    const onMouseEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
+    const onMouseLeave = () => { map.getCanvas().style.cursor = ''; };
+
+    // Asignamos la interactividad a la capa del ícono
+    map.on('click', 'normal-devices-icon', onLayerClick);
+    map.on('mouseenter', 'normal-devices-icon', onMouseEnter);
+    map.on('mouseleave', 'normal-devices-icon', onMouseLeave);
+
+    return () => {
+      map.off('click', 'normal-devices-icon', onLayerClick);
+      map.off('mouseenter', 'normal-devices-icon', onMouseEnter);
+      map.off('mouseleave', 'normal-devices-icon', onMouseLeave);
+    };
+  }, [map, data?.devices]);
+
   const renderAlertIcon = (type: 'critical' | 'atencion' | 'movimientos_anomalos' | 'apertura' | 'presencia') => {
     const isCrit = type === 'critical';
     const isMov = type === 'movimientos_anomalos';
@@ -113,7 +225,6 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
           <svg width={size} height={size} viewBox="-24 -24 48 48">
             {isCrit ? (
               <>
-                {/* Romboide rojo intenso */}
                 <polygon points="0,-20 20,0 0,20 -20,0" fill={color} stroke={borderColor} strokeWidth="2" strokeLinejoin="round" />
                 <polygon points="0,-15 14,0 0,15 -14,0" fill="none" stroke="white" strokeWidth="0.8" opacity="0.25" />
                 <rect x="-3" y="-10" width="6" height="13" rx="2" fill="white" />
@@ -121,19 +232,16 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
               </>
             ) : isRed ? (
               <>
-                {/* Romboide rojo (apertura/presencia) */}
                 <polygon points="0,-18 18,0 0,18 -18,0" fill={color} stroke={borderColor} strokeWidth="2" strokeLinejoin="round" />
                 <polygon points="0,-13 12,0 0,13 -12,0" fill="none" stroke="white" strokeWidth="0.8" opacity="0.2" />
                 {type === 'apertura' ? (
                   <>
-                    {/* Icono puerta abierta (rectángulo con línea) */}
                     <rect x="-5" y="-6" width="10" height="12" rx="1" fill="none" stroke="white" strokeWidth="1.8" />
                     <line x1="5" y1="-6" x2="5" y2="6" stroke="white" strokeWidth="1.8" />
                     <circle cx="2" cy="0" r="1" fill="white" />
                   </>
                 ) : (
                   <>
-                    {/* Icono persona (círculo + triángulo) */}
                     <circle cx="0" cy="-5" r="4" fill="none" stroke="white" strokeWidth="1.8" />
                     <path d="M-6 6 Q0 -1 6 6" fill="none" stroke="white" strokeWidth="1.8" />
                   </>
@@ -141,18 +249,14 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
               </>
             ) : isMov ? (
               <>
-                {/* Hexágono púrpura (movimientos anómalos) */}
                 <polygon points="0,-18 15.5,-9 15.5,9 0,18 -15.5,9 -15.5,-9" fill={color} stroke={borderColor} strokeWidth="2" strokeLinejoin="round" />
-                {/* Brillo interior */}
                 <polygon points="0,-13 11,-6.5 11,6.5 0,13 -11,6.5 -11,-6.5" fill="none" stroke="white" strokeWidth="0.8" opacity="0.25" />
-                {/* Reloj / movimiento */}
                 <circle cx="0" cy="0" r="8" fill="none" stroke="white" strokeWidth="1.8" opacity="0.9" />
                 <line x1="0" y1="0" x2="0" y2="-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
                 <line x1="0" y1="0" x2="4" y2="1" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
               </>
             ) : (
               <>
-                {/* Triángulo amarillo (atencion) */}
                 <path d="M0 -18 L20 14 L-20 14 Z" fill={color} stroke={borderColor} strokeWidth="2" strokeLinejoin="round" />
                 <path d="M0 -12 L14 10 L-14 10 Z" fill="none" stroke="white" strokeWidth="1" opacity="0.3" />
                 <rect x="-2.5" y="-9" width="5" height="11" rx="1.5" fill="white" />
@@ -165,7 +269,6 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
     );
   };
 
-  // Mapa de alertas de lector por gateway (vía gateway_id)
   const gatewayAlertMap = useMemo(() => {
     const map = new Map<number, { apertura: boolean; presencia: boolean }>();
     const now = Date.now();
@@ -192,7 +295,6 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
 
     return (
       <div className="relative flex items-center justify-center group cursor-default">
-        {/* Anillo ping expansivo con más recorrido (estilo marcs.html) */}
         <span className="absolute marker-pulse-gw"
           style={{
             width: 30,
@@ -205,15 +307,12 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
         <div className="relative transition-transform group-hover:scale-125">
           {hasLectorAlert ? (
             <svg width="38" height="38" viewBox="-19 -19 38 38">
-              {/* Círculo rojo de alerta alrededor */}
               <circle cx="0" cy="0" r="17" fill="none" stroke="#ef4444" strokeWidth="2.5" opacity="0.6" />
               <circle cx="0" cy="0" r="15" fill="none" stroke="#ef4444" strokeWidth="1" opacity="0.3" strokeDasharray="3 3" />
-              {/* Icono WiFi */}
               <path d="M-9 -4 Q-5 -8 0 -8 Q5 -8 9 -4" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" />
               <path d="M-6 0 Q-3 -4 0 -4 Q3 -4 6 0" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
               <path d="M-3 4 Q-1.5 1 0 1 Q1.5 1 3 4" fill="none" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" />
               <circle cx="0" cy="7" r="2.5" fill="#ef4444" />
-              {/* Iconos pequeños de alerta arriba-derecha */}
               {lectorAlert?.apertura && (
                 <g transform="translate(10,-13)">
                   <rect x="-4" y="-4" width="8" height="9" rx="1" fill="none" stroke="#ef4444" strokeWidth="1.5" />
@@ -276,15 +375,6 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
         .aura-ping {
           animation: aura-ping 4s ease-out infinite;
         }
-        /* Efecto ping (anillo expansivo con borde) — replicado de marcs.html */
-        @keyframes markerPulse {
-          0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0.85; }
-          100% { transform: translate(-50%, -50%) scale(2.1); opacity: 0; }
-        }
-        .marker-pulse {
-          animation: markerPulse 1.8s ease-out infinite;
-        }
-        /* Ping del gateway: más recorrido (expande hasta scale 3.4) */
         @keyframes markerPulseGw {
           0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0.85; }
           100% { transform: translate(-50%, -50%) scale(3.4); opacity: 0; }
@@ -294,7 +384,7 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
         }
       `}</style>
 
-      {/* Tracking routes + marcador del punto más reciente */}
+      {/* Tracking routes + marcador */}
       {trackingRoutes.map(route => (
         <Fragment key={route.alertId}>
           <Source id={`tracking-${route.alertId}`} type="geojson" data={route.geojson}>
@@ -307,7 +397,6 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
               paint={{ "line-color": "#ef4444", "line-width": 10, "line-opacity": 0.15, "line-blur": 4 }}
             />
           </Source>
-          {/* Marcador de tracking - warning negro */}
           {route.lastPoint && (
             <Marker
               longitude={route.lastPoint.longitude}
@@ -315,12 +404,8 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
               onClick={e => { e.originalEvent.stopPropagation(); setSelectedTrackingAlert(route.alertId); }}
             >
               <div className="relative flex items-center justify-center">
-                {/* Ondas expansivas */}
                 <span className="absolute w-10 h-10 rounded-full border-2 border-red-500/30"
-                  style={{
-                    animation: 'aura-ping 3.5s ease-out infinite',
-                  }} />
-                {/* Icono robo (ladrón) */}
+                  style={{ animation: 'aura-ping 3.5s ease-out infinite' }} />
                 <img src={roboIcon} alt="Robo" width={34} height={34}
                   className="relative drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]" />
               </div>
@@ -330,28 +415,26 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
       ))}
 
       {/* Gateway coverage */}
-      
-      <Source id="gateway-auras" type="geojson" data={gatewayCoverageGeoJSON}>
-    <Layer
-      id="gateway-aura-fill"
-      type="fill"
-      paint={{
-        // Usamos una expresión "case" de Mapbox para leer el is_online de las properties
-        "fill-color": ["case", ["==", ["get", "is_online"], true], "#22c55e", "#ef4444"],
-        "fill-opacity": 0.03
-      }}
-    />
-    <Layer
-      id="gateway-aura-border"
-      type="line"
-      paint={{
-        "line-color": ["case", ["==", ["get", "is_online"], true], "#22c55e", "#ef4444"],
-        "line-width": 1.5,
-        "line-opacity": 0.2,
-        "line-dasharray": [2, 4]
-      }}
-    />
-  </Source>
+      <Source id="gateway-auras" type="geojson" data={gatewayCoverageGeoJSON as any}>
+        <Layer
+          id="gateway-aura-fill"
+          type="fill"
+          paint={{
+            "fill-color": ["case", ["==", ["get", "is_online"], true], "#22c55e", "#ef4444"],
+            "fill-opacity": 0.03
+          }}
+        />
+        <Layer
+          id="gateway-aura-border"
+          type="line"
+          paint={{
+            "line-color": ["case", ["==", ["get", "is_online"], true], "#22c55e", "#ef4444"],
+            "line-width": 1.5,
+            "line-opacity": 0.2,
+            "line-dasharray": [2, 4]
+          }}
+        />
+      </Source>
 
       {/* Toggle mostrar/ocultar sensores */}
       <div className="absolute top-20 left-2 z-20">
@@ -365,79 +448,64 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
         </button>
       </div>
 
-      {/* Device markers - normales (con alertas siempre visibles, sin alertas solo si zoom >= threshold) */}
+      {/* ─── RENDERIZADO WEBGL PARA SENSORES NORMALES ─── */}
+      <Source id="normal-devices-source" type="geojson" data={normalDevicesGeoJSON as any}>
+        {/* Capa base: El Aura de SNR renderizada como un círculo */}
+        <Layer
+          id="normal-devices-aura"
+          type="circle"
+          paint={{
+            "circle-color": "transparent",
+            "circle-radius": 8,
+            "circle-stroke-width": 2,
+            "circle-stroke-color": ["get", "auraColor"],
+            "circle-stroke-opacity": 0.8
+          }}
+        />
+        {/* Capa de Símbolo: Carga la imagen SVG convertida con tu gradiente y letra */}
+        <Layer
+          id="normal-devices-icon"
+          type="symbol"
+          layout={{
+            "icon-image": ["get", "iconId"],
+            "icon-allow-overlap": true,
+            "icon-size": 0.60,
+            // Compensa la posición ya que la imagen tiene forma de lágrima
+            "icon-offset": [0, -10]
+          }}
+        />
+      </Source>
+
+      {/* ─── RENDERIZADO DOM (MARKERS) SOLO PARA ALERTAS ─── */}
       {data?.devices?.map(device => {
         if (!device.latitude_current || !device.longitude_current) return null;
         const dAlert = alertsByDevice.get(device.id);
+        
         const isCritical = !!dAlert?.critical;
         const isAtencion = !!dAlert?.atencion;
         const isMovAnomalos = !!dAlert?.movimientos_anomalos;
         const isApertura = !!dAlert?.apertura;
         const isPresencia = !!dAlert?.presencia;
+        
         const hasAnyAlert = isCritical || isAtencion || isMovAnomalos || isApertura || isPresencia;
-        if (!hasAnyAlert && !showSensors) return null; // Sin alertas y zoom bajo → oculto
-        if (isCritical) return null; // Los críticos se renderizan al final
-
-        // Color del pin por tipo de dispositivo
-        const typeColors: Record<string, { fill: string; stroke: string }> = {
-          Gps:         { fill: '#3b82f6', stroke: '#60a5fa' },
-          Gateway:     { fill: '#10b981', stroke: '#34d399' },
-          SubEstacion: { fill: '#8b5cf6', stroke: '#a78bfa' },
-          Lector:      { fill: '#f97316', stroke: '#fb923c' },
-        };
-        const tc = typeColors[device.type_device] || typeColors.Gps;
-
-        // Color del aura por SNR
-        const getAuraColor = () => {
-          if (device.best_snr == null) return '#3b82f6';
-          if (device.best_snr > -115) return '#22c55e';
-          if (device.best_snr >= -120) return '#f97316';
-          return '#ef4444';
-        };
-        const auraColor = getAuraColor();
+        
+        // Si no tiene alerta, lo ignora porque ya lo dibujó WebGL
+        if (!hasAnyAlert) return null; 
+        if (isCritical) return null; // Los críticos se renderizan al final para z-index
 
         return (
           <Marker
-            key={device.id}
+            key={`alert-${device.id}`}
             longitude={Number(device.longitude_current)}
             latitude={Number(device.latitude_current)}
             onClick={e => { e.originalEvent.stopPropagation(); setSelectedDevice(device); }}
           >
-            {isMovAnomalos ? renderAlertIcon('movimientos_anomalos') : isApertura ? renderAlertIcon('apertura') : isPresencia ? renderAlertIcon('presencia') : isAtencion ? renderAlertIcon('atencion') : (
-              <div className="relative flex items-center justify-center cursor-pointer group">
-                {/* Anillo ping expansivo (estilo marcs.html) */}
-                <span className="absolute marker-pulse"
-                  style={{
-                    width: 18,
-                    height: 18,
-                    borderRadius: '50%',
-                    border: `2px solid ${auraColor}`,
-                    top: '50%',
-                    left: '50%',
-                  }} />
-                <div className="relative transition-all duration-200 group-hover:scale-125 hover:-translate-y-1">
-                  <svg width="18" height="23" viewBox="0 0 28 36">
-                    <defs>
-                      <linearGradient id={`pin-${tc.fill.slice(1)}`} x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor={tc.stroke} />
-                        <stop offset="100%" stopColor={tc.fill} />
-                      </linearGradient>
-                    </defs>
-                    <path d="M14 1C6.8 1 1 6.8 1 14c0 9.5 13 19.5 13 19.5S27 23.5 27 14C27 6.8 21.2 1 14 1z"
-                      fill={`url(#pin-${tc.fill.slice(1)})`} stroke={tc.fill} strokeWidth="1.3" />
-                    <circle cx="14" cy="13" r="6" fill="white" />
-                    <text x="14" y="16" textAnchor="middle" fill={tc.fill} fontSize="8" fontWeight="800" fontFamily="sans-serif">
-                      {device.type_device === 'SubEstacion' ? 'S' : device.type_device[0]}
-                    </text>
-                  </svg>
-                </div>
-              </div>
-            )}
+            {isMovAnomalos ? renderAlertIcon('movimientos_anomalos') : isApertura ? renderAlertIcon('apertura') : isPresencia ? renderAlertIcon('presencia') : renderAlertIcon('atencion')}
           </Marker>
         );
       })}
 
-      {/* Device markers - críticos al final (siempre visibles si existen) */}
+      {/* Críticos al final */}
       {data?.devices?.map(device => {
         if (!device.latitude_current || !device.longitude_current) return null;
         if (!alertsByDevice.get(device.id)?.critical) return null;
@@ -448,14 +516,14 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
             longitude={Number(device.longitude_current)}
             latitude={Number(device.latitude_current)}
             onClick={e => { e.originalEvent.stopPropagation(); setSelectedDevice(device); }}
+            style={{ zIndex: 50 }}
           >
             {renderAlertIcon('critical')}
           </Marker>
         );
       })}
 
-      {/* Gateway markers + symbol layer para nombres */}
-      {/* Fuente GeoJSON para nombres de gateways */}
+      {/* Gateway markers + Nombres */}
       {(() => {
         const validGws = gateways.filter(gw => gw.latitude_current && gw.longitude_current);
         if (!validGws.length) return null;
@@ -502,21 +570,12 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
         </Marker>
       ))}
 
-      {/* Gateway popup */}
+      {/* Popups */}
       {selectedGateway && (
-        <Popup
-          longitude={Number(selectedGateway.longitude_current)}
-          latitude={Number(selectedGateway.latitude_current)}
-          anchor="bottom"
-          onClose={() => setSelectedGateway(null)}
-          closeOnClick={false}
-          className="device-popup"
-          offset={15}
-          maxWidth="280px"
-        >
+        <Popup longitude={Number(selectedGateway.longitude_current)} latitude={Number(selectedGateway.latitude_current)} anchor="bottom" onClose={() => setSelectedGateway(null)} closeOnClick={false} className="device-popup" offset={15} maxWidth="280px">
+          {/* ... (tu código del popup se mantiene igual) ... */}
           <div className="bg-bg-100 border border-border/50 rounded-lg shadow-xl p-3 min-w-48 relative">
-            <button onClick={() => setSelectedGateway(null)}
-              className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center rounded-full bg-bg-300 border border-border/50 text-text-300 hover:text-text-100 shadow-md outline-none">
+            <button onClick={() => setSelectedGateway(null)} className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center rounded-full bg-bg-300 border border-border/50 text-text-300 hover:text-text-100 shadow-md outline-none">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
             <div className="flex items-center gap-2 mb-2 pb-1.5 border-b border-border/30">
@@ -535,23 +594,11 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
         </Popup>
       )}
 
-      {/* Device popup */}
       {selectedDevice && (
-        <Popup
-          longitude={Number(selectedDevice.longitude_current)}
-          latitude={Number(selectedDevice.latitude_current)}
-          anchor="bottom"
-          onClose={() => setSelectedDevice(null)}
-          closeOnClick={false}
-          className="device-popup"
-          offset={15}
-          maxWidth="320px"
-        >
+        <Popup longitude={Number(selectedDevice.longitude_current)} latitude={Number(selectedDevice.latitude_current)} anchor="bottom" onClose={() => setSelectedDevice(null)} closeOnClick={false} className="device-popup" offset={15} maxWidth="320px">
           <DevicePopup device={selectedDevice} alerts={data?.alerts} onClose={() => setSelectedDevice(null)} />
         </Popup>
       )}
-
-      {/* Tracking alert popup */}
       {selectedTrackingAlert && (() => {
         const alert = data?.alerts?.critical?.find(a => a.id === selectedTrackingAlert);
         if (!alert) return null;
@@ -603,4 +650,5 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
     </>
   );
 }
+
 export default memo(MapLayers);
