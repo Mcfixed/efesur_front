@@ -204,70 +204,76 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
   }, [map, data?.devices]);
 
   const renderAlertIcon = (type: 'critical' | 'atencion' | 'movimientos_anomalos' | 'apertura' | 'presencia') => {
-    const isCrit = type === 'critical';
-    const isMov = type === 'movimientos_anomalos';
-    const isRed = type === 'apertura' || type === 'presencia';
-    const color = isCrit ? '#ef4444' : isRed ? '#ef4444' : isMov ? '#a855f7' : '#eab308';
-    const borderColor = isCrit ? '#b91c1c' : isRed ? '#b91c1c' : isMov ? '#7e22ce' : '#a16207';
-    const size = isCrit ? 48 : isRed ? 42 : isMov ? 42 : 36;
-    const glowColor = isCrit ? '#ef4444' : isRed ? '#ef4444' : isMov ? '#a855f7' : '#eab308';
+  const isCrit = type === 'critical';
+  const isMov = type === 'movimientos_anomalos';
+  const isRed = type === 'apertura' || type === 'presencia';
+  const color = isCrit ? '#ef4444' : isRed ? '#ef4444' : isMov ? '#a855f7' : '#eab308';
+  const borderColor = isCrit ? '#b91c1c' : isRed ? '#b91c1c' : isMov ? '#7e22ce' : '#a16207';
+  const size = isCrit ? 48 : isRed ? 42 : isMov ? 42 : 36;
+  const glowColor = isCrit ? '#ef4444' : isRed ? '#ef4444' : isMov ? '#a855f7' : '#eab308';
 
-    return (
-      <div className="relative flex items-center justify-center cursor-pointer group">
-        <span className="absolute rounded-full aura-ping"
-          style={{
-            width: size + 16,
-            height: size + 16,
-            backgroundColor: glowColor,
-            opacity: 0.15,
-          }} />
-        <div className="relative transition-transform group-hover:scale-125">
-          <svg width={size} height={size} viewBox="-24 -24 48 48">
-            {isCrit ? (
-              <>
-                <polygon points="0,-20 20,0 0,20 -20,0" fill={color} stroke={borderColor} strokeWidth="2" strokeLinejoin="round" />
-                <polygon points="0,-15 14,0 0,15 -14,0" fill="none" stroke="white" strokeWidth="0.8" opacity="0.25" />
-                <rect x="-3" y="-10" width="6" height="13" rx="2" fill="white" />
-                <circle cx="0" cy="9" r="4" fill="white" />
-              </>
-            ) : isRed ? (
-              <>
-                <polygon points="0,-18 18,0 0,18 -18,0" fill={color} stroke={borderColor} strokeWidth="2" strokeLinejoin="round" />
-                <polygon points="0,-13 12,0 0,13 -12,0" fill="none" stroke="white" strokeWidth="0.8" opacity="0.2" />
-                {type === 'apertura' ? (
-                  <>
-                    <rect x="-5" y="-6" width="10" height="12" rx="1" fill="none" stroke="white" strokeWidth="1.8" />
-                    <line x1="5" y1="-6" x2="5" y2="6" stroke="white" strokeWidth="1.8" />
-                    <circle cx="2" cy="0" r="1" fill="white" />
-                  </>
-                ) : (
-                  <>
-                    <circle cx="0" cy="-5" r="4" fill="none" stroke="white" strokeWidth="1.8" />
-                    <path d="M-6 6 Q0 -1 6 6" fill="none" stroke="white" strokeWidth="1.8" />
-                  </>
-                )}
-              </>
-            ) : isMov ? (
-              <>
-                <polygon points="0,-18 15.5,-9 15.5,9 0,18 -15.5,9 -15.5,-9" fill={color} stroke={borderColor} strokeWidth="2" strokeLinejoin="round" />
-                <polygon points="0,-13 11,-6.5 11,6.5 0,13 -11,6.5 -11,-6.5" fill="none" stroke="white" strokeWidth="0.8" opacity="0.25" />
-                <circle cx="0" cy="0" r="8" fill="none" stroke="white" strokeWidth="1.8" opacity="0.9" />
-                <line x1="0" y1="0" x2="0" y2="-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
-                <line x1="0" y1="0" x2="4" y2="1" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
-              </>
-            ) : (
-              <>
-                <path d="M0 -18 L20 14 L-20 14 Z" fill={color} stroke={borderColor} strokeWidth="2" strokeLinejoin="round" />
-                <path d="M0 -12 L14 10 L-14 10 Z" fill="none" stroke="white" strokeWidth="1" opacity="0.3" />
-                <rect x="-2.5" y="-9" width="5" height="11" rx="1.5" fill="white" />
-                <circle cx="0" cy="7" r="3" fill="white" />
-              </>
-            )}
-          </svg>
-        </div>
+  return (
+    <div className="relative flex items-center justify-center cursor-pointer group">
+      <span className="absolute rounded-full aura-ping"
+        style={{
+          width: size + 16,
+          height: size + 16,
+          backgroundColor: glowColor,
+          opacity: 0.15,
+        }}
+      />
+      <div className="relative transition-transform group-hover:scale-125">
+        <svg width={size} height={size} viewBox="-24 -24 48 48">
+          {isCrit ? (
+            // CRITICAL (Rombo rojo)
+            <>
+              <polygon points="0,-20 20,0 0,20 -20,0" fill={color} stroke={borderColor} strokeWidth="2" strokeLinejoin="round" />
+              <polygon points="0,-15 14,0 0,15 -14,0" fill="none" stroke="white" strokeWidth="0.8" opacity="0.25" />
+              <rect x="-3" y="-10" width="6" height="13" rx="2" fill="white" />
+              <circle cx="0" cy="9" r="4" fill="white" />
+            </>
+          ) : isRed ? (
+            // APERTURA / PRESENCIA (Rombo rojo con icono)
+            <>
+              <polygon points="0,-18 18,0 0,18 -18,0" fill={color} stroke={borderColor} strokeWidth="2" strokeLinejoin="round" />
+              <polygon points="0,-13 12,0 0,13 -12,0" fill="none" stroke="white" strokeWidth="0.8" opacity="0.2" />
+              {type === 'apertura' ? (
+                // Icono de puerta abierta
+                <>
+                  <rect x="-5" y="-6" width="10" height="12" rx="1" fill="none" stroke="white" strokeWidth="1.8" />
+                  <line x1="5" y1="-6" x2="5" y2="6" stroke="white" strokeWidth="1.8" />
+                  <circle cx="2" cy="0" r="1" fill="white" />
+                </>
+              ) : (
+                // Icono de presencia (silueta de persona)
+                <>
+                  <circle cx="0" cy="-5" r="4" fill="none" stroke="white" strokeWidth="1.8" />
+                  <path d="M-6 6 Q0 -1 6 6" fill="none" stroke="white" strokeWidth="1.8" />
+                </>
+              )}
+            </>
+          ) : isMov ? (
+            // MOVIMIENTOS ANÓMALOS (Hexágono morado)
+          <>
+            <polygon points="0,-18 15.5,-9 15.5,9 0,18 -15.5,9 -15.5,-9" fill={color} stroke={borderColor} strokeWidth="2" strokeLinejoin="round" />
+            <polygon points="0,-13 11,-6.5 11,6.5 0,13 -11,6.5 -11,-6.5" fill="none" stroke="white" strokeWidth="0.8" opacity="0.25" />
+            <path d="M-4,-5 C-4,-9 4,-9 4,-5 C4,-2 0,-1 0,2" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            <circle cx="0" cy="6" r="2" fill="white" />
+          </>
+          ) : (
+            // ATENCIÓN (Triángulo amarillo clásico)
+           <>
+            <polygon points="0,-20 17,-10 17,10 0,20 -17,10 -17,-10" fill={color} stroke={borderColor} strokeWidth="2" strokeLinejoin="round" />
+            <polygon points="0,-15 12,-7 12,7 0,15 -12,7 -12,-7" fill="none" stroke="white" strokeWidth="1" opacity="0.25" />
+            <rect x="-3" y="-9" width="6" height="11" rx="1.5" fill="white" />
+            <circle cx="0" cy="9" r="2.5" fill="white" />
+          </>
+          )}
+        </svg>
       </div>
-    );
-  };
+    </div>
+  );
+};
 
   const gatewayAlertMap = useMemo(() => {
     const map = new Map<number, { apertura: boolean; presencia: boolean }>();
