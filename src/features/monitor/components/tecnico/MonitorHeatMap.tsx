@@ -54,10 +54,7 @@ export default function MonitorRadarMap() {
       const lat = Number(d.latitude_current);
       const lng = Number(d.longitude_current);
       if (isNaN(lat) || isNaN(lng)) return false;
-      // Descartar coordenadas placeholder o inválidas (sin GPS real)
       if (lat === 0 && lng === 0) return false;
-      // Rango geográfico del sistema (Chile / EFE SUR) para excluir outliers
-      // que inflan el bounding box (p.ej. lat 0/0, lat -73, lng -79)
       if (lat < -57 || lat > -17 || lng < -77 || lng > -63) return false;
       return true;
     });
@@ -71,15 +68,13 @@ export default function MonitorRadarMap() {
       zoomControl: false, attributionControl: false,
     });
     
-    // Mapa base Dark Matter (Negro Mate)
+    // Mapa base Dark Matter
     L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", { 
   maxZoom: 16, attribution: "&copy; Esri" 
 }).addTo(map);
     
     L.control.zoom({ position: "topright" }).addTo(map);
     mapInstance.current = map;
-    // Cada mapa nuevo debe ajustarse a TODOS los marcadores (fitBounds),
-    // aunque ya se haya hecho en una instancia anterior (StrictMode remonta el mapa)
     hasSetBounds.current = false;
     return () => { map.remove(); mapInstance.current = null; };
   }, []);
@@ -106,10 +101,7 @@ export default function MonitorRadarMap() {
       const borderRadius = '50%';
       const zIndexOffset = isGateway ? 1000 : 0;
       
-      // Desfase aleatorio para que los pings no parpadeen todos exactamente al mismo tiempo
       const animationDelay = (Math.random() * 2).toFixed(2);
-
-      // Ícono de antena para los gateways (mismo que en el popup)
       const gatewayIconSvg = isGateway ? renderToString(<IconAntenna size={14} stroke={2} />) : '';
 
       const icon = L.divIcon({

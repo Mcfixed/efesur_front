@@ -241,12 +241,6 @@ export default function MonitorReportModal({ onClose }: Props) {
       const deviceMap = new Map<number, { bat: number[]; temp: number[]; snr: number[]; rssi: number[]; ts: Date[]; gwCount: number[] }>();
 
       selectedDevices.forEach(d => deviceMap.set(d.id, { bat: [], temp: [], snr: [], rssi: [], ts: [], gwCount: [] }));
-
-      // ─── Telemetría de lectores (para mostrar en los gateways) ───
-      // Estructura del objeto lector:
-      // { Mppt: { chargeState, panelPower_W, batteryVoltage_V, batteryCurrent_A, panelVoltage_V, loadCurrent_A, internalTemp_C, loadState },
-      //   BlueSmartIP67: { estado, error, voltaje_V, corriente_A },
-      //   Security: { pirState, doorState, doorCounter } }
       const lectorMap = new Map<number, { volt: number[]; power: number[]; current: number[]; temp: number[]; panelV: number[]; loadA: number[]; loadState: number[]; chargeState: number[]; chargerState: string[]; sensores: any[]; ts: Date[] }>();
       (allDevices || []).filter(d => d.type_device === 'Lector').forEach(d => {
         lectorMap.set(d.id, { volt: [], power: [], current: [], temp: [], panelV: [], loadA: [], loadState: [], chargeState: [], chargerState: [], sensores: [], ts: [] });
@@ -296,12 +290,7 @@ export default function MonitorReportModal({ onClose }: Props) {
       });
 
       const sections: string[] = [];
-
-      // Sin resumen ejecutivo — cada dispositivo va directo
-
-      // ═══════════════════════════════════════════
       // PÁGINA POR DISPOSITIVO
-      // ═══════════════════════════════════════════
       selectedDevices.forEach((device) => {
         const entry = deviceMap.get(device.id);
         // Aunque no tenga datos, mostramos la página con info básica
@@ -568,9 +557,7 @@ export default function MonitorReportModal({ onClose }: Props) {
     setLoading(false);
   };
 
-  // ═══════════════════════════════════════════
   // REPORTE SALUD DE BATERÍAS
-  // ═══════════════════════════════════════════
   const generateBatteryPDF = async () => {
     setLoading(true);
     try {
@@ -713,9 +700,7 @@ export default function MonitorReportModal({ onClose }: Props) {
     setLoading(false);
   };
 
-  // ═══════════════════════════════════════════
   // REPORTE CONECTIVIDAD
-  // ═══════════════════════════════════════════
   const generateConnectivityPDF = async () => {
     setLoading(true);
     try {
@@ -844,12 +829,7 @@ export default function MonitorReportModal({ onClose }: Props) {
     } catch (e) { console.error('Error en reporte conectividad:', e); }
     setLoading(false);
   };
-
-  // ═══════════════════════════════════════════
-  // REPORTE ALERTAS Y TRACKING (fusionado)
-  // - GPS: sección por dispositivo con recorridos y mapas
-  // - Otros tipos: sección por dispositivo con sus alertas
-  // ═══════════════════════════════════════════
+  // REPORTE ALERTAS Y TRACKING
   const generateAlertsPDF = async () => {
     setLoading(true);
     try {
@@ -909,9 +889,7 @@ export default function MonitorReportModal({ onClose }: Props) {
         </div>`;
       };
 
-      // ─── 1) Sección por dispositivo ───
-      // GPS → resumen + cada alerta con su recorrido (mapa)
-      // Otros → sus alertas (tipos y detalles)
+      // Sección por dispositivo 
       selectedDevices.forEach((device) => {
         const isGps = gpsIds.has(device.id);
         const e = deviceMap.get(device.id);
@@ -944,7 +922,7 @@ export default function MonitorReportModal({ onClose }: Props) {
         </div>`);
       });
 
-      // ─── 2) Tabla grande final: telemetría de los GPS seleccionados ───
+      // 2) Tabla grande final: telemetría de los GPS seleccionados ───
       const movLabel = (o: any) => {
         if (!o) return { text: '—', color: '#9ca3af' };
         if (o.packetType?.startsWith?.('COMMAND')) return { text: o.systemMessage || o.packetType, color: '#0891b2' };

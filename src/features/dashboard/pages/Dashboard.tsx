@@ -217,16 +217,6 @@ export default function Dashboard() {
 
   return (
     <div className="w-full h-full flex flex-col overflow-hidden">
-      <style>{`
-        @keyframes map-alert-pulse-red {
-          0%, 100% { opacity: 0; }
-          50% { opacity: 0.5; }
-        }
-        @keyframes map-alert-pulse-purple {
-          0%, 100% { opacity: 0; }
-          50% { opacity: 0.5; }
-        }
-      `}</style>
       <AlertTickerBanner data={data} />
 
       {/* Botón de silenciar voz */}

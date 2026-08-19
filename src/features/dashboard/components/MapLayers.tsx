@@ -354,41 +354,6 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
 
   return (
     <>
-      <style>{`
-        .device-popup .mapboxgl-popup-content {
-          background: transparent !important;
-          padding: 0 !important;
-          border-radius: 12px !important;
-          box-shadow: none !important;
-          border: none !important;
-        }
-        .device-popup .mapboxgl-popup-tip {
-          border-top-color: var(--bg-100) !important;
-          border-width: 8px !important;
-        }
-        .device-popup .mapboxgl-popup-close-button {
-          display: none !important;
-        }
-        .device-popup .mapboxgl-popup {
-          background: transparent !important;
-        }
-        @keyframes aura-ping {
-          0% { transform: scale(0.6); opacity: 0.45; }
-          60% { transform: scale(1.7); opacity: 0.45; }
-          85% { transform: scale(2); opacity: 0.2; }
-          100% { transform: scale(2.3); opacity: 0; }
-        }
-        .aura-ping {
-          animation: aura-ping 4s ease-out infinite;
-        }
-        @keyframes markerPulseGw {
-          0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0.85; }
-          100% { transform: translate(-50%, -50%) scale(3.4); opacity: 0; }
-        }
-        .marker-pulse-gw {
-          animation: markerPulseGw 2.2s ease-out infinite;
-        }
-      `}</style>
 
       {/* Tracking routes + marcador */}
       {trackingRoutes.map(route => (

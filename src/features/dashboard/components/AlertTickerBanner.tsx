@@ -27,19 +27,6 @@ export default function AlertTickerBanner({ data }: Props) {
   return (
     <div className="w-full overflow-hidden bg-bg-100/90 border-b border-border/20 relative" style={{ height: 30 }}>
       <div className="absolute inset-0 flex items-center ticker-track">
-        <style>{`
-          .ticker-track {
-            mask-image: linear-gradient(to right, transparent, black 3%, black 97%, transparent);
-            -webkit-mask-image: linear-gradient(to right, transparent, black 3%, black 97%, transparent);
-          }
-          @keyframes ticker-scroll {
-            0% { transform: translateX(0); }
-            100% { transform: translateX(-33.33%); }
-          }
-          .ticker-animate {
-            animation: ticker-scroll 60s linear infinite;
-          }
-        `}</style>
         <div className="flex items-center gap-4 whitespace-nowrap ticker-animate shrink-0">
           {duplicated.map((item, i) => (
             <span key={i} className={`flex items-center gap-1.5 text-[12px] font-medium shrink-0 ${item.bg} px-2 py-0.5 rounded`} style={{ color: item.color }}>

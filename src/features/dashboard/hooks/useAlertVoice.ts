@@ -45,9 +45,7 @@ export function useAlertVoice({ alerts = [] }: AlertVoiceOptions) {
   const welcomed = useRef(false);
   const [ready, setReady] = useState(false);
 
-  // Inicializar: desbloquear audio + robustecer la carga de voces.
-  // `voiceschanged` puede dispararse antes de registrarse el listener,
-  // así que también hacemos polling para no quedar en ready=false.
+  // Inicializar: desbloquear audio + robustecer la carga de voces
   useEffect(() => {
     unlockAudio();
     registerAudioUnlock();
@@ -65,7 +63,6 @@ export function useAlertVoice({ alerts = [] }: AlertVoiceOptions) {
 
     checkVoices();
     speechSynthesis.addEventListener("voiceschanged", checkVoices);
-    // Polling de respaldo (Chrome a veces no dispara voiceschanged a tiempo)
     const poll = setInterval(checkVoices, 400);
     const timeout = setTimeout(() => setReady(true), 2500);
 
@@ -77,18 +74,13 @@ export function useAlertVoice({ alerts = [] }: AlertVoiceOptions) {
   }, []);
 
   // Pedir permiso de notificaciones del sistema en la primera interacción
-  // (gesto real). Así las alertas críticas pueden avisar aunque la pestaña
-  // esté en segundo plano.
   useEffect(() => {
     const request = () => requestNotificationPermission();
     window.addEventListener("pointerdown", request, { once: true });
     return () => window.removeEventListener("pointerdown", request);
   }, []);
 
-  // Bienvenida (voz TTS). IMPORTANTE: `welcomed` se marca DENTRO del setTimeout,
-  // no antes. En React StrictMode el efecto corre mount→cleanup→mount: si lo
-  // marcáramos antes, el cleanup cancela el timer y el segundo mount ya no
-  // reprograma la bienvenida (nunca sonaría).
+  // Bienvenida (voz TTS)
   useEffect(() => {
     if (muted || welcomed.current) return;
     const timer = setTimeout(() => {
@@ -137,7 +129,6 @@ export function useAlertVoice({ alerts = [] }: AlertVoiceOptions) {
   }, [alerts, muted, ready]);
 
   const toggleMute = useCallback(() => {
-    // Al hacer clic, también forzamos el desbloqueo de audio (gesto real)
     unlockAudio();
     setMuted(m => !m);
   }, []);

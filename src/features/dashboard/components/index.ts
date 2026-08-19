@@ -1,5 +1,4 @@
 export { default as AdminDashboard } from '../../../template/admin/AdminDashboard';
-export { WidgetsDemo } from './WidgetsDemo';
 
 // Re-exports desde carpetas específicas en features
 // export { UserProfilePanel } from '@/features/user-profile';

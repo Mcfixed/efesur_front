@@ -24,12 +24,6 @@ export default function MapOverlayInfo({ data }: { data?: DashboardData }) {
         animation: 'pulse-border 2s ease-in-out infinite'
       } : undefined}
     >
-      <style>{`
-        @keyframes pulse-border {
-          0%, 100% { border-color: rgba(239,68,68,0.4); }
-          50% { border-color: rgba(239,68,68,0.8); }
-        }
-      `}</style>
 
       {/* GPS + Gateways */}
       <div className="flex items-center gap-3 text-[11px]">
