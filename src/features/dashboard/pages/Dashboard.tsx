@@ -22,6 +22,7 @@ import AlertsChart from "../components/AlertsChart";
 import FpsIndicator from "../components/FpsIndicator";
 import MapErrorBoundary from "../components/MapErrorBoundary";
 import GatewayStatusBar from "../components/GatewayStatusBar";
+import CriticalAlertCounters from "../components/CriticalAlertCounters";
 
 export default function Dashboard() {
   const { isMobile } = useBreakpoint();
@@ -269,14 +270,17 @@ export default function Dashboard() {
                   mapRef.current?.flyTo({ center: [lng, lat], zoom: 15, duration: 1500 });
                 }}
               />
-              {/* Warning rojo flotante en esquina superior derecha del mapa */}
+              {/* Warning rojo flotante en esquina superior derecha del mapa: cada alerta crítica con su contador */}
               {(data?.alerts?.critical?.length ?? 0) > 0 && (
-                <div className="absolute top-12 right-12 z-20 flex items-center gap-1.5 bg-red-950/80 border border-red-500/50 rounded-lg px-2.5 py-1.5 shadow-lg backdrop-blur-sm animate-pulse">
-                  <svg width="18" height="18" viewBox="-9 -9 18 18">
-                    <circle cx="0" cy="0" r="8" fill="#ef4444" />
-                    <text x="0" y="4" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold">!</text>
-                  </svg>
-                  <span className="text-[11px] font-semibold text-red-400">{(data?.alerts?.critical?.length ?? 0)} críticas</span>
+                <div className="absolute top-12 right-12 z-20 flex flex-col bg-red-950/85 border border-red-500/50 rounded-lg px-3 py-2 shadow-lg backdrop-blur-sm min-w-44 max-w-64 max-h-[55vh] overflow-y-auto">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <svg width="16" height="16" viewBox="-9 -9 18 18" className="animate-pulse shrink-0">
+                      <circle cx="0" cy="0" r="8" fill="#ef4444" />
+                      <text x="0" y="4" textAnchor="middle" fill="white" fontSize="11" fontWeight="bold">!</text>
+                    </svg>
+                    <span className="text-[11px] font-semibold text-red-400">{(data?.alerts?.critical?.length ?? 0)} críticas</span>
+                  </div>
+                  <CriticalAlertCounters alerts={data?.alerts?.critical || []} />
                 </div>
               )}
               <MapLayers data={data} gateways={gateways} showAllSensors={showAllSensors} onToggleShowAll={handleToggleShowAll} mapZoom={mapZoom} />

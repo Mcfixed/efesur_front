@@ -48,8 +48,8 @@ export const useResolveAlert = () => {
     onSuccess: (data: any) => {
       const action = data?.alert?.action || 'resolver';
       const msgs: Record<string, string> = {
-        abortar: 'Alerta resuelta + comando abortar emergencia enviado',
-        persecucion: 'Alerta resuelta + modo persecución activado',
+        abortar: 'Comando abortar emergencia enviado al sensor',
+        persecucion: 'Modo persecución activado en el sensor',
         resolver: 'Alerta resuelta visualmente',
       };
       toast.success(msgs[action] || 'Alerta resuelta');
