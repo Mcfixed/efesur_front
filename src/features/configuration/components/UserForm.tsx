@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { User, Company } from "../../types/config.types";
-import { Button, Input, Checkbox } from "@/components/ui";
+import { Button, Input, Checkbox, Label } from "@/components/ui";
 
 interface UserFormProps {
   initialData?: User | null;
@@ -16,6 +16,13 @@ export function UserForm({ initialData, companies, onSubmit, onCancel, isLoading
     email: "",
     password: "",
     role: "visualizador",
+    phone_call: "",
+    phone_whatsapp: "",
+    is_active: true,
+    notify_calls: false,
+    notify_whatsapp: false,
+    notify_email: false,
+    notify_email_address: "",
   });
 
   const [selectedCompanies, setSelectedCompanies] = useState<number[]>([]);
@@ -26,6 +33,13 @@ export function UserForm({ initialData, companies, onSubmit, onCancel, isLoading
         name: initialData.name,
         email: initialData.email,
         role: initialData.role,
+        phone_call: initialData.phone_call ?? "",
+        phone_whatsapp: initialData.phone_whatsapp ?? "",
+        is_active: initialData.is_active ?? true,
+        notify_calls: initialData.notify_calls ?? false,
+        notify_whatsapp: initialData.notify_whatsapp ?? false,
+        notify_email: initialData.notify_email ?? false,
+        notify_email_address: initialData.notify_email_address ?? "",
       });
       // Extract assigned company IDs
       if (initialData.company_assignments) {
@@ -57,34 +71,46 @@ export function UserForm({ initialData, companies, onSubmit, onCancel, isLoading
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      <Input
-        label="Nombre Completo"
-        name="name"
-        value={formData.name || ""}
-        onChange={handleChange}
-        required
-        placeholder="Ej: Juan Pérez"
-      />
-      <Input
-        label="Correo Electrónico"
-        name="email"
-        type="email"
-        value={formData.email || ""}
-        onChange={handleChange}
-        required
-        placeholder="ejemplo@efe.cl"
-        disabled={!!initialData} // No permitimos cambiar email por ahora
-      />
-      {!initialData && (
+      <div>
+        <Label htmlFor="user-name" required>Nombre Completo</Label>
         <Input
-          label="Contraseña"
-          name="password"
-          type="password"
-          value={formData.password || ""}
+          id="user-name"
+          name="name"
+          value={formData.name || ""}
           onChange={handleChange}
           required
-          placeholder="Mínimo 8 caracteres"
+          placeholder="Ej: Juan Pérez"
         />
+      </div>
+      <div>
+        <Label htmlFor="user-email" required={!initialData}>Correo Electrónico</Label>
+        <Input
+          id="user-email"
+          name="email"
+          type="email"
+          value={formData.email || ""}
+          onChange={handleChange}
+          required={!initialData}
+          placeholder="ejemplo@efe.cl"
+          // Un contacto de notificación sí puede definir/cambiar su email (es opcional para ellos)
+          disabled={!!initialData && initialData.role !== 'contacto'}
+        />
+      </div>
+      {(!initialData || initialData.role === 'contacto') && (
+        <div>
+          <Label htmlFor="user-password" required={!initialData}>
+            {initialData?.role === 'contacto' ? "Contraseña (para activar acceso)" : "Contraseña"}
+          </Label>
+          <Input
+            id="user-password"
+            name="password"
+            type="password"
+            value={formData.password || ""}
+            onChange={handleChange}
+            required={!initialData}
+            placeholder="Mínimo 8 caracteres"
+          />
+        </div>
       )}
       
       <div className="pt-2 pb-4 border-b border-border-100">
@@ -95,13 +121,65 @@ export function UserForm({ initialData, companies, onSubmit, onCancel, isLoading
           <option value="visualizador">Visualizador</option>
           <option value="admin_efe">Admin EFE</option>
           <option value="superadmin">Superadmin</option>
+          <option value="contacto">Contacto (sin login)</option>
         </select>
         <p className="text-xs text-text-300 mt-1">
           {formData.role === 'superadmin'
             ? 'Superadmins tienen acceso a todas las empresas automáticamente.'
             : formData.role === 'admin_efe'
               ? 'Admin EFE puede gestionar empresas asignadas.'
-              : 'Visualizador solo puede ver datos.'}
+              : formData.role === 'contacto'
+                ? 'Contacto de notificación: no puede iniciar sesión. Solo el superadmin puede activarlo.'
+                : 'Visualizador solo puede ver datos.'}
+        </p>
+      </div>
+
+      <div className="pt-2 pb-4 border-b border-border-100">
+        <label className="text-sm font-medium text-text-200 mb-2 block">Notificaciones (llamadas / WhatsApp / correo)</label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <Label htmlFor="user-phone-call">Teléfono para llamadas</Label>
+            <Input
+              id="user-phone-call"
+              name="phone_call"
+              value={formData.phone_call || ""}
+              onChange={handleChange}
+              placeholder="+56912345678"
+            />
+          </div>
+          <div>
+            <Label htmlFor="user-phone-whatsapp">Teléfono WhatsApp</Label>
+            <Input
+              id="user-phone-whatsapp"
+              name="phone_whatsapp"
+              value={formData.phone_whatsapp || ""}
+              onChange={handleChange}
+              placeholder="+56912345678"
+            />
+          </div>
+        </div>
+        <div className="mt-3">
+          <Label htmlFor="user-notify-email">Correo de notificación (opcional)</Label>
+          <Input
+            id="user-notify-email"
+            name="notify_email_address"
+            type="email"
+            value={formData.notify_email_address || ""}
+            onChange={handleChange}
+            placeholder="notificaciones@empresa.cl"
+          />
+          <p className="text-xs text-text-300 mt-1">
+            Puede ser distinto al correo de acceso al sistema (p.ej. un correo de empresa para recibir las notificaciones).
+          </p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 mt-3">
+          <Checkbox id="user-is-active" label="Usuario activo (puede iniciar sesión)" name="is_active" checked={formData.is_active ?? true} onChange={handleChange} />
+          <Checkbox id="user-notify-calls" label="Recibe llamadas" name="notify_calls" checked={formData.notify_calls ?? false} onChange={handleChange} />
+          <Checkbox id="user-notify-whatsapp" label="Recibe WhatsApp" name="notify_whatsapp" checked={formData.notify_whatsapp ?? false} onChange={handleChange} />
+          <Checkbox id="user-notify-email" label="Recibe correos" name="notify_email" checked={formData.notify_email ?? false} onChange={handleChange} />
+        </div>
+        <p className="text-xs text-text-300 mt-2">
+          Si marcas alguna opción de notificación, el usuario aparecerá en la sección "Notificaciones Usuarios" y Node-RED podrá llamarlo/enviarle mensajes según la empresa.
         </p>
       </div>
 

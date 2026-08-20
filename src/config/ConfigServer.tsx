@@ -130,7 +130,7 @@ export const configServer = () => {
       component: Configuration,
       target: false,
       state: true,
-      roles: ['superadmin'],
+      roles: ['superadmin', 'admin_efe'],
     },  ];
 
   // Rutas del template (aparecen en el menú de usuario del Header)

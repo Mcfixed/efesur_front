@@ -7,6 +7,7 @@ export const CONFIG_KEYS = {
   all: ["config"] as const,
   companies: () => [...CONFIG_KEYS.all, "companies"] as const,
   users: () => [...CONFIG_KEYS.all, "users"] as const,
+  notifications: () => [...CONFIG_KEYS.all, "notifications"] as const,
   devices: (filters?: any) => [...CONFIG_KEYS.all, "devices", filters] as const,
   roles: () => [...CONFIG_KEYS.all, "roles"] as const,
   companyConfig: (companyId: number) => [...CONFIG_KEYS.all, "companyConfig", companyId] as const,
@@ -41,19 +42,28 @@ export const useDeleteCompany = () => {
 
 // --- Users Hooks ---
 export const useUsers = () => useQuery({ queryKey: CONFIG_KEYS.users(), queryFn: () => configService.getUsers() });
+export const useNotificationUsers = () => useQuery({ queryKey: CONFIG_KEYS.notifications(), queryFn: () => configService.getNotificationUsers() });
 export const useCreateUser = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: Partial<User>) => configService.createUser(data),
-    onSuccess: () => { toast.success("Usuario creado"); queryClient.invalidateQueries({ queryKey: CONFIG_KEYS.users() }); },
+    mutationFn: ({ data, silent }: { data: Partial<User>; silent?: boolean }) => configService.createUser(data),
+    onSuccess: (_data, variables) => {
+      if (!variables.silent) toast.success("Usuario creado");
+      queryClient.invalidateQueries({ queryKey: CONFIG_KEYS.users() });
+      queryClient.invalidateQueries({ queryKey: CONFIG_KEYS.notifications() });
+    },
     onError: (e: any) => toast.error(e.message || "Error al crear usuario"),
   });
 };
 export const useUpdateUser = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<User> }) => configService.updateUser(id, data),
-    onSuccess: () => { toast.success("Usuario actualizado"); queryClient.invalidateQueries({ queryKey: CONFIG_KEYS.users() }); },
+    mutationFn: ({ id, data, silent }: { id: string; data: Partial<User>; silent?: boolean }) => configService.updateUser(id, data),
+    onSuccess: (_data, variables) => {
+      if (!variables.silent) toast.success("Usuario actualizado");
+      queryClient.invalidateQueries({ queryKey: CONFIG_KEYS.users() });
+      queryClient.invalidateQueries({ queryKey: CONFIG_KEYS.notifications() });
+    },
     onError: (e: any) => toast.error(e.message || "Error al actualizar usuario"),
   });
 };

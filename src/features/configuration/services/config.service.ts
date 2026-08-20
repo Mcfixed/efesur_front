@@ -28,6 +28,10 @@ export const configService = {
     const res = await apiClient.get<{data: User[]}>("/config/users");
     return res.data.data;
   },
+  getNotificationUsers: async () => {
+    const res = await apiClient.get<{data: User[]}>("/config/users/notifications");
+    return res.data.data;
+  },
   createUser: async (data: Partial<User>) => {
     const res = await apiClient.post<{data: User}>("/config/users", data);
     return res.data.data;

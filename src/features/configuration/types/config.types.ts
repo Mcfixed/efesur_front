@@ -24,6 +24,13 @@ export interface User {
   name: string;
   image: string | null;
   role: string;
+  phone_call?: string | null;
+  phone_whatsapp?: string | null;
+  is_active?: boolean;
+  notify_calls?: boolean;
+  notify_whatsapp?: boolean;
+  notify_email?: boolean;
+  notify_email_address?: string | null;
   created_at: string;
   company_assignments?: UserCompanyAssignment[];
 }
