@@ -1,7 +1,60 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import * as XLSX from "xlsx";
 import { useMonitorDevices, useMonitorLatestTelemetry, useMonitorDeviceTelemetry } from "../../../hooks/useMonitor";
 import { cleanVoltage, cleanCurrent, cleanPower, cleanState, cleanTemp } from "../../../utils/mppt";
+
+// ═══════════════════════════════════════════
+// DOWN-SAMPLING LTTB (Largest-Triangle-Three-Buckets)
+// Reduce miles de puntos a ~threshold preservando la forma de la serie.
+// ═══════════════════════════════════════════
+function downsampleLTTB(points: { x: number; y: number }[], threshold: number): { x: number; y: number }[] {
+  const n = points.length;
+  if (threshold >= n || threshold <= 2) return points;
+  const sampled: { x: number; y: number }[] = [];
+  const every = (n - 2) / (threshold - 2);
+  let a = 0;
+  let rangeStart = 0, rangeEnd = 0;
+  sampled.push(points[0]); // siempre el primero
+  for (let i = 0; i < threshold - 2; i++) {
+    let avgRangeStart = Math.floor((i + 1) * every) + 1;
+    let avgRangeEnd = Math.floor((i + 2) * every) + 1;
+    if (avgRangeEnd > n) avgRangeEnd = n;
+    const avgRangeLength = avgRangeEnd - avgRangeStart;
+    let avgX = 0, avgY = 0;
+    for (let k = avgRangeStart; k < avgRangeEnd; k++) { avgX += points[k].x; avgY += points[k].y; }
+    avgX /= avgRangeLength; avgY /= avgRangeLength;
+    rangeStart = rangeEnd;
+    rangeEnd = Math.floor((i + 1) * every) + 1;
+    const ax = points[a].x, ay = points[a].y;
+    let maxArea = -1;
+    for (let k = rangeStart; k < rangeEnd; k++) {
+      const area = Math.abs((ax - avgX) * (points[k].y - ay) - (ax - points[k].x) * (avgY - ay));
+      if (area > maxArea) { maxArea = area; a = k; }
+    }
+    sampled.push(points[a]);
+  }
+  sampled.push(points[n - 1]); // siempre el último
+  return sampled;
+}
+
+// Variables numéricas del histórico disponibles para graficar
+const CHART_VARS = [
+  { key: "vBat", label: "Batería", unit: "V", color: "#22c55e" },
+  { key: "iBat", label: "Corriente", unit: "A", color: "#f97316" },
+  { key: "pPan", label: "Panel", unit: "W", color: "#eab308" },
+  { key: "pvVolt", label: "Panel V", unit: "V", color: "#facc15" },
+  { key: "loadA", label: "Carga A", unit: "A", color: "#ef4444" },
+  { key: "temp", label: "Temp MPPT", unit: "°C", color: "#a855f7" },
+  { key: "yieldToday", label: "Yield hoy", unit: "kWh", color: "#14b8a6" },
+  { key: "chargerVolt", label: "Chg 220 V", unit: "V", color: "#3b82f6" },
+  { key: "chargerAmp", label: "Chg 220 A", unit: "A", color: "#ec4899" },
+  { key: "ambTemp", label: "T° ambiente", unit: "°C", color: "#0ea5e9" },
+  { key: "humidity", label: "Humedad", unit: "%", color: "#06b6d4" },
+  { key: "pressure", label: "Presión", unit: "Pa", color: "#8b5cf6" },
+  { key: "ramFree", label: "RAM libre", unit: "bytes", color: "#64748b" },
+];
 
 // ═══════════════════════════════════════════
 // Sin mock data — todo desde telemetría real
@@ -116,9 +169,12 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
     return gw?.name || null;
   }, [allDevices, lectorId, gatewayNameProp]);
 
-  // Histórico del lector (límite fijo — sin botón "Cargar más")
-  const HISTORY_LIMIT = 200;
-  const { data: historyData } = useMonitorDeviceTelemetry(lectorId, { limit: HISTORY_LIMIT });
+  // Histórico del lector (paginado — "Cargar más" carga más registros)
+  const PAGE_SIZE = 10000;
+  const [historyOffset, setHistoryOffset] = useState(0);
+  const { data: historyData } = useMonitorDeviceTelemetry(lectorId, { limit: PAGE_SIZE, offset: historyOffset });
+  const historyHasMore = (historyData?.telemetry?.length ?? 0) === PAGE_SIZE;
+  useEffect(() => { setHistoryOffset(0); }, [lectorId]);
 
   const historyRows = useMemo(() => {
     const telemetry = historyData?.telemetry || [];
@@ -155,6 +211,19 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
       };
     });
   }, [historyData]);
+
+  // ── Gráfico del histórico: variable seleccionada + downsampling LTTB ──
+  const [histTab, setHistTab] = useState<"datos" | "grafico">("datos");
+  const [chartVar, setChartVar] = useState("vBat");
+  const chartVarDef = CHART_VARS.find(v => v.key === chartVar) ?? CHART_VARS[0];
+  const chartPoints = useMemo(() => {
+    const pts = historyRows
+      .map((r: any) => ({ x: new Date(r.ts).getTime(), y: r[chartVar] }))
+      .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y))
+      .sort((a, b) => a.x - b.x);
+    const sampled = pts.length > 600 ? downsampleLTTB(pts, 500) : pts;
+    return sampled.map((p) => ({ time: format(new Date(p.x), "dd/MM HH:mm"), value: p.y }));
+  }, [historyRows, chartVar]);
 
   // Extraer datos de telemetría del primer lector
   const dashboardData = useMemo(() => {
@@ -211,6 +280,26 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
 
   const hasLector = lectores.length > 0;
   const { chartData, lector, lastT, sensores, charger220, vBat, pPan, iBat, iOut, loadState, chargeState, pvVolt, charging, charger220State, charger220Volt, temp } = dashboardData;
+
+  // ── Export a Excel del histórico ──
+  const exportExcel = () => {
+    if (!historyRows.length) return;
+    const rows = historyRows.map((r: any) => ({
+      "Fecha": r.ts ? format(new Date(r.ts), "dd/MM/yyyy HH:mm:ss") : "",
+      "Batería (V)": r.vBat, "Corriente (A)": r.iBat, "Panel (W)": r.pPan, "Panel V (V)": r.pvVolt,
+      "Carga (A)": r.loadA, "Load": r.loadState, "Temp MPPT (°C)": r.temp, "Carga": r.chargeState,
+      "Yield hoy (kWh)": r.yieldToday, "Puerta": r.door, "Aperturas": r.doorCounter, "Prox": r.pir,
+      "Chg 220": r.chargerState, "Chg V (V)": r.chargerVolt, "Chg A (A)": r.chargerAmp,
+      "T° amb (°C)": r.ambTemp, "Humedad (%)": r.humidity, "Presión (Pa)": r.pressure,
+      "RAM libre (bytes)": r.ramFree,
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws["!cols"] = [{ wch: 20 }, ...Array(19).fill({ wch: 13 })];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Histórico lector");
+    const name = (lector?.name || "lector").replace(/[^\w\-]+/g, "_");
+    XLSX.writeFile(wb, `historial_lector_${name}.xlsx`);
+  };
 
   // Estado online del lector: diferencia absoluta <= 5 min (tolera reloj adelantado/atrasado y NaN)
   const lastTsMs = lastT?.ts ? new Date(lastT.ts).getTime() : NaN;
@@ -479,7 +568,54 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
             <span className="w-1.5 h-1.5 rounded-full bg-[#00a3e8]" />
             <h3 className="text-[10px] font-semibold text-text-200 uppercase tracking-wider">Histórico del lector</h3>
             <span className="ml-auto text-[10px] text-text-300 font-mono">{historyRows.length} registros</span>
+            <button onClick={exportExcel} title="Descargar histórico en Excel"
+              className="px-2 py-0.5 rounded text-[9px] font-semibold text-green-400 bg-green-500/10 border border-green-500/30 hover:bg-green-500/20 transition-colors">
+              ⬇ Excel
+            </button>
           </div>
+          {/* Tabs: Datos | Gráfico */}
+          <div className="shrink-0 flex border-b border-border/20">
+            <button onClick={() => setHistTab("datos")}
+              className={`flex-1 py-1.5 text-[10px] font-semibold uppercase tracking-wider transition-colors ${histTab === "datos" ? "text-[#00a3e8] border-b-2 border-[#00a3e8]" : "text-text-300 hover:text-text-200"}`}>
+              Datos
+            </button>
+            <button onClick={() => setHistTab("grafico")}
+              className={`flex-1 py-1.5 text-[10px] font-semibold uppercase tracking-wider transition-colors ${histTab === "grafico" ? "text-[#00a3e8] border-b-2 border-[#00a3e8]" : "text-text-300 hover:text-text-200"}`}>
+              Gráfico
+            </button>
+          </div>
+          {histTab === "grafico" ? (
+          <div className="shrink-0 px-3 pt-2.5 pb-2">
+            <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+              <span className="text-[10px] font-semibold text-text-200 uppercase tracking-wider">Variable:</span>
+              {CHART_VARS.map(v => (
+                <button key={v.key} onClick={() => setChartVar(v.key)}
+                  className={`px-2 py-0.5 rounded text-[9px] font-medium transition-colors ${chartVar === v.key ? "bg-[#00a3e8]/20 text-[#00a3e8]" : "bg-bg-200/50 text-text-300 hover:text-text-200"}`}>
+                  {v.label}
+                </button>
+              ))}
+              <span className="ml-auto text-[9px] text-text-300 font-mono">{historyRows.length} pts → {chartPoints.length} mostrados</span>
+            </div>
+            <div className="h-44">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartPoints}>
+                  <defs>
+                    <linearGradient id="grado-lector" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={chartVarDef.color} stopOpacity={0.35} />
+                      <stop offset="100%" stopColor={chartVarDef.color} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" />
+                  <XAxis dataKey="time" tick={{ fontSize: 9, fill: "#9ca3af" }} tickLine={false} axisLine={{ stroke: "#ffffff20" }} minTickGap={50} />
+                  <YAxis tick={{ fontSize: 9, fill: "#9ca3af" }} tickLine={false} axisLine={false} width={46} domain={["auto", "auto"]} />
+                  <Tooltip contentStyle={{ background: "#1e1e1e", border: "1px solid #333", borderRadius: 8, fontSize: 11 }} labelStyle={{ color: "#ccc" }} />
+                  <Area type="monotone" dataKey="value" stroke={chartVarDef.color} strokeWidth={1.8} fill="url(#grado-lector)" dot={false} name={`${chartVarDef.label} (${chartVarDef.unit})`} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          ) : (
+          <>
           <div className="overflow-auto max-h-56">
             <table className="w-full text-[11px]" style={{ minWidth: 1100 }}>
               <thead className="sticky top-0 z-10">
@@ -570,6 +706,17 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
               </tbody>
             </table>
           </div>
+          {historyHasMore && (
+            <div className="px-3 py-2 border-t border-border/20">
+              <button
+                onClick={() => setHistoryOffset(p => p + PAGE_SIZE)}
+                className="w-full py-1.5 text-[11px] font-medium text-brand-100 bg-bg-200/50 rounded-md hover:bg-bg-200 border border-border/20 transition-colors"
+              >
+                + Cargar más
+              </button>
+            </div>
+          )}
+          </>)}
         </div>
       )}
     </div>
