@@ -19,6 +19,7 @@ export function UserForm({ initialData, companies, onSubmit, onCancel, isLoading
     phone_call: "",
     phone_whatsapp: "",
     is_active: true,
+    is_active_notification: true,
     notify_calls: false,
     notify_whatsapp: false,
     notify_email: false,
@@ -36,6 +37,7 @@ export function UserForm({ initialData, companies, onSubmit, onCancel, isLoading
         phone_call: initialData.phone_call ?? "",
         phone_whatsapp: initialData.phone_whatsapp ?? "",
         is_active: initialData.is_active ?? true,
+        is_active_notification: initialData.is_active_notification ?? true,
         notify_calls: initialData.notify_calls ?? false,
         notify_whatsapp: initialData.notify_whatsapp ?? false,
         notify_email: initialData.notify_email ?? false,
@@ -135,52 +137,59 @@ export function UserForm({ initialData, companies, onSubmit, onCancel, isLoading
       </div>
 
       <div className="pt-2 pb-4 border-b border-border-100">
-        <label className="text-sm font-medium text-text-200 mb-2 block">Notificaciones (llamadas / WhatsApp / correo)</label>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <Label htmlFor="user-phone-call">Teléfono para llamadas</Label>
-            <Input
-              id="user-phone-call"
-              name="phone_call"
-              value={formData.phone_call || ""}
-              onChange={handleChange}
-              placeholder="+56912345678"
-            />
-          </div>
-          <div>
-            <Label htmlFor="user-phone-whatsapp">Teléfono WhatsApp</Label>
-            <Input
-              id="user-phone-whatsapp"
-              name="phone_whatsapp"
-              value={formData.phone_whatsapp || ""}
-              onChange={handleChange}
-              placeholder="+56912345678"
-            />
-          </div>
-        </div>
-        <div className="mt-3">
-          <Label htmlFor="user-notify-email">Correo de notificación (opcional)</Label>
-          <Input
-            id="user-notify-email"
-            name="notify_email_address"
-            type="email"
-            value={formData.notify_email_address || ""}
-            onChange={handleChange}
-            placeholder="notificaciones@empresa.cl"
-          />
-          <p className="text-xs text-text-300 mt-1">
-            Puede ser distinto al correo de acceso al sistema (p.ej. un correo de empresa para recibir las notificaciones).
-          </p>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 mt-3">
+        <label className="text-sm font-medium text-text-200 mb-2 block">Notificaciones</label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
           <Checkbox id="user-is-active" label="Usuario activo (puede iniciar sesión)" name="is_active" checked={formData.is_active ?? true} onChange={handleChange} />
-          <Checkbox id="user-notify-calls" label="Recibe llamadas" name="notify_calls" checked={formData.notify_calls ?? false} onChange={handleChange} />
-          <Checkbox id="user-notify-whatsapp" label="Recibe WhatsApp" name="notify_whatsapp" checked={formData.notify_whatsapp ?? false} onChange={handleChange} />
-          <Checkbox id="user-notify-email" label="Recibe correos" name="notify_email" checked={formData.notify_email ?? false} onChange={handleChange} />
+          <Checkbox id="user-notify-active" label="Activo para notificaciones" name="is_active_notification" checked={formData.is_active_notification ?? true} onChange={handleChange} />
         </div>
-        <p className="text-xs text-text-300 mt-2">
-          Si marcas alguna opción de notificación, el usuario aparecerá en la sección "Notificaciones Usuarios" y Node-RED podrá llamarlo/enviarle mensajes según la empresa.
-        </p>
+        {formData.is_active_notification !== false && (
+          <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+            <div>
+              <Label htmlFor="user-phone-call">Teléfono para llamadas</Label>
+              <Input
+                id="user-phone-call"
+                name="phone_call"
+                value={formData.phone_call || ""}
+                onChange={handleChange}
+                placeholder="+56912345678"
+              />
+            </div>
+            <div>
+              <Label htmlFor="user-phone-whatsapp">Teléfono WhatsApp</Label>
+              <Input
+                id="user-phone-whatsapp"
+                name="phone_whatsapp"
+                value={formData.phone_whatsapp || ""}
+                onChange={handleChange}
+                placeholder="+56912345678"
+              />
+            </div>
+          </div>
+          <div className="mt-3">
+            <Label htmlFor="user-notify-email">Correo de notificación (opcional)</Label>
+            <Input
+              id="user-notify-email"
+              name="notify_email_address"
+              type="email"
+              value={formData.notify_email_address || ""}
+              onChange={handleChange}
+              placeholder="notificaciones@empresa.cl"
+            />
+            <p className="text-xs text-text-300 mt-1">
+              Puede ser distinto al correo de acceso al sistema (p.ej. un correo de empresa para recibir las notificaciones).
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 mt-3">
+            <Checkbox id="user-notify-calls" label="Recibe llamadas" name="notify_calls" checked={formData.notify_calls ?? false} onChange={handleChange} />
+            <Checkbox id="user-notify-whatsapp" label="Recibe WhatsApp" name="notify_whatsapp" checked={formData.notify_whatsapp ?? false} onChange={handleChange} />
+            <Checkbox id="user-notify-email" label="Recibe correos" name="notify_email" checked={formData.notify_email ?? false} onChange={handleChange} />
+          </div>
+          <p className="text-xs text-text-300 mt-2">
+            Si marcas alguna opción de notificación, el usuario aparecerá en la sección "Notificaciones Usuarios" y Node-RED podrá llamarlo/enviarle mensajes según la empresa.
+          </p>
+          </>
+        )}
       </div>
 
       {formData.role !== 'superadmin' && (

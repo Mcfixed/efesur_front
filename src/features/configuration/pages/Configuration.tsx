@@ -304,6 +304,11 @@ function UsersTab() {
     await updateMutation.mutateAsync({ id: user.id, data: { is_active: !(user.is_active ?? true) } });
   };
 
+  // Activa/desactiva si el usuario recibe notificaciones (independiente del login)
+  const handleToggleNotifyActive = async (user: User) => {
+    await updateMutation.mutateAsync({ id: user.id, data: { is_active_notification: !(user.is_active_notification ?? true) } });
+  };
+
   const safeCompanies = Array.isArray(companies) ? companies : (Array.isArray((companies as any)?.data) ? (companies as any).data : []);
 
   return (
@@ -377,6 +382,20 @@ function UsersTab() {
                 >
                   <span className={`w-1.5 h-1.5 rounded-full ${row.is_active === false ? "bg-red-400" : "bg-green-400"}`} />
                   {row.is_active === false ? "Inactivo" : "Activo"}
+                </button>
+              )
+            },
+            {
+              key: "is_active_notification",
+              header: "Notificar",
+              render: (_, row: User) => (
+                <button
+                  onClick={() => handleToggleNotifyActive(row)}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${row.is_active_notification === false ? "bg-red-500/10 text-red-400 border-red-500/30" : "bg-teal-500/10 text-teal-400 border-teal-500/30"}`}
+                  title={row.is_active_notification === false ? "Activar notificaciones" : "Desactivar notificaciones"}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${row.is_active_notification === false ? "bg-red-400" : "bg-teal-400"}`} />
+                  {row.is_active_notification === false ? "No" : "Sí"}
                 </button>
               )
             },
@@ -641,7 +660,7 @@ function NotificationsTab() {
           },
           {
             key: "is_active",
-            header: "Estado",
+            header: "Estado login",
             render: (val) => val === false
               ? <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/30">Inactivo login</span>
               : <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/30">Activo</span>
@@ -664,9 +683,9 @@ function NotificationsTab() {
         compact
       />
       <p className="text-xs text-text-300 -mt-3">
-        Se muestran todos los usuarios de la empresa; los canales activos indican a quién WISENSOR puede llamar o
-        enviar mensajes. Los contactos creados aquí no pueden iniciar sesión; solo el superadmin puede activarlos en la
-        sección "Usuarios".
+        Se muestran los usuarios de la empresa que tienen activa la notificación (estado "Notificar" en la sección
+        Usuarios). Los canales activos indican a quién WISENSOR puede llamar o enviar mensajes. Los contactos creados
+        aquí no pueden iniciar sesión, pero reciben notificaciones si tienen canales marcados.
       </p>
 
       <Modal isOpen={isFormOpen} onClose={() => setIsFormOpen(false)} title={editingContact ? "Editar Contacto Notificado" : "Nuevo Usuario Notificado"}>

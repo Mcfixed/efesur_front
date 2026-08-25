@@ -27,6 +27,7 @@ export interface User {
   phone_call?: string | null;
   phone_whatsapp?: string | null;
   is_active?: boolean;
+  is_active_notification?: boolean;
   notify_calls?: boolean;
   notify_whatsapp?: boolean;
   notify_email?: boolean;
