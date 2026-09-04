@@ -100,7 +100,7 @@ const BottomSidebar = ({ isCollapsed }: { isCollapsed: boolean }) => {
       } `}
     >
       <span className={`text-xs text-text-200 text-center`}>
-        © {new Date().getFullYear()} v0.0.1
+        © {new Date().getFullYear()} v2.5.3
       </span>
     </div>
   );
