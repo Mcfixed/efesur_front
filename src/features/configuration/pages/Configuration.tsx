@@ -659,11 +659,21 @@ function NotificationsTab() {
             render: (_, row: any) => <ToggleSwitch active={!!row.notify_email} onClick={() => requestToggleNotify(row, 'notify_email')} label="Correo de notificación" />
           },
           {
-            key: "is_active",
-            header: "Estado login",
+            key: "is_active_notification",
+            header: "Estado notif.",
             render: (val) => val === false
-              ? <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/30">Inactivo login</span>
-              : <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/10 text-green-400 border border-green-500/30">Activo</span>
+              ? <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/30">No notifica</span>
+              : <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-teal-500/10 text-teal-400 border border-teal-500/30">Notifica</span>
+          },
+          {
+            key: "is_active",
+            header: "Login",
+            render: (val) => (
+              <span
+                className={`inline-flex items-center justify-center w-2.5 h-2.5 rounded-full ${val === false ? "bg-red-400" : "bg-green-400"}`}
+                title={val === false ? "Sin acceso al sistema" : "Puede iniciar sesión"}
+              />
+            )
           },
           {
             key: "actions",

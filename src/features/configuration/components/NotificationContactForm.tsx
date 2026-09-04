@@ -64,7 +64,7 @@ export function NotificationContactForm({ initialData, companyName, onSubmit, on
             name="phone_call"
             value={formData.phone_call || ""}
             onChange={handleChange}
-            placeholder="+56912345678"
+            placeholder="56912345678"
           />
         </div>
         <div>
@@ -74,7 +74,7 @@ export function NotificationContactForm({ initialData, companyName, onSubmit, on
             name="phone_whatsapp"
             value={formData.phone_whatsapp || ""}
             onChange={handleChange}
-            placeholder="+56912345678"
+            placeholder="56912345678"
           />
         </div>
       </div>

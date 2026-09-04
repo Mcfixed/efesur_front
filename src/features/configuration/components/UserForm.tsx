@@ -152,7 +152,7 @@ export function UserForm({ initialData, companies, onSubmit, onCancel, isLoading
                 name="phone_call"
                 value={formData.phone_call || ""}
                 onChange={handleChange}
-                placeholder="+56912345678"
+                placeholder="56912345678"
               />
             </div>
             <div>
@@ -162,7 +162,7 @@ export function UserForm({ initialData, companies, onSubmit, onCancel, isLoading
                 name="phone_whatsapp"
                 value={formData.phone_whatsapp || ""}
                 onChange={handleChange}
-                placeholder="+56912345678"
+                placeholder="56912345678"
               />
             </div>
           </div>
