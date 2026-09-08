@@ -272,7 +272,7 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
             <div className="text-center py-2 mb-3">
               <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-orange-300 bg-orange-500/10 px-3 py-1 rounded-full">
                 <IconBellOff size={12} />
-                Alerta abortada — no se pueden enviar más comandos
+                Alerta abortada — no se pueden enviar más señales, EL SENSOR VOLVERÁ A ESTADO NORMAL
               </span>
             </div>
             <button onClick={handleOpenResolverOnly}
@@ -284,16 +284,16 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
         ) : pendingCommand ? (
           <>
             <div className="text-center py-2 mb-3">
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-yellow-300 bg-yellow-500/10 px-3 py-1 rounded-full">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-red-300 bg-red-500/10 px-3 py-1 rounded-full">
                 <IconAlertTriangle size={12} />
-                Confirmar envío de comando
+                Confirmar envío de señal
               </span>
             </div>
             <p className="text-xs text-text-300 mb-4">
               {pendingCommand === 'persecucion' ? (
-                <>¿Enviar <strong className="text-red-400">Modo persecución</strong> al sensor? El sensor seguirá transmitiendo en seguimiento continuo hasta agotar batería.</>
+                <>¿Enviar <strong className="text-red-400">Modo persecución</strong> al sensor? El sensor seguirá transmitiendo en seguimiento continuo hasta AGOTAR BATERÍA.</>
               ) : (
-                <>¿Enviar <strong className="text-orange-400">Abortar emergencia</strong> al sensor? Detendrá la alerta y no se podrán enviar más comandos.</>
+                <>¿Enviar <strong className="text-red-400">Detener emergencia</strong> al sensor? Detendrá la alerta en el sensor y el dispositivo VOLVERÁ A ESTADO NORMAL</>
               )}
             </p>
             <div className="flex items-center justify-end gap-2">
@@ -313,8 +313,8 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-[12px] font-semibold text-white bg-orange-600 hover:bg-orange-700 transition-colors disabled:opacity-40">
                 <IconBellOff size={18} />
                 <div className="text-left">
-                  <p>Abortar emergencia</p>
-                  <p className="text-[10px] font-normal text-white/70">Envía comando al sensor para detener la alerta</p>
+                  <p>Detener emergencia</p>
+                <p className="text-[10px] font-normal text-white/70">ENVÍA SEÑAL AL SENSOR PARA DETENER LA ALERTA CRÍTICA</p>
                 </div>
                 {resolveMutation.isPending && <span className="ml-auto text-[10px] animate-pulse">Enviando...</span>}
               </button>
@@ -323,7 +323,7 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
                 <IconRun size={18} />
                 <div className="text-left">
                   <p>Modo persecución</p>
-                  <p className="text-[10px] font-normal text-white/70">{cmd === 'persecucion' ? 'Persecución ya activa en el sensor' : 'Activa seguimiento continuo hasta agotar batería'}</p>
+                  <p className="text-[10px] font-normal text-white/70">{cmd === 'persecucion' ? 'Persecución ya activa en el sensor' : 'ACTIVA SEGUIMIENTO CONTINUO HASTA AGOTAR BATERÍA'}</p>
                 </div>
                 {resolveMutation.isPending && <span className="ml-auto text-[10px] animate-pulse">Enviando...</span>}
               </button>
@@ -358,7 +358,7 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
         {!commandsSent.has(resolvingAlertId) && (
           <p className="text-[10px] text-yellow-400/80 mt-2 mb-3 flex items-center gap-1">
             <IconAlertTriangle size={11} className="shrink-0" />
-            <span>El sensor <span className="text-red-400">no recibirá ningún comando</span>. Seguirá enviando alertas por 6 horas.</span>
+            <span>Esta resolución es solamente visual en dashboard por lo que no interfiere en el funcionamiento del sensor</span>
           </p>
         )}
         <div className="flex items-center justify-end gap-2 mt-3">
@@ -387,7 +387,7 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
             <span>Comando ya enviado al sensor. Solo se resolverá la alerta visualmente.</span>
           </p>
         ) : (
-          <p className="text-xs text-text-300 mb-4">El sensor seguirá enviando alertas críticas durante 6 horas si no se envía un comando de abortar emergencia o modo persecución.</p>
+          <p className="text-xs text-text-300 mb-4">El sensor funcionará según los comandos enviados anteriormente. Si ningún comando es enviado, la alerta crítica por parte del sensor se mantendrá 6 horas.</p>
         )}
         <div className="flex items-center justify-end gap-2">
           <button onClick={() => setShowConfirmResolver(false)} className="px-3 py-1.5 text-xs text-text-300 hover:text-text-100 bg-bg-200 hover:bg-bg-300 rounded-lg transition-colors">Volver</button>
