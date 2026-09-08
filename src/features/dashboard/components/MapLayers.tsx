@@ -275,29 +275,69 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
   );
 };
 
+  // ─── PRIORIDAD VISUAL DE ALERTAS SOBRE UN GATEWAY ───
+  // Si un gateway tiene varias alertas a la vez, se muestra SOLO la de mayor jerarquía
+  // (es más limpio visualmente): apertura > presencia > desconexión 220 > batería GW.
+  const GW_ALERT_PRIORITY = ['apertura', 'presencia', 'desconexion220', 'desconexionbatGW'] as const;
+  type GwAlertKey = typeof GW_ALERT_PRIORITY[number];
+
   const gatewayAlertMap = useMemo(() => {
-    const map = new Map<number, { apertura: boolean; presencia: boolean }>();
+    const map = new Map<number, Record<GwAlertKey, boolean>>();
     const now = Date.now();
     const thirtyMin = 30 * 60 * 1000;
-    (data?.alerts?.apertura || []).forEach(a => {
-      if (a.gateway_id && (now - new Date(a.created_at).getTime()) < thirtyMin) {
-        if (!map.has(a.gateway_id)) map.set(a.gateway_id, { apertura: false, presencia: false });
-        map.get(a.gateway_id)!.apertura = true;
+
+    const gwById = new Map(gateways.map(gw => [gw.id, gw]));
+    const gwByName = new Map(gateways.map(gw => [String(gw.name || '').toLowerCase(), gw]));
+
+    const resolveGw = (a: any): { id: number; gw?: any } | null => {
+      // 1) gateway_id explícito (backend lo deriva para alertas sobre el lector)
+      if (a.gateway_id != null && gwById.has(a.gateway_id)) return { id: a.gateway_id, gw: gwById.get(a.gateway_id) };
+      // 2) el propio alert apunta al gateway (device_id = gateway)
+      if (a.device_id != null && gwById.has(a.device_id)) return { id: a.device_id, gw: gwById.get(a.device_id) };
+      // 3) por nombre del dispositivo
+      if (a.device_name) {
+        const gw = gwByName.get(String(a.device_name).toLowerCase());
+        if (gw) return { id: gw.id, gw };
       }
+      return null;
+    };
+
+    const mark = (a: any, key: GwAlertKey) => {
+      const hit = resolveGw(a);
+      if (!hit) return;
+      const entry = map.get(hit.id) || { apertura: false, presencia: false, desconexion220: false, desconexionbatGW: false };
+      entry[key] = true;
+      map.set(hit.id, entry);
+    };
+
+    // Apertura / presencia: eventos puntuales del lector → últimos 30 min
+    (data?.alerts?.apertura || []).forEach(a => {
+      if ((now - new Date(a.created_at).getTime()) < thirtyMin) mark(a, 'apertura');
     });
     (data?.alerts?.presencia || []).forEach(a => {
-      if (a.gateway_id && (now - new Date(a.created_at).getTime()) < thirtyMin) {
-        if (!map.has(a.gateway_id)) map.set(a.gateway_id, { apertura: false, presencia: false });
-        map.get(a.gateway_id)!.presencia = true;
-      }
+      if ((now - new Date(a.created_at).getTime()) < thirtyMin) mark(a, 'presencia');
     });
+    // Desconexión CA 220 / batería del gateway: mientras estén activas Y el gateway siga
+    // offline (o dentro de 30 min por si Node-RED no las cierra al volver).
+    const keepDesconexion = (a: any) => {
+      if (a.status !== 'active') return false;
+      if ((now - new Date(a.created_at).getTime()) < thirtyMin) return true;
+      const hit = resolveGw(a);
+      return !!hit && hit.gw && !hit.gw.is_online;
+    };
+    (data?.alerts?.desconexion220 || []).forEach(a => { if (keepDesconexion(a)) mark(a, 'desconexion220'); });
+    (data?.alerts?.desconexionbatGW || []).forEach(a => { if (keepDesconexion(a)) mark(a, 'desconexionbatGW'); });
     return map;
-  }, [data?.alerts?.apertura, data?.alerts?.presencia]);
+  }, [data?.alerts?.apertura, data?.alerts?.presencia, data?.alerts?.desconexion220, data?.alerts?.desconexionbatGW, gateways]);
 
   const renderGatewayIcon = (isOnline: boolean, gatewayId?: number) => {
-    const lectorAlert = gatewayId ? gatewayAlertMap.get(gatewayId) : undefined;
-    const hasLectorAlert = lectorAlert && (lectorAlert.apertura || lectorAlert.presencia);
-    const color = hasLectorAlert ? '#ef4444' : (isOnline ? '#22c55e' : '#ef4444');
+    const gwAlert = gatewayId ? gatewayAlertMap.get(gatewayId) : undefined;
+    const topAlert = gwAlert ? GW_ALERT_PRIORITY.find(k => gwAlert[k]) : undefined;
+    // El wifi SIEMPRE refleja la conectividad real (is_online, basado en last_seen):
+    // verde = gateway online, rojo = gateway offline. Las alertas (apertura / presencia /
+    // desconexión 220 / batería) son EVENTOS del sitio, NO implican que el gateway esté
+    // caído → se muestran como un badge pequeño en la esquina, sin reemplazar el wifi.
+    const connColor = isOnline ? '#22c55e' : '#ef4444';
 
     return (
       <div className="relative flex items-center justify-center group cursor-default">
@@ -306,46 +346,53 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
             width: 30,
             height: 30,
             borderRadius: '50%',
-            border: `2px solid ${color}`,
+            border: `2px solid ${connColor}`,
             top: '50%',
             left: '50%',
           }} />
         <div className="relative transition-transform group-hover:scale-125">
-          {hasLectorAlert ? (
-            <svg width="38" height="38" viewBox="-19 -19 38 38">
-              <circle cx="0" cy="0" r="17" fill="none" stroke="#ef4444" strokeWidth="2.5" opacity="0.6" />
-              <circle cx="0" cy="0" r="15" fill="none" stroke="#ef4444" strokeWidth="1" opacity="0.3" strokeDasharray="3 3" />
-              <path d="M-9 -4 Q-5 -8 0 -8 Q5 -8 9 -4" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" />
-              <path d="M-6 0 Q-3 -4 0 -4 Q3 -4 6 0" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
-              <path d="M-3 4 Q-1.5 1 0 1 Q1.5 1 3 4" fill="none" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" />
-              <circle cx="0" cy="7" r="2.5" fill="#ef4444" />
-              {lectorAlert?.apertura && (
-                <g transform="translate(10,-13)">
-                  <rect x="-4" y="-4" width="8" height="9" rx="1" fill="none" stroke="#ef4444" strokeWidth="1.5" />
-                  <line x1="4" y1="-4" x2="4" y2="5" stroke="#ef4444" strokeWidth="1.5" />
-                  <circle cx="1.5" cy="1" r="0.8" fill="#ef4444" />
-                </g>
+          {/* ── WIFI BASE: estado de conexión (online/offline) ── */}
+          <svg width="34" height="34" viewBox="0 0 34 34">
+            <path d="M7 12 Q11 7 17 7 Q23 7 27 12" fill="none" stroke={connColor} strokeWidth="3" strokeLinecap="round" />
+            <path d="M10 16 Q13 12 17 12 Q21 12 24 16" fill="none" stroke={connColor} strokeWidth="2.5" strokeLinecap="round" />
+            <path d="M13 20 Q15 17 17 17 Q19 17 21 20" fill="none" stroke={connColor} strokeWidth="2" strokeLinecap="round" />
+            <circle cx="17" cy="24" r="3" fill={connColor} />
+          </svg>
+          {/* ── BADGE DE ALERTA (evento del sitio, no significa gateway caído) ── */}
+          {topAlert && (
+            <span
+              title={`${topAlert === 'apertura' ? 'Apertura' : topAlert === 'presencia' ? 'Presencia' : topAlert === 'desconexion220' ? 'CA 220 Off' : 'Batería GW Off'} · Gateway ${isOnline ? 'online' : 'offline'}`}
+              className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 border-2 border-bg-100 shadow-[0_0_6px_rgba(239,68,68,0.7)] flex items-center justify-center animate-pulse"
+            >
+              {topAlert === 'apertura' && (
+                <svg width="12" height="12" viewBox="0 0 12 12">
+                  <rect x="1.5" y="1.5" width="9" height="9" rx="1" fill="none" stroke="white" strokeWidth="1.3" />
+                  <line x1="5.5" y1="1.5" x2="5.5" y2="10.5" stroke="white" strokeWidth="1.3" />
+                  <circle cx="3.3" cy="6" r="0.9" fill="white" />
+                </svg>
               )}
-              {lectorAlert?.presencia && (
-                <g transform={`translate(${lectorAlert?.apertura ? 16 : 10},-13)`}>
-                  <circle cx="0" cy="-3" r="3" fill="none" stroke="#ef4444" strokeWidth="1.2" />
-                  <path d="M-5 5 Q0 -1 5 5" fill="none" stroke="#ef4444" strokeWidth="1.2" />
-                </g>
+              {topAlert === 'presencia' && (
+                <svg width="12" height="12" viewBox="0 0 12 12">
+                  <circle cx="6" cy="4.2" r="1.9" fill="none" stroke="white" strokeWidth="1.3" />
+                  <path d="M2.2 10.4 Q6 6.4 9.8 10.4" fill="none" stroke="white" strokeWidth="1.3" strokeLinecap="round" />
+                </svg>
               )}
-            </svg>
-          ) : (
-            <svg width="34" height="34" viewBox="0 0 34 34">
-              <defs>
-                <linearGradient id={`gw-${isOnline ? 'on' : 'off'}`} x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor={color} stopOpacity="0.9" />
-                  <stop offset="100%" stopColor={color} stopOpacity="0.5" />
-                </linearGradient>
-              </defs>
-              <path d="M7 12 Q11 7 17 7 Q23 7 27 12" fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" />
-              <path d="M10 16 Q13 12 17 12 Q21 12 24 16" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
-              <path d="M13 20 Q15 17 17 17 Q19 17 21 20" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" />
-              <circle cx="17" cy="24" r="3" fill={color} />
-            </svg>
+              {topAlert === 'desconexion220' && (
+                <svg width="12" height="12" viewBox="0 0 12 12">
+                  <rect x="2.5" y="4.2" width="7" height="5" rx="1" fill="none" stroke="white" strokeWidth="1.3" />
+                  <line x1="4.5" y1="4.2" x2="4.5" y2="2.2" stroke="white" strokeWidth="1.3" strokeLinecap="round" />
+                  <line x1="7.5" y1="4.2" x2="7.5" y2="2.2" stroke="white" strokeWidth="1.3" strokeLinecap="round" />
+                </svg>
+              )}
+              {topAlert === 'desconexionbatGW' && (
+                <svg width="12" height="12" viewBox="0 0 12 12">
+                  <rect x="1.5" y="3" width="8" height="6" rx="1" fill="none" stroke="white" strokeWidth="1.3" />
+                  <line x1="9.5" y1="5" x2="10.8" y2="5" stroke="white" strokeWidth="1.3" strokeLinecap="round" />
+                  <line x1="9.5" y1="7" x2="10.8" y2="7" stroke="white" strokeWidth="1.3" strokeLinecap="round" />
+                  <rect x="3" y="4.5" width="2.4" height="3" fill="white" />
+                </svg>
+              )}
+            </span>
           )}
         </div>
       </div>
