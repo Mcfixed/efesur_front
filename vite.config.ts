@@ -15,6 +15,7 @@ export default defineConfig(({ mode }) => {
       allowedHosts: [
         env.VITE_SERVER_ALLOW_CORS || "dominio_produccion.iotlink.cl",
       ],
+      hmr: false,
       proxy: {
         // Reenvía todas las peticiones /api al backend principal
         "/api": {
