@@ -53,7 +53,7 @@ export function ConfirmModal({
             {cancelText}
           </Button>
           <Button 
-            variant={isDestructive ? "danger" : "primary"} 
+            variant={isDestructive ? "danger" : "solid"} 
             onClick={handleConfirm} 
             isLoading={isSubmitting}
           >

@@ -31,7 +31,7 @@ export default function MonitorTrackingModal({ alertId, alertTitle, onClose }: P
     const map = mapInstance.current;
     // Filtrar puntos con coordenadas válidas (evita NaN en Leaflet)
     const points: [number, number][] = tracking
-      .map(p => [parseFloat(p.latitude), parseFloat(p.longitude)])
+      .map(p => [parseFloat(p.latitude), parseFloat(p.longitude)] as [number, number])
       .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180);
 
     map.eachLayer(layer => {
@@ -55,7 +55,7 @@ export default function MonitorTrackingModal({ alertId, alertTitle, onClose }: P
     });
 
     if (points.length >= 2) {
-      map.fitBounds(points.map(p => L.latLng(p[0], p[1])), { padding: [40, 40] });
+      map.fitBounds(L.latLngBounds(points.map(p => L.latLng(p[0], p[1]))), { padding: [40, 40] });
     } else if (points.length === 1) {
       map.setView([points[0][0], points[0][1]], 15);
     }

@@ -2,6 +2,7 @@ import { forwardRef } from "react";
 import type { InputHTMLAttributes, ReactNode } from "react";
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+  label?: ReactNode;
   leftIcon?: ReactNode;
   rightIcon?: ReactNode;
   error?: boolean;
@@ -12,6 +13,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
   (
     {
       className = "",
+      label,
       leftIcon,
       rightIcon,
       error = false,
@@ -36,36 +38,41 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         ? "pl-3 pr-10"
         : "px-3";
 
-    if (leftIcon || rightIcon) {
-      return (
-        <div className={`relative ${fullWidth ? "w-full" : ""}`}>
-          {leftIcon && (
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <span className="h-5 w-5 text-text-100">{leftIcon}</span>
-            </div>
-          )}
-          <input
-            ref={ref}
-            type={type}
-            className={`block ${widthStyles} ${paddingStyles} ${baseStyles} ${errorStyles} ${className}`}
-            {...props}
-          />
-          {rightIcon && (
-            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-              <span className="h-5 w-5 text-text-100">{rightIcon}</span>
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    return (
+    const field = leftIcon || rightIcon ? (
+      <div className={`relative ${fullWidth ? "w-full" : ""}`}>
+        {leftIcon && (
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <span className="h-5 w-5 text-text-100">{leftIcon}</span>
+          </div>
+        )}
+        <input
+          ref={ref}
+          type={type}
+          className={`block ${widthStyles} ${paddingStyles} ${baseStyles} ${errorStyles} ${className}`}
+          {...props}
+        />
+        {rightIcon && (
+          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+            <span className="h-5 w-5 text-text-100">{rightIcon}</span>
+          </div>
+        )}
+      </div>
+    ) : (
       <input
         ref={ref}
         type={type}
         className={`block ${widthStyles} ${paddingStyles} ${baseStyles} ${errorStyles} ${className}`}
         {...props}
       />
+    );
+
+    if (!label) return field;
+
+    return (
+      <div className={fullWidth ? "w-full" : ""}>
+        <span className="block text-xs font-medium text-text-200 mb-1">{label}</span>
+        {field}
+      </div>
     );
   }
 );

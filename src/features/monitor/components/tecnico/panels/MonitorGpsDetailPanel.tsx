@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 import { format } from "date-fns";
 import { ResponsiveContainer, AreaChart, Area, Tooltip, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
-import { useMonitorDeviceTelemetry, useMonitorDeviceAlerts, useMonitorGatewayPositions } from "../../../hooks/useMonitor";
+import { useMonitorDeviceAlerts, useMonitorGatewayPositions } from "../../../hooks/useMonitor";
 import MonitorTelemetryMap from "../MonitorTelemetryMap";
 import { MonitorChartTooltip } from "../../shared/MonitorChartTooltip";
-import { formatBattery, batteryColor } from "../../../utils/battery";
+import { formatBattery } from "../../../utils/battery";
 import MonitorBatteryPopup from "../../shared/MonitorBatteryPopup";
 
 interface Props {
@@ -30,7 +30,6 @@ export default function MonitorGpsDetailPanel({
 }: Props) {
   const { data: deviceAlerts } = useMonitorDeviceAlerts(deviceId);
   const { data: gatewayPositions } = useMonitorGatewayPositions();
-  const lastT = telemetryData?.telemetry?.[0];
 
   const gwNameMap = useMemo(() => {
     const map = new Map<string, string>();

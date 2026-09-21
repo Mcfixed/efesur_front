@@ -26,7 +26,7 @@ const RANGES = [
   { key: "total", label: "Todo", hours: 0 },
 ];
 
-export default function MonitorDeviceDetailHeader({ device, onBack, lastTs, recordCount, lastVoltage, lastTemp, lastMotion, lastGwCount, lastGwNames, range, onRangeChange, onLoadMore, hasMore }: Props) {
+export default function MonitorDeviceDetailHeader({ device, onBack, lastTs, recordCount, lastVoltage, lastTemp, lastMotion, lastGwNames, range, onRangeChange, onLoadMore, hasMore }: Props) {
   // Estado online: usar el último dato real de telemetría (lastTs) con fallback a last_seen de la DB.
   // Diferencia absoluta <= 5 min, tolerante a reloj adelantado/atrasado y a NaN.
   const refTs = lastTs ?? device.last_seen ?? null;

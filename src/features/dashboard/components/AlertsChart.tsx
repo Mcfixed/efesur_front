@@ -31,7 +31,6 @@ export default function AlertsChart({ historyData, isLoading }: Props) {
   }, [historyData, chartAlertType, chartTimeRange]);
 
   const chartColor = chartAlertType === "critica" ? "#ef4444" : chartAlertType === "movimientos_anomalos" ? "#a855f7" : "#eab308";
-  const chartLabel = chartAlertType === "critica" ? "Críticas" : chartAlertType === "movimientos_anomalos" ? "Mov. Anómalos" : "Atención";
 
   // Forzar resize del mapa cuando el chart se expande/colapsa
   useEffect(() => {

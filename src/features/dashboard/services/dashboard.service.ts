@@ -1,5 +1,5 @@
 import { apiClient } from "@/apis";
-import { DashboardData, DeviceLocation, Alert, GatewayDevice } from "../types/dashboard.types";
+import type { DashboardData, DeviceLocation, Alert, GatewayDevice } from "../types/dashboard.types";
 
 export const dashboardService = {
   getDashboardData: async () => {

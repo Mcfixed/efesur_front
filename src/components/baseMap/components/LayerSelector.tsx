@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { IconMapCog, IconRosetteDiscountCheck } from "@tabler/icons-react";
 import type { LayerSelectorProps, MapLayer } from "../types";
-import LineGradientWhite from "@/components/ui/LineGradientWhite";
 
 const LayerSelector: React.FC<LayerSelectorProps> = ({
   selectedLayer,

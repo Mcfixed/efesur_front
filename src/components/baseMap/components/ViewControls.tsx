@@ -6,7 +6,6 @@ import {
   IconRefresh,
 } from "@tabler/icons-react";
 import type { ViewControlsProps } from "../types";
-import LineGradientWhite from "@/components/ui/LineGradientWhite";
 
 const ViewControls: React.FC<ViewControlsProps> = ({
   mapRef,

@@ -27,7 +27,7 @@ import type { DataTableWidgetProps, TableColumn } from "../types";
  *   gridPosition={{ colSpan: 12 }}
  * />
  */
-export function DataTableWidget<T extends object>({
+export function DataTableWidget<T extends object = any>({
   title,
   subtitle,
   headerActions,

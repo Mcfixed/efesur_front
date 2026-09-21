@@ -132,7 +132,7 @@ export const notificationService = {
    * Retorna función para desuscribirse
    */
   subscribeToNotifications(
-    onNotification: (notification: Notification) => void
+    _onNotification: (notification: Notification) => void
   ): () => void {
     // Aquí iría la lógica de WebSocket/SSE
     console.log('Subscribed to notifications');

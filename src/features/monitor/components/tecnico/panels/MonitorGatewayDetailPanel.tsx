@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { useMonitorDevices, useMonitorLatestTelemetry, useMonitorDeviceAlerts, useMonitorGatewayPositions } from "../../../hooks/useMonitor";
-import { IconAntennaBars3, IconWifi, IconAlertTriangle } from "@tabler/icons-react";
+import { IconAntennaBars3, IconWifi } from "@tabler/icons-react";
 import MonitorTelemetryMap from "../MonitorTelemetryMap";
 import MonitorLectorDashboard from "./MonitorLectorDashboard";
 import { cleanVoltage, cleanCurrent, cleanPower, cleanState, cleanTemp } from "../../../utils/mppt";
@@ -19,7 +19,7 @@ interface Props {
 // ═══════════════════════════════════════════
 // COMPONENTE PRINCIPAL
 // ═══════════════════════════════════════════
-export default function MonitorGatewayDetailPanel({ deviceId, deviceName, deviceEui, lastSeen, lastTs, range = '7d', onRangeChange }: Props) {
+export default function MonitorGatewayDetailPanel({ deviceId, deviceName, deviceEui, lastSeen, range = '7d' }: Props) {
   const { data: deviceAlerts } = useMonitorDeviceAlerts(deviceId);
   const { data: allDevices } = useMonitorDevices();
   const { data: gatewayPositions } = useMonitorGatewayPositions();

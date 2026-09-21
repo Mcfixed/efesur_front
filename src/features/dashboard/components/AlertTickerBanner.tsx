@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { IconAlertTriangle, IconAlertCircle, IconWifiOff, IconRadar } from "@tabler/icons-react";
 import type { DashboardData } from "../types/dashboard.types";
 
@@ -8,7 +8,7 @@ interface Props {
 
 export default function AlertTickerBanner({ data }: Props) {
   const alertItems = useMemo(() => {
-    const items: { device_name: string; type: string; icon: JSX.Element; color: string; bg: string }[] = [];
+    const items: { device_name: string; type: string; icon: ReactNode; color: string; bg: string }[] = [];
     (data?.alerts?.critical || []).forEach(a => items.push({ device_name: a.device_name, type: 'Crítica', icon: <IconAlertTriangle size={13} />, color: '#ef4444', bg: 'bg-red-500/10' }));
     (data?.alerts?.atencion || []).forEach(a => items.push({ device_name: a.device_name, type: 'Atención', icon: <IconAlertCircle size={13} />, color: '#eab308', bg: 'bg-yellow-500/8' }));
     (data?.alerts?.desconexionGW || []).forEach(a => items.push({ device_name: a.device_name, type: 'GW Off', icon: <IconWifiOff size={13} />, color: '#ef4444', bg: 'bg-red-500/10' }));

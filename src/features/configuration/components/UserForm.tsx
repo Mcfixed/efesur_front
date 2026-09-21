@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { User, Company } from "../../types/config.types";
+import type { User, Company } from "../types/config.types";
 import { Button, Input, Checkbox, Label } from "@/components/ui";
 
 interface UserFormProps {

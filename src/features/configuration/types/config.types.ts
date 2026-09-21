@@ -32,6 +32,7 @@ export interface User {
   notify_whatsapp?: boolean;
   notify_email?: boolean;
   notify_email_address?: string | null;
+  password?: string | null;
   created_at: string;
   company_assignments?: UserCompanyAssignment[];
 }

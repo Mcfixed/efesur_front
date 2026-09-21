@@ -49,8 +49,9 @@ export function useSelect(options: UseSelectOptions = {}): UseSelectReturn {
           if (Array.isArray(newVal)) {
             const vals = newVal.map((v) => v.value);
             setValuesState(vals);
-          } else if (newVal.length > 0) {
-            setValueState(newVal[0].value);
+          } else {
+            const single = newVal as unknown as { value?: any } | undefined;
+            if (single && single.value !== undefined) setValueState(single.value);
           }
         },
       },

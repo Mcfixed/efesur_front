@@ -18,7 +18,7 @@ import type {
   AuthContextType,
   AuthProvider as AuthProviderType,
   SignUpCredentials,
-  User,
+  BetterAuthUser as User,
   Session,
 } from "@/libs/better-auth/types";
 import {

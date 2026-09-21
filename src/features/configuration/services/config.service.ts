@@ -1,5 +1,5 @@
 import { apiClient } from "@/apis";
-import { Company, User, Device, CompanyConfig, RoleCount } from "../types/config.types";
+import type { Company, User, Device, CompanyConfig, RoleCount } from "../types/config.types";
 
 export const configService = {
   // Companies

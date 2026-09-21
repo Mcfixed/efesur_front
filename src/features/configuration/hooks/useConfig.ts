@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { configService } from "../services/config.service";
 import { toast } from "sonner";
-import { Company, User, Device, CompanyConfig } from "../types/config.types";
+import type { Company, User, Device } from "../types/config.types";
 
 export const CONFIG_KEYS = {
   all: ["config"] as const,
@@ -46,7 +46,7 @@ export const useNotificationUsers = () => useQuery({ queryKey: CONFIG_KEYS.notif
 export const useCreateUser = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ data, silent }: { data: Partial<User>; silent?: boolean }) => configService.createUser(data),
+    mutationFn: ({ data }: { data: Partial<User>; silent?: boolean }) => configService.createUser(data),
     onSuccess: (_data, variables) => {
       if (!variables.silent) toast.success("Usuario creado");
       queryClient.invalidateQueries({ queryKey: CONFIG_KEYS.users() });
@@ -58,7 +58,7 @@ export const useCreateUser = () => {
 export const useUpdateUser = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data, silent }: { id: string; data: Partial<User>; silent?: boolean }) => configService.updateUser(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Partial<User>; silent?: boolean }) => configService.updateUser(id, data),
     onSuccess: (_data, variables) => {
       if (!variables.silent) toast.success("Usuario actualizado");
       queryClient.invalidateQueries({ queryKey: CONFIG_KEYS.users() });

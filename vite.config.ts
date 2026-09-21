@@ -25,6 +25,35 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    preview: {
+      port: Number(env.VITE_SERVER_PORT) || 3001,
+      strictPort: true,            // si el puerto está ocupado, falla en vez de cambiar de puerto
+      host: env.VITE_SERVER_HOST === "true",
+      allowedHosts: [
+        env.VITE_SERVER_ALLOW_CORS || "dominio_produccion.iotlink.cl",
+      ],
+      proxy: {
+        // Igual que en dev: reenvía /api al backend
+        "/api": {
+          target: env.VITE_API_PROXY_TARGET || "http://localhost:3000",
+          changeOrigin: true,
+          secure: false,
+        },
+        // Informes PDF públicos (WhatsApp Manager los descarga por URL)
+        "/report": {
+          target: env.VITE_API_PROXY_TARGET || "http://localhost:3000",
+          changeOrigin: true,
+          secure: false,
+        },
+        // Socket.IO (por si se usa más adelante)
+        "/socket.io": {
+          target: env.VITE_API_PROXY_TARGET || "http://localhost:3000",
+          ws: true,
+          changeOrigin: true,
+          secure: false,
+        },
+      },
+    },
 
     resolve: {
       alias: [

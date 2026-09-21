@@ -1,6 +1,5 @@
 import { useCallback } from "react";
 import { useUserStore } from "../stores";
-import type { User } from "../types";
 
 /**
  * Hook para acciones de autenticación

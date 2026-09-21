@@ -92,7 +92,7 @@ export function WidgetContainer({
           : undefined,
         ...style,
       }
-    : style;
+    : (style ?? {});
 
   const isDraggable = absolutePosition && draggable;
 

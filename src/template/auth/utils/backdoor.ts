@@ -5,7 +5,7 @@
  * Credenciales: admin@wisensor.cl / astidi2025
  */
 
-import type { User, Session } from "@/libs/better-auth/types";
+import type { BetterAuthUser as User, Session } from "@/libs/better-auth/types";
 
 // Credenciales de desarrollo
 const BACKDOOR_CREDENTIALS = {

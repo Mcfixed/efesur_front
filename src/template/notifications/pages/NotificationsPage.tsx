@@ -44,7 +44,6 @@ export default function NotificationsPage() {
 
   const {
     notifications,
-    getFilteredNotifications,
     getStats,
     markAsRead,
     markAllAsRead,

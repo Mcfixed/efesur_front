@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { User } from "../../types/config.types";
+import type { User } from "../types/config.types";
 import { Button, Input, Checkbox, Label } from "@/components/ui";
 
 interface NotificationContactFormProps {

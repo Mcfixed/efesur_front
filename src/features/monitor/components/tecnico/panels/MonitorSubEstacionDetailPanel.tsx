@@ -1,7 +1,6 @@
-import { useMemo } from "react";
 import { format } from "date-fns";
 import { useMonitorDeviceTelemetry, useMonitorDeviceAlerts } from "../../../hooks/useMonitor";
-import { IconCloud, IconPlugConnected, IconAlertTriangle, IconClock } from "@tabler/icons-react";
+import { IconCloud, IconPlugConnected, IconClock } from "@tabler/icons-react";
 
 interface Props {
   deviceId: number;
@@ -9,7 +8,7 @@ interface Props {
   lastTs?: string | null;
 }
 
-export default function MonitorSubEstacionDetailPanel({ deviceId, deviceName, lastTs }: Props) {
+export default function MonitorSubEstacionDetailPanel({ deviceId }: Props) {
   const { data: deviceAlerts } = useMonitorDeviceAlerts(deviceId);
   const { data: telemetryData, isLoading } = useMonitorDeviceTelemetry(deviceId, { from: new Date(Date.now() - 7 * 24 * 3600000).toISOString(), limit: 200 });
 

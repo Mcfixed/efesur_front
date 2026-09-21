@@ -23,7 +23,7 @@ export default function MonitorReportModal({ onClose }: Props) {
   const [toDate, setToDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(false);
-  const [reportData, setReportData] = useState<any>(null);
+  const [, setReportData] = useState<any>(null);
   const [reportType, setReportType] = useState<ReportType>('general');
 
   // Dispositivos visibles: todos los tipos en todos los reportes
@@ -850,7 +850,6 @@ export default function MonitorReportModal({ onClose }: Props) {
       gpsDevices.forEach(d => deviceMap.set(d.id, { lats: [], lngs: [], speeds: [], timestamps: [], rows: [] }));
       (gpsData?.telemetry || []).forEach((t: any) => { const e = deviceMap.get(t.device_id); if (!e) return; if (t.object?.latitude) e.lats.push(Number(t.object.latitude)); if (t.object?.longitude) e.lngs.push(Number(t.object.longitude)); if (t.object?.speed) e.speeds.push(Number(t.object.speed)); e.timestamps.push(new Date(t.ts)); e.rows.push(t); });
 
-      const avg = (arr: number[]) => arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
       const esc = (s: any) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
       const ALERT_TYPE_LABELS: Record<string, string> = {
         critica: 'Crítica', atencion: 'Atención', apertura: 'Apertura', presencia: 'Presencia',

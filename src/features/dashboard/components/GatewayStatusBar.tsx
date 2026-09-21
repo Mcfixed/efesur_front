@@ -18,10 +18,10 @@ export default function GatewayStatusBar({ gateways }: { gateways: GatewayDevice
   const online = gateways.filter(g => g.is_online);
   const offline = gateways.filter(g => !g.is_online);
   const [showOnlinePopup, setShowOnlinePopup] = useState(false);
-  const popupRef = useRef(null);
+  const popupRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-  const handleClickOutside = (e) => {
-    if (popupRef.current && !popupRef.current.contains(e.target)) {
+  const handleClickOutside = (e: MouseEvent) => {
+    if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
       setShowOnlinePopup(false);
     }
   };

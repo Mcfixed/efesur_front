@@ -13,7 +13,6 @@ export function MultiSelect({
   placeholder = "Selecciona...",
   searchable = true,
   searchPlaceholder = "Buscar...",
-  allowCreate = false,
   closeOnSelect = false,
   disabled = false,
   maxSelected,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Device, Company } from "../../types/config.types";
+import type { Device, Company } from "../types/config.types";
 import { Button, Input, Checkbox } from "@/components/ui";
 
 interface DeviceFormProps {
@@ -57,10 +57,10 @@ export function DeviceForm({ initialData, companies, lectors, onSubmit, onCancel
     e.preventDefault();
     const payload = { ...formData };
     // Limpiar campos nulos para que el backend los trate como opcionales
-    if (payload.latitude_current === "" || payload.latitude_current === null) {
+    if (payload.latitude_current == null) {
       delete payload.latitude_current;
     }
-    if (payload.longitude_current === "" || payload.longitude_current === null) {
+    if (payload.longitude_current == null) {
       delete payload.longitude_current;
     }
     if (payload.id_device_father === null || payload.id_device_father === undefined) {

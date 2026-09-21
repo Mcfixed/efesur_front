@@ -52,7 +52,7 @@ export default function ChirpstackConfig() {
   const handleAuth = async () => {
     setAuthLoading(true);
     try {
-      const res = await chirpstackService.chirpstackAuth(password);
+      await chirpstackService.chirpstackAuth(password);
       setAuthorized(true);
       toast.success("Acceso autorizado");
     } catch {
@@ -223,7 +223,7 @@ export default function ChirpstackConfig() {
           </div>
           {lastResult.fallo > 0 && lastResult.detalles && (
             <div className="mt-2 space-y-1">
-              {lastResult.detalles.filter(d => d.status === 'error').map((d: any) => (
+              {lastResult.detalles.filter((d: any) => d.status === 'error').map((d: any) => (
                 <div key={d.devEui} className="text-[11px] text-red-400/80 bg-red-500/5 rounded px-3 py-1.5">
                   <span className="font-mono font-semibold">{d.devEui}:</span> {d.error}
                 </div>

@@ -315,7 +315,7 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
   if (!dashboardData) return null;
 
   const hasLector = lectores.length > 0;
-  const { chartData, lector, lastT, sensores, charger220, vBat, pPan, iBat, iOut, loadState, chargeState, pvVolt, charging, charger220State, charger220Volt, temp } = dashboardData;
+  const { chartData, lector, lastT, sensores, vBat, pPan, iBat, chargeState, charging, charger220State, charger220Volt, temp } = dashboardData;
 
   // ── Export a Excel del histórico ──
   // El histórico va paginado, así que el Excel se genera bajo demanda: en el clic

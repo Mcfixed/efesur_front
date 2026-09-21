@@ -27,7 +27,7 @@ export interface TrackingPoint {
 export interface Alert {
   id: number;
   device_id: number;
-  type: 'critica' | 'atencion' | 'movimientos_anomalos' | 'apertura' | 'presencia' | 'desconexion220' | 'desconexionbatGW';
+  type: 'critica' | 'atencion' | 'movimientos_anomalos' | 'apertura' | 'presencia' | 'desconexionGW' | 'desconexionGPS' | 'desconexion220' | 'desconexionbatGW';
   status: 'active' | 'resolved';
   metadata: Record<string, any>;
   created_at: string;
@@ -42,6 +42,7 @@ export interface Alert {
 
 export interface DashboardSummary {
   totalGpsDevices: number;
+  totalGatewayDevices?: number;
   criticalAlertsCount: number;
   atencionAlertsCount: number;
   desconexionGWCount: number;

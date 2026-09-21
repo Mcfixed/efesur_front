@@ -13,7 +13,6 @@ export function Select({
   placeholder = "Selecciona...",
   searchable = true,
   searchPlaceholder = "Buscar...",
-  allowCreate = false,
   closeOnSelect = true,
   disabled = false,
   className = "",

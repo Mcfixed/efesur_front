@@ -66,6 +66,7 @@ export interface BaseChartWidgetProps extends Omit<WidgetContainerProps, "childr
   showGrid?: boolean;
   showLegend?: boolean;
   showTooltip?: boolean;
+  compact?: boolean;
 }
 
 export interface LineChartWidgetProps extends BaseChartWidgetProps {
@@ -98,13 +99,15 @@ export interface TableColumn<T> {
   key: keyof T;
   header: string;
   width?: string | number;
-  render?: (value: T[keyof T], row: T) => ReactNode;
+  render?: (value: any, row: any) => ReactNode;
 }
 
-export interface DataTableWidgetProps<T extends object>
+export interface DataTableWidgetProps<T extends object = any>
   extends Omit<WidgetContainerProps, "children"> {
   data: T[];
   columns: TableColumn<T>[];
+  /** Muestra un estado de carga en lugar de las filas */
+  isLoading?: boolean;
   /** Filas por página (0 = sin paginación) */
   pageSize?: number;
   striped?: boolean;

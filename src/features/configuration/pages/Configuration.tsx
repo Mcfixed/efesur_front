@@ -3,7 +3,7 @@ import { useNavigate } from "react-router";
 import { useBetterSession } from "@/libs/better-auth";
 import { useCompanies, useUsers, useDevices, useRoles, useCreateCompany, useUpdateCompany, useDeleteCompany, useCreateUser, useUpdateUser, useDeleteUser, useCreateDevice, useUpdateDevice, useDeleteDevice, useNotificationUsers } from "../hooks/useConfig";
 import { DataTableWidget, PieChartWidget, BarChartWidget } from "@/components/widgets";
-import { Company, User, Device } from "../types/config.types";
+import type { Company, User, Device } from "../types/config.types";
 import { Modal } from "@/components/ui/Modal";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { CompanyForm } from "../components/CompanyForm";
@@ -807,10 +807,10 @@ function DevicesTab() {
   const safeCompanies = Array.isArray(companies) ? companies : (Array.isArray((companies as any)?.data) ? (companies as any).data : []);
 
   // Preparar datos para el gráfico
-  const devicesByCompany = safeCompanies.map(c => ({
+  const devicesByCompany = safeCompanies.map((c: any) => ({
     empresa: c.name,
     dispositivos: parseInt(c.device_count || "0")
-  })).filter(c => c.dispositivos > 0);
+  })).filter((c: any) => c.dispositivos > 0);
 
   return (
     <div className="grid grid-cols-12 gap-6">

@@ -1,7 +1,6 @@
 import React, { useCallback } from "react";
 import { IconPlus, IconMinus } from "@tabler/icons-react";
 import type { CustomZoomControlProps } from "../types";
-import LineGradientWhite from "@/components/ui/LineGradientWhite";
 
 const CustomZoomControl: React.FC<CustomZoomControlProps> = React.memo(
   ({ mapRef }) => {
