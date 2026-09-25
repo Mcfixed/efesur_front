@@ -19,11 +19,11 @@ interface Props {
   hasMore?: boolean;
 }
 
+// Presets del header. Sin opción "Todo": el rango por defecto es 24H.
 const RANGES = [
   { key: "24h", label: "24H", hours: 24 },
   { key: "7d", label: "7 Días", hours: 168 },
   { key: "30d", label: "30 Días", hours: 720 },
-  { key: "total", label: "Todo", hours: 0 },
 ];
 
 export default function MonitorDeviceDetailHeader({ device, onBack, lastTs, recordCount, lastVoltage, lastTemp, lastMotion, lastGwNames, range, onRangeChange, onLoadMore, hasMore }: Props) {

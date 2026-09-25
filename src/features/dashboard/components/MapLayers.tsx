@@ -2,6 +2,7 @@ import { useState, useMemo, Fragment, useEffect, memo } from "react";
 import { Marker, Source, Layer, Popup, useMap } from "react-map-gl";
 import type { DashboardData, GatewayDevice, GpsDevice } from "../types/dashboard.types";
 import DevicePopup from "./DevicePopup";
+import GatewayLectorInfo from "./GatewayLectorInfo";
 import MapSearchBox, { type SearchItem } from "./MapSearchBox";
 import { IconEye, IconEyeOff } from "@tabler/icons-react";
 import roboIcon from "@/assets/iconsdashboard/robo.png";
@@ -33,7 +34,6 @@ function createCircleGeoJSON(lng: number, lat: number, radiusKm: number) {
 
 const ZOOM_THRESHOLD = 13;
 
-// Zoom al que se acerca la vista al elegir un sensor en el buscador
 const SEARCH_ZOOM = 20;
 
 // ─── COLORES Y CONFIGURACIÓN PARA LOS PINES WEBGL ───
@@ -59,8 +59,7 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
   const [selectedTrackingAlert, setSelectedTrackingAlert] = useState<number | null>(null);
 
   // ─── BUSCADOR ───
-  // Al elegir un resultado hace lo mismo que hacer clic en el mapa: abre el
-  // popup del sensor (o del gateway) y además acerca bien la vista.
+  // Hace lo mismo que el clic en el mapa: abre el popup y acerca la vista.
   const handleSearchSelect = (item: SearchItem) => {
     const numericId = Number(item.id.replace(/^(dev|gw)-/, ''));
     if (!Number.isFinite(numericId)) return;
@@ -82,7 +81,7 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
     map?.flyTo({ center: [item.lng, item.lat], zoom: SEARCH_ZOOM, duration: 1600 });
   };
 
-  // ─── CARGAR TUS SVGS PERSONALIZADOS A MAPBOX (WEBGL) ───
+  // ─── PINES SVG EN MAPBOX (WEBGL) ───
   useEffect(() => {
     if (!map) return;
 
@@ -90,7 +89,6 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
       const imageId = `pin-${type}`;
       if (map.hasImage(imageId)) return;
 
-      // Generamos tu SVG exacto como un string para inyectarlo en Mapbox
       const svgString = `
         <svg width="28" height="36" viewBox="0 0 28 36" xmlns="http://www.w3.org/2000/svg">
           <defs>
@@ -219,7 +217,6 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
     const onMouseEnter = () => { map.getCanvas().style.cursor = 'pointer'; };
     const onMouseLeave = () => { map.getCanvas().style.cursor = ''; };
 
-    // Asignamos la interactividad a la capa del ícono
     map.on('click', 'normal-devices-icon', onLayerClick);
     map.on('mouseenter', 'normal-devices-icon', onMouseEnter);
     map.on('mouseleave', 'normal-devices-icon', onMouseLeave);
@@ -304,8 +301,8 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
 };
 
   // ─── PRIORIDAD VISUAL DE ALERTAS SOBRE UN GATEWAY ───
-  // Si un gateway tiene varias alertas a la vez, se muestra SOLO la de mayor jerarquía
-  // (es más limpio visualmente): apertura > presencia > desconexión 220 > batería GW.
+  // Con varias alertas a la vez se muestra solo la de mayor jerarquía
+  // (apertura > presencia > CA 220 > batería GW).
   const GW_ALERT_PRIORITY = ['apertura', 'presencia', 'desconexion220', 'desconexionbatGW'] as const;
   type GwAlertKey = typeof GW_ALERT_PRIORITY[number];
 
@@ -336,12 +333,9 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
       map.set(hit.id, entry);
     };
 
-    // ── ALERTAS DEL LECTOR: independientes de la conectividad del gateway ──
-    // El wifi del gateway comunica SU conectividad (verde = online / rojo = offline).
-    // El badge rojo comunica un EVENTO del sitio: apertura, presencia, CA 220 o batería GW.
-    // Son dos hechos distintos y por eso se muestran por separado: mientras la alerta esté
-    // 'active' en BD, el badge sigue rojo aunque el gateway vuelva (wifi verde). Se resolverá
-    // sola cuando el lector vuelva a reportar (Node-RED) o cuando el reconciliador la cierre.
+    // El wifi del gateway comunica SU conectividad; el badge rojo, un EVENTO del sitio
+    // (apertura, presencia, CA 220 o batería GW). Son dos hechos distintos: el badge sigue
+    // rojo mientras la alerta esté 'active', aunque el gateway vuelva (wifi verde).
     const isLive = (a: any) => a.status === 'active';
     (data?.alerts?.apertura || []).forEach(a => { if (isLive(a)) mark(a, 'apertura'); });
     (data?.alerts?.presencia || []).forEach(a => { if (isLive(a)) mark(a, 'presencia'); });
@@ -353,10 +347,7 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
   const renderGatewayIcon = (isOnline: boolean, gatewayId?: number) => {
     const gwAlert = gatewayId ? gatewayAlertMap.get(gatewayId) : undefined;
     const topAlert = gwAlert ? GW_ALERT_PRIORITY.find(k => gwAlert[k]) : undefined;
-    // El wifi SIEMPRE refleja la conectividad real (is_online, basado en last_seen):
-    // verde = gateway online, rojo = gateway offline. Las alertas (apertura / presencia /
-    // desconexión 220 / batería) son EVENTOS del sitio, NO implican que el gateway esté
-    // caído → se muestran como un badge pequeño en la esquina, sin reemplazar el wifi.
+    // Wifi = conectividad real; el badge de alerta es un evento del sitio.
     const connColor = isOnline ? '#22c55e' : '#ef4444';
 
     return (
@@ -371,14 +362,13 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
             left: '50%',
           }} />
         <div className="relative transition-transform group-hover:scale-125">
-          {/* ── WIFI BASE: estado de conexión (online/offline) ── */}
           <svg width="34" height="34" viewBox="0 0 34 34">
             <path d="M7 12 Q11 7 17 7 Q23 7 27 12" fill="none" stroke={connColor} strokeWidth="3" strokeLinecap="round" />
             <path d="M10 16 Q13 12 17 12 Q21 12 24 16" fill="none" stroke={connColor} strokeWidth="2.5" strokeLinecap="round" />
             <path d="M13 20 Q15 17 17 17 Q19 17 21 20" fill="none" stroke={connColor} strokeWidth="2" strokeLinecap="round" />
             <circle cx="17" cy="24" r="3" fill={connColor} />
           </svg>
-          {/* ── BADGE DE ALERTA (evento del sitio, no significa gateway caído) ── */}
+          {/* Badge de alerta (evento del sitio, no que el gateway esté caído) */}
           {topAlert && (
             <span
               title={`${topAlert === 'apertura' ? 'Apertura' : topAlert === 'presencia' ? 'Presencia' : topAlert === 'desconexion220' ? 'CA 220 Off' : 'Batería GW Off'} (alerta del lector) · Gateway ${isOnline ? 'online' : 'offline'}`}
@@ -488,7 +478,7 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
 
       {/* ─── RENDERIZADO WEBGL PARA SENSORES NORMALES ─── */}
       <Source id="normal-devices-source" type="geojson" data={normalDevicesGeoJSON as any}>
-        {/* Capa base: El Aura de SNR renderizada como un círculo */}
+        {/* Aura de SNR */}
         <Layer
           id="normal-devices-aura"
           type="circle"
@@ -500,7 +490,7 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
             "circle-stroke-opacity": 0.8
           }}
         />
-        {/* Capa de Símbolo: Carga la imagen SVG convertida con tu gradiente y letra */}
+        {/* Pin SVG */}
         <Layer
           id="normal-devices-icon"
           type="symbol"
@@ -508,7 +498,7 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
             "icon-image": ["get", "iconId"],
             "icon-allow-overlap": true,
             "icon-size": 0.60,
-            // Compensa la posición ya que la imagen tiene forma de lágrima
+            // La imagen es una lágrima: compensa la posición
             "icon-offset": [0, -10]
           }}
         />
@@ -608,22 +598,21 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
         </Marker>
       ))}
 
-      {/* Buscador: al elegir un resultado abre el popup del sensor y hace zoom sobre él */}
+      {/* Buscador */}
       <MapSearchBox data={data} gateways={gateways} onSelect={handleSearchSelect} />
 
       {/* Popups */}
       {selectedGateway && (
         <Popup longitude={Number(selectedGateway.longitude_current)} latitude={Number(selectedGateway.latitude_current)} anchor="bottom" onClose={() => setSelectedGateway(null)} closeOnClick={false} className="device-popup" offset={15} maxWidth="280px">
-          {/* ... (tu código del popup se mantiene igual) ... */}
           <div className="bg-bg-100 border border-border/50 rounded-lg shadow-xl p-3 min-w-48 relative">
             <button onClick={() => setSelectedGateway(null)} className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center rounded-full bg-bg-300 border border-border/50 text-text-300 hover:text-text-100 shadow-md outline-none">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
-            <div className="flex items-center gap-2 mb-2 pb-1.5 border-b border-border/30">
-              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${selectedGateway.is_online ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.5)]' : 'bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.5)]'}`} />
-              <div className="min-w-0">
-                <p className="text-sm font-bold text-text-100 truncate">{selectedGateway.name}</p>
-              </div>
+
+            <p className="text-[9px] font-semibold uppercase tracking-widest text-text-300 mb-1">Gateway</p>
+            <div className="flex items-center gap-1.5 mb-2 pb-1.5 border-b border-border/30">
+              <span className={`w-2 h-2 rounded-full shrink-0 ${selectedGateway.is_online ? 'bg-green-400' : 'bg-red-400'}`} />
+              <span className="text-[13px] font-bold text-text-100 truncate min-w-0">{selectedGateway.name}</span>
             </div>
             <div className="space-y-1.5 text-[11px]">
               <div className="flex justify-between"><span className="text-text-300">Estado:</span><span className={`font-medium ${selectedGateway.is_online ? 'text-green-400' : 'text-red-400'}`}>{selectedGateway.is_online ? 'Online' : 'Offline'}</span></div>
@@ -631,6 +620,8 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
               {selectedGateway.firmware_version && <div className="flex justify-between"><span className="text-text-300">Firmware:</span><span className="text-text-100 font-medium">{selectedGateway.firmware_version}</span></div>}
               <div className="flex justify-between"><span className="text-text-300">Último reporte:</span><span className="text-text-100 font-medium">{selectedGateway.last_seen ? new Date(selectedGateway.last_seen).toLocaleString() : 'N/A'}</span></div>
             </div>
+
+            <GatewayLectorInfo gatewayId={selectedGateway.id} />
           </div>
         </Popup>
       )}

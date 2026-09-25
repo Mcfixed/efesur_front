@@ -40,9 +40,6 @@ export interface Log {
 }
 
 export class NotificationsService {
-    /**
-     * Obtener todas las notificaciones del usuario
-     */
     static async getNotifications(limit = 50, offset = 0, unreadOnly = false) {
         try {
             const response = await apiClient.get('/logs-notifications/notifications', {
@@ -59,9 +56,6 @@ export class NotificationsService {
         }
     }
 
-    /**
-     * Obtener conteo de notificaciones no leídas
-     */
     static async getUnreadCount() {
         try {
             const response = await apiClient.get('/logs-notifications/notifications/unread/count');
@@ -72,9 +66,6 @@ export class NotificationsService {
         }
     }
 
-    /**
-     * Marcar una notificación como leída
-     */
     static async markAsRead(notificationId: number) {
         try {
             const response = await apiClient.put(
@@ -87,9 +78,6 @@ export class NotificationsService {
         }
     }
 
-    /**
-     * Marcar todas las notificaciones como leídas
-     */
     static async markAllAsRead() {
         try {
             const response = await apiClient.put(
@@ -102,9 +90,6 @@ export class NotificationsService {
         }
     }
 
-    /**
-     * Eliminar una notificación
-     */
     static async deleteNotification(notificationId: number) {
         try {
             const response = await apiClient.delete(
@@ -117,9 +102,6 @@ export class NotificationsService {
         }
     }
 
-    /**
-     * Obtener preferencias de notificaciones
-     */
     static async getPreferences() {
         try {
             const response = await apiClient.get(
@@ -132,9 +114,6 @@ export class NotificationsService {
         }
     }
 
-    /**
-     * Actualizar preferencias de notificaciones
-     */
     static async updatePreferences(preferences: Partial<NotificationPreferences>) {
         try {
             const response = await apiClient.put(
@@ -148,9 +127,6 @@ export class NotificationsService {
         }
     }
 
-    /**
-     * Crear una notificación manual
-     */
     static async createNotification(notification: {
         user_id: number;
         title: string;
@@ -173,9 +149,6 @@ export class NotificationsService {
 }
 
 export class LogsService {
-    /**
-     * Obtener logs del usuario
-     */
     static async getUserLogs(limit = 50, offset = 0, action?: string, statusCode?: number) {
         try {
             const response = await apiClient.get('/logs-notifications/user-logs', {
@@ -193,9 +166,6 @@ export class LogsService {
         }
     }
 
-    /**
-     * Obtener detalles de un log
-     */
     static async getLogDetail(logId: number) {
         try {
             const response = await apiClient.get(`/logs-notifications/logs/${logId}`);
@@ -206,9 +176,6 @@ export class LogsService {
         }
     }
 
-    /**
-     * Obtener estadísticas de logs
-     */
     static async getLogStats(days = 7) {
         try {
             const response = await apiClient.get('/logs-notifications/logs/stats', {
@@ -221,9 +188,6 @@ export class LogsService {
         }
     }
 
-    /**
-     * Obtener logs de una compañía
-     */
     static async getCompanyLogs(
         companyId: number,
         limit = 100,

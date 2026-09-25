@@ -1,19 +1,17 @@
 /**
  * BACKDOOR DE DESARROLLO - ELIMINAR EN PRODUCCIÓN 
  * 
- * Este módulo proporciona acceso temporal mientras el backend no está listo.
+ * Acceso temporal de desarrollo (backend no listo).
  * Credenciales: admin@wisensor.cl / astidi2025
  */
 
 import type { BetterAuthUser as User, Session } from "@/libs/better-auth/types";
 
-// Credenciales de desarrollo
 const BACKDOOR_CREDENTIALS = {
   email: "admin@wisensor.cl",
   password: "astidi2025",
 } as const;
 
-// Usuario simulado para desarrollo
 const BACKDOOR_USER: User = {
   id: "dev-admin-001",
   email: "admin@wisensor.cl",
@@ -24,7 +22,6 @@ const BACKDOOR_USER: User = {
   role: "superadmin",
 };
 
-// Sesión simulada para desarrollo
 const createBackdoorSession = (): Session => ({
   id: `session-${Date.now()}`,
   userId: BACKDOOR_USER.id,
@@ -42,9 +39,6 @@ interface BackdoorAuthData {
   isAuthenticated: boolean;
 }
 
-/**
- * Verifica si las credenciales corresponden al backdoor
- */
 export function isBackdoorCredentials(email: string, password: string): boolean {
   return (
     email === BACKDOOR_CREDENTIALS.email &&
@@ -52,9 +46,6 @@ export function isBackdoorCredentials(email: string, password: string): boolean 
   );
 }
 
-/**
- * Simula el inicio de sesión con backdoor
- */
 export function backdoorSignIn(): BackdoorAuthData {
   const authData: BackdoorAuthData = {
     user: BACKDOOR_USER,
@@ -62,22 +53,15 @@ export function backdoorSignIn(): BackdoorAuthData {
     isAuthenticated: true,
   };
   
-  // Guardar en localStorage para persistencia
   localStorage.setItem(STORAGE_KEY, JSON.stringify(authData));
   
   return authData;
 }
 
-/**
- * Cierra la sesión del backdoor
- */
 export function backdoorSignOut(): void {
   localStorage.removeItem(STORAGE_KEY);
 }
 
-/**
- * Obtiene los datos de autenticación del backdoor si existen
- */
 export function getBackdoorAuth(): BackdoorAuthData | null {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -85,7 +69,6 @@ export function getBackdoorAuth(): BackdoorAuthData | null {
     
     const data = JSON.parse(stored) as BackdoorAuthData;
     
-    // Verificar si la sesión no ha expirado
     const expiresAt = new Date(data.session.expiresAt);
     if (expiresAt < new Date()) {
       backdoorSignOut();
@@ -98,9 +81,6 @@ export function getBackdoorAuth(): BackdoorAuthData | null {
   }
 }
 
-/**
- * Verifica si hay una sesión de backdoor activa
- */
 export function isBackdoorAuthenticated(): boolean {
   return getBackdoorAuth() !== null;
 }

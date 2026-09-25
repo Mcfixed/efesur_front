@@ -13,19 +13,6 @@ import type { DataTableWidgetProps, TableColumn } from "../types";
 /**
  * Widget de tabla de datos con paginación y orden de columnas.
  *
- * @example
- * <DataTableWidget
- *   title="Dispositivos"
- *   data={devices}
- *   columns={[
- *     { key: "nombre", header: "Nombre" },
- *     { key: "estado", header: "Estado", render: (v) => <Badge>{v}</Badge> },
- *     { key: "ip", header: "IP" },
- *   ]}
- *   pageSize={8}
- *   striped
- *   gridPosition={{ colSpan: 12 }}
- * />
  */
 export function DataTableWidget<T extends object = any>({
   title,

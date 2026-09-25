@@ -7,9 +7,6 @@ import {
   type NotificationPreferences,
 } from "../services/logsNotificationsService";
 
-/**
- * Hook para manejar notificaciones del usuario
- */
 export function useNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -21,7 +18,6 @@ export function useNotifications() {
     offset: 0,
   });
 
-  // Obtener notificaciones
   const fetchNotifications = useCallback(
     async (limit = 50, offset = 0, unreadOnly = false) => {
       setLoading(true);
@@ -47,7 +43,6 @@ export function useNotifications() {
     [],
   );
 
-  // Obtener conteo de no leídas
   const fetchUnreadCount = useCallback(async () => {
     try {
       const result = (await NotificationsService.getUnreadCount()) as {
@@ -59,7 +54,6 @@ export function useNotifications() {
     }
   }, []);
 
-  // Marcar como leída
   const markAsRead = useCallback(
     async (notificationId: number) => {
       try {
@@ -81,7 +75,6 @@ export function useNotifications() {
     [fetchUnreadCount],
   );
 
-  // Marcar todas como leídas
   const markAllAsRead = useCallback(async () => {
     try {
       await NotificationsService.markAllAsRead();
@@ -98,7 +91,6 @@ export function useNotifications() {
     }
   }, []);
 
-  // Eliminar notificación
   const deleteNotification = useCallback(
     async (notificationId: number) => {
       try {
@@ -128,16 +120,12 @@ export function useNotifications() {
   };
 }
 
-/**
- * Hook para manejar preferencias de notificaciones
- */
 export function useNotificationPreferences() {
   const [preferences, setPreferences] =
     useState<NotificationPreferences | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Obtener preferencias
   const fetchPreferences = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -155,7 +143,6 @@ export function useNotificationPreferences() {
     }
   }, []);
 
-  // Actualizar preferencias
   const updatePreferences = useCallback(
     async (newPreferences: Partial<NotificationPreferences>) => {
       setLoading(true);
@@ -189,9 +176,6 @@ export function useNotificationPreferences() {
   };
 }
 
-/**
- * Hook para manejar logs del usuario
- */
 export function useLogs() {
   const [logs, setLogs] = useState<Log[]>([]);
   const [loading, setLoading] = useState(false);
@@ -202,7 +186,6 @@ export function useLogs() {
     offset: 0,
   });
 
-  // Obtener logs del usuario
   const fetchUserLogs = useCallback(
     async (limit = 50, offset = 0, action?: string, statusCode?: number) => {
       setLoading(true);
@@ -227,7 +210,6 @@ export function useLogs() {
     [],
   );
 
-  // Obtener detalle de un log
   const getLogDetail = useCallback(async (logId: number) => {
     try {
       const result = (await LogsService.getLogDetail(logId)) as { data: Log };
@@ -252,15 +234,11 @@ export function useLogs() {
   };
 }
 
-/**
- * Hook para manejar estadísticas de logs
- */
 export function useLogStats() {
   const [stats, setStats] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Obtener estadísticas
   const fetchStats = useCallback(async (days = 7) => {
     setLoading(true);
     setError(null);
@@ -286,9 +264,6 @@ export function useLogStats() {
   };
 }
 
-/**
- * Hook para polling de notificaciones (check cada X segundos)
- */
 export function useNotificationPolling(interval = 30000) {
   const { fetchUnreadCount } = useNotifications();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -315,10 +290,6 @@ export function useNotificationPolling(interval = 30000) {
   return { startPolling, stopPolling };
 }
 
-/**
- * Hook personalizado para usar con Sonner (notificaciones toast)
- * Convierte notificaciones del sistema a toasts visuales
- */
 export function useNotificationsToast(toast: {
   success: (
     title: string,
@@ -384,9 +355,6 @@ export function useNotificationsToast(toast: {
   };
 }
 
-/**
- * Hook para monitorear logs en tiempo real
- */
 export function useLogMonitoring(autoFetch = true, fetchInterval = 60000) {
   const { logs, fetchUserLogs, loading, error } = useLogs();
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);

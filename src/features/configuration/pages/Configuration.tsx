@@ -265,7 +265,6 @@ function UsersTab() {
       if (editingUser) {
         await updateMutation.mutateAsync({ id: editingUser.id, data: formData });
         
-        // Handle company assignments diff
         const currentCompanyIds = editingUser.company_assignments?.map(c => c.company_id) || [];
         const toAdd = assignedCompanyIds.filter(id => !currentCompanyIds.includes(id));
         const toRemove = currentCompanyIds.filter(id => !assignedCompanyIds.includes(id));
@@ -280,7 +279,6 @@ function UsersTab() {
         const newUser = await createMutation.mutateAsync({ data: formData });
         userId = newUser.id;
         
-        // Add company assignments
         for (const companyId of assignedCompanyIds) {
           await configService.assignUserToCompany({ userId: userId!, companyId });
         }
@@ -289,7 +287,7 @@ function UsersTab() {
       refetchUsers(); // Refetch to get updated assignments
       setIsModalOpen(false);
     } catch (error: any) {
-      // toast is already handled in mutations, but we catch here to stop modal close on error if needed
+      // El toast lo maneja la mutación; aquí solo evitamos cerrar el modal si falla
       console.error(error);
     }
   };
@@ -502,7 +500,6 @@ function NotificationsTab() {
   const safeCompanies = Array.isArray(companies) ? companies : (Array.isArray((companies as any)?.data) ? (companies as any).data : []);
   const selectedCompany = safeCompanies.find((c: Company) => c.id === selectedCompanyId) || null;
 
-  // Seleccionar la primera empresa disponible por defecto
   useEffect(() => {
     if (safeCompanies.length && (selectedCompanyId === null || !safeCompanies.some((c: Company) => c.id === selectedCompanyId))) {
       setSelectedCompanyId(safeCompanies[0].id);
@@ -511,7 +508,6 @@ function NotificationsTab() {
 
   const hasAnyChannel = (u: User) => !!(u.notify_calls || u.notify_whatsapp || u.notify_email);
   const notifyUsers = Array.isArray(data) ? data : (Array.isArray((data as any)?.data) ? (data as any).data : []);
-  // Filtrar por la empresa seleccionada (+ opcionalmente solo con canales activos)
   const filteredUsers: any = notifyUsers
     .filter((u: User) => u.company_assignments?.some((c) => c.company_id === selectedCompanyId))
     .filter((u: User) => !showOnlyActive || hasAnyChannel(u));
@@ -806,7 +802,6 @@ function DevicesTab() {
 
   const safeCompanies = Array.isArray(companies) ? companies : (Array.isArray((companies as any)?.data) ? (companies as any).data : []);
 
-  // Preparar datos para el gráfico
   const devicesByCompany = safeCompanies.map((c: any) => ({
     empresa: c.name,
     dispositivos: parseInt(c.device_count || "0")

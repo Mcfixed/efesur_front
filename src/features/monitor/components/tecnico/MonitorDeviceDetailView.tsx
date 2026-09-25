@@ -79,8 +79,9 @@ export default function MonitorDeviceDetailView({
         lastTemp={lastT?.object?.temperature_C ?? null}
         lastMotion={lastT?.object?.systemStatus?.freeFallFlag ? 'Caída' : lastT?.object?.systemStatus?.motionFlag ? 'Sí' : lastT?.object?.voltage_mV != null && lastT?.object?.temperature_C != null ? 'KeepAlive' : null}
         lastGwNames={lastGwNames}
-        range={range}
-        onRangeChange={onRangeChange}
+        // El Lector ya tiene su propio filtro en la tarjeta de histórico.
+        range={device.type_device === 'Lector' ? undefined : range}
+        onRangeChange={device.type_device === 'Lector' ? undefined : onRangeChange}
         // El lector no usa paginación del header (su historial es fijo); ocultar "+ Cargar más"
         onLoadMore={device.type_device === 'Lector' ? undefined : onLoadMore}
         hasMore={device.type_device === 'Lector' ? false : hasMore}

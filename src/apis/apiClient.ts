@@ -10,14 +10,10 @@ interface ApiClientConfig {
 }
 
 // ─── Recuperación ante sesión de red expirada ───────────────────────────────
-// Cloudflare Access NO está pensado para XHR: cuando la sesión de red expira
-// responde un 302 cross-origin a wisensor.cloudflareaccess.com, y el navegador
-// bloquea esa respuesta por CORS. El SPA no puede leerla ni recuperarse, así que
-// la app queda "rota" hasta que el usuario recarga a mano.
-//
-// Estas guardas convierten ese estado en una recarga automática (una navegación
-// sí puede completar el re-login silencioso de Access). El guard de tiempo evita
-// bucles si el problema persiste (backend caído, Access caído, etc.).
+// Cloudflare Access no está pensado para XHR: al expirar la sesión responde un 302
+// cross-origin que el navegador bloquea por CORS y el SPA no puede recuperarse.
+// Estas guardas lo convierten en una recarga automática (una navegación sí completa
+// el re-login de Access); el guard de tiempo evita bucles si el problema persiste.
 const RELOAD_GUARD_KEY = "api_reload_at";
 const RELOAD_GUARD_MS = 15000;
 
@@ -53,7 +49,6 @@ class ApiClient {
   ): Promise<ApiResponse<T>> {
     let url = `${this.baseURL}${endpoint}`;
 
-    // Agregar query params si existen
     if (params) {
       const searchParams = new URLSearchParams();
       Object.entries(params).forEach(([key, value]) => {
@@ -67,10 +62,8 @@ class ApiClient {
       }
     }
 
-    // La autenticación va por la COOKIE de sesión de better-auth (credentials: include).
-    // No se envía `Authorization: Bearer`: el backend no tiene habilitado el plugin
-    // `bearer` de better-auth, así que ese header se ignora y solo daría una falsa
-    // sensación de seguridad.
+    // La sesión va por cookie (credentials: include). No se envía Authorization: Bearer
+    // porque el backend no tiene el plugin `bearer` de better-auth y lo ignoraría.
     const headers: Record<string, string> = { ...this.defaultHeaders };
 
     const config: RequestInit = {
@@ -83,8 +76,7 @@ class ApiClient {
       config.body = JSON.stringify(data);
     }
 
-    // `redirect: "manual"` permite DETECTAR la intercepción de Access en vez de morir
-    // con un error de CORS ilegible.
+    // `redirect: "manual"` permite detectar la intercepción de Access en vez de morir con un CORS ilegible.
     let response: Response;
     try {
       response = await fetch(url, { ...config, redirect: "manual" });
@@ -117,7 +109,6 @@ class ApiClient {
       );
     }
 
-    // Manejar respuestas vacías (ej: DELETE)
     const text = await response.text();
     let responseData: unknown = null;
     if (text) {

@@ -1,11 +1,7 @@
 // ─────────────────────────────────────────────────────────────
-// Notificaciones del sistema (Web Notifications API)
-// - Muestra una notificación del SO cuando llega una alerta NUEVA y el
-//   usuario no está mirando la pestaña (tab oculta o ventana sin foco).
-// - Cubre los mismos tipos que la voz: critica, atencion, apertura,
-//   presencia, movimientos_anomalos (desconexiones no).
-// - IMPORTANTE: NO usar `renotify` sin `tag` — lanza TypeError y la
-//   notificación nunca se muestra.
+// Notificaciones del sistema (Web Notifications API): avisa cuando llega una alerta
+// nueva y el usuario no está mirando la pestaña. Cubre los mismos tipos que la voz.
+// NO usar `renotify` sin `tag`: lanza TypeError y la notificación no se muestra.
 // ─────────────────────────────────────────────────────────────
 
 // Tipos que generan notificación del sistema (igual que los que anuncia la voz)
@@ -25,7 +21,6 @@ const TYPE_LABELS: Record<string, string> = {
   movimientos_anomalos: "movimientos anómalos",
 };
 
-/** Pide permiso de notificaciones del sistema (si aún no está decidido). */
 export function requestNotificationPermission(): Promise<boolean> {
   return new Promise((resolve) => {
     if (typeof window === "undefined" || !("Notification" in window)) {
@@ -40,14 +35,12 @@ export function requestNotificationPermission(): Promise<boolean> {
       resolve(false);
       return;
     }
-    // "default": pedir
     Notification.requestPermission()
       .then((p) => resolve(p === "granted"))
       .catch(() => resolve(false));
   });
 }
 
-/** ¿Está permitido mostrar notificaciones del sistema? */
 export function notificationsAllowed(): boolean {
   return (
     typeof window !== "undefined" &&
@@ -56,15 +49,8 @@ export function notificationsAllowed(): boolean {
   );
 }
 
-/**
- * Muestra una notificación del sistema para una alerta nueva.
- * Solo si: permiso otorgado, tipo permitido y el usuario NO está mirando
- * la pestaña (oculta o ventana sin foco). Si el permiso aún no está
- * decidido, lo pide en ese momento.
- * Se usa `tag` con el id de la alerta para que, si hay varias pestañas
- * abiertas, NO se repita la notificación (el navegador reemplaza las
- * que tienen el mismo tag en todo el origen).
- */
+// `tag` con el id de la alerta: si hay varias pestañas abiertas el navegador
+// reemplaza la notificación en vez de duplicarla.
 export async function notifyAlert(alert: {
   type: string;
   device_name: string;
@@ -73,8 +59,7 @@ export async function notifyAlert(alert: {
   if (!NOTIFY_TYPES.has(alert.type)) return;
   if (typeof window === "undefined" || !("Notification" in window)) return;
 
-  // Si el usuario está mirando la pestaña, la voz + la UI ya avisan:
-  // no hace falta la notificación del sistema.
+  // Si está mirando la pestaña, ya avisan la voz y la UI.
   if (!document.hidden && document.hasFocus()) return;
 
   if (Notification.permission === "default") {

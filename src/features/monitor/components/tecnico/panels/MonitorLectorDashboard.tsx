@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMonitorDevices, useMonitorLatestTelemetry, useMonitorDeviceTelemetryHistory } from "../../../hooks/useMonitor";
 import { monitorService } from "../../../services/monitor.service";
 import { cleanVoltage, cleanCurrent, cleanPower, cleanState, cleanTemp } from "../../../utils/mppt";
+import { IconTable, IconChartLine, IconX, IconLoader2 } from "@tabler/icons-react";
 
 // ═══════════════════════════════════════════
 // DOWN-SAMPLING LTTB (Largest-Triangle-Three-Buckets)
@@ -58,83 +59,21 @@ const CHART_VARS = [
   { key: "ramFree", label: "RAM libre", unit: "bytes", color: "#64748b" },
 ];
 
-// ═══════════════════════════════════════════
-// Sin mock data — todo desde telemetría real
-// ═══════════════════════════════════════════
+// Presets de rango del histórico (ms = ventana hacia atrás desde ahora).
+// chartLimit: filas del gráfico (el backend devuelve las más recientes del rango).
+const HISTORY_RANGES = [
+  { key: "24h", label: "24h", ms: 24 * 3600000, chartLimit: 1200, title: "Últimas 24 horas (por defecto)" },
+  { key: "7d", label: "7d", ms: 7 * 24 * 3600000, chartLimit: 2500, title: "Últimos 7 días" },
+  { key: "15d", label: "15d", ms: 15 * 24 * 3600000, chartLimit: 3500, title: "Últimos 15 días" },
+  { key: "30d", label: "30d", ms: 30 * 24 * 3600000, chartLimit: 5000, title: "Últimos 30 días" },
+];
 
-// ═══════════════════════════════════════════
-// SPARKLINE CHART
-// ═══════════════════════════════════════════
-function SparklineChart({ data, dataKey, color, title, unit }: { data: any[], dataKey: string, color: string, title: string, unit: string }) {
-  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
-  const values = data.map(d => d[dataKey]).filter(v => v != null);
-  const min = Math.min(...values, 0) * 0.9;
-  const max = Math.max(...values, 10) * 1.1;
-  const CHART_W = 260, CHART_H = 68, PAD = { top: 6, right: 6, bottom: 14, left: 32 };
-  const PLOT_W = CHART_W - PAD.left - PAD.right;
-  const PLOT_H = CHART_H - PAD.top - PAD.bottom;
-  const points = values.length > 1 ? values.map((v, i) =>
-    `${(PAD.left + (i / Math.max(values.length - 1, 1)) * PLOT_W).toFixed(1)},${(PAD.top + PLOT_H - ((v - min) / (max - min)) * PLOT_H).toFixed(1)}`
-  ).join(' ') : '';
-  const area = points ? `0,${CHART_H} ${points} ${CHART_W},${CHART_H}` : '';
-  const ticks = [min, (min + max) / 2, max].map(v => ({
-    v, y: (PAD.top + PLOT_H - ((v - min) / (max - min)) * PLOT_H).toFixed(1)
-  }));
-  const xLabels = data.length > 1
-    ? [0, Math.floor(data.length / 4), Math.floor(data.length / 2), Math.floor(3 * data.length / 4), data.length - 1]
-    : [0];
-  const gradId = `grad-${dataKey}`;
-  return (
-    <div className="rounded-lg p-2.5 flex-1 flex flex-col justify-center bg-bg-100 border border-border/30 relative">
-      <div className="flex justify-between items-center mb-1.5">
-        <p className="text-[9px] font-bold uppercase tracking-widest text-text-300">{title}</p>
-        <p className="text-[10px] font-mono font-bold" style={{ color }}>{values[values.length - 1]?.toFixed(2)} {unit}</p>
-      </div>
-      <div className="flex-1 flex items-center relative">
-        <svg width="100%" height="80" viewBox={`0 0 ${CHART_W} ${CHART_H}`} preserveAspectRatio="none" className="w-full">
-          <defs><linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.25" />
-            <stop offset="100%" stopColor={color} stopOpacity="0" />
-          </linearGradient></defs>
-          {ticks.map((t, i) => (
-            <g key={i}>
-              <line x1={PAD.left} y1={t.y} x2={CHART_W - PAD.right} y2={t.y} stroke="#2a2a2a" strokeWidth="0.5" strokeDasharray="2 2" />
-              <text x={PAD.left - 4} y={t.y} textAnchor="end" dominantBaseline="middle" fill="#666" fontSize="7">{t.v.toFixed(1)}</text>
-            </g>
-          ))}
-          {xLabels.map((idx, i) => (
-            <text key={i} x={PAD.left + (idx / Math.max(data.length - 1, 1)) * PLOT_W} y={CHART_H - 2} textAnchor="middle" fill="#666" fontSize="6">
-              {data[idx]?.time || ''}
-            </text>
-          ))}
-          {area && <polygon points={area} fill={`url(#${gradId})`} />}
-          {points && <polyline points={points} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />}
-          {/* Hover targets */}
-          {values.length > 1 && values.map((v, i) => {
-            const cx = PAD.left + (i / Math.max(values.length - 1, 1)) * PLOT_W;
-            const cy = PAD.top + PLOT_H - ((v - min) / (max - min)) * PLOT_H;
-            return (
-              <g key={i}>
-                <rect x={cx - 6} y={0} width={12} height={CHART_H} fill="transparent"
-                  onMouseEnter={() => setHoverIdx(i)}
-                  onMouseLeave={() => setHoverIdx(null)} />
-                {hoverIdx === i && (
-                  <g>
-                    <line x1={cx} y1={0} x2={cx} y2={CHART_H} stroke={color} strokeWidth="0.8" opacity="0.4" />
-                    <circle cx={cx} cy={cy} r="4" fill="#1e1e1e" stroke={color} strokeWidth="2" />
-                    <rect x={cx - 30} y={cy > 30 ? cy - 22 : cy + 6} width="60" height="18" rx="3" fill="#1e1e1e" stroke="#444" strokeWidth="0.5" />
-                    <text x={cx} y={cy > 30 ? cy - 10 : cy + 18} textAnchor="middle" fill="#e0e0e0" fontSize="7" fontFamily="monospace">
-                      {data[i]?.time || ''} · {v.toFixed(2)} {unit}
-                    </text>
-                  </g>
-                )}
-              </g>
-            );
-          })}
-        </svg>
-      </div>
-    </div>
-  );
+const DEFAULT_HISTORY_PRESET = "24h";
+const presetMs = (key: string) => HISTORY_RANGES.find(r => r.key === key)?.ms ?? 0;
+
+// Fuera del componente: Date.now() no debe llamarse durante el render.
+function presetWindowStart(ms: number): string | null {
+  return ms > 0 ? new Date(Date.now() - ms).toISOString() : null;
 }
 
 // ═══════════════════════════════════════════
@@ -162,40 +101,62 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
     return lectores[0]?.id ?? lectorDeviceId ?? null;
   }, [lectores, lectorDeviceId]);
 
-  // Gateway asociado al lector: prioridad a la prop pasada (vista desde el panel del gateway);
-  // si no, se busca por convención (el Gateway tiene id_device_father apuntando a su Lector)
-  const gatewayName = useMemo(() => {
-    if (gatewayNameProp) return gatewayNameProp;
+  // Gateway del lector: prop (panel del gateway) o por convención (id_device_father).
+  const assignedGateway = useMemo(() => {
     if (!allDevices || !lectorId) return null;
-    const gw = allDevices.find((d: any) => d.type_device === 'Gateway' && d.id_device_father === lectorId);
-    return gw?.name || null;
-  }, [allDevices, lectorId, gatewayNameProp]);
+    return allDevices.find((d: any) => d.type_device === 'Gateway' && d.id_device_father === lectorId) ?? null;
+  }, [allDevices, lectorId]);
+
+  const gatewayName = gatewayNameProp || assignedGateway?.name || null;
 
   // ═══════════════════════════════════════════════════════════════════
-  // Histórico del lector — PAGINADO server-side.
-  // ANTES: se pedían 10.000 filas de golpe (con refetch cada 15 s porque se
-  // usaba useMonitorDeviceTelemetry) y se renderizaban TODAS como <tr> en un
-  // contenedor de ~224 px → el navegador se congelaba al entrar al panel.
-  // AHORA: solo se trae y pinta la página actual (HISTORY_PAGE_SIZE filas) y el
-  // histórico NO se auto-refresca (lo "live" va por latestTelemetry). El gráfico
-  // usa su propia muestra, que solo se descarga al abrir la pestaña "Gráfico".
+  // Histórico paginado server-side: solo la página actual y sin auto-refresco;
+  // el dato "live" va por latestTelemetry.
   // ═══════════════════════════════════════════════════════════════════
   const HISTORY_PAGE_SIZE = 200;
   const [historyPage, setHistoryPage] = useState(0);
-  // Estado del botón "⬇ Excel" (debe ir aquí, ANTES de los returns condicionales,
-  // para no violar las reglas de hooks).
+  // Antes de los returns condicionales (reglas de hooks).
   const [exporting, setExporting] = useState(false);
+
+  // Filtro temporal compartido por tabla, gráfico y Excel.
+  const [historyPreset, setHistoryPreset] = useState(DEFAULT_HISTORY_PRESET);
+  const [presetFrom, setPresetFrom] = useState<string | null>(() => presetWindowStart(presetMs(DEFAULT_HISTORY_PRESET)));
+  const [historyFrom, setHistoryFrom] = useState("");
+  const [historyTo, setHistoryTo] = useState("");
+
+  const historyRange = useMemo(() => {
+    if (historyPreset === "custom") {
+      // Los <input type="date"> son hora local del operador; se envían como ISO.
+      return {
+        from: historyFrom ? new Date(`${historyFrom}T00:00:00`).toISOString() : undefined,
+        to: historyTo ? new Date(`${historyTo}T23:59:59.999`).toISOString() : undefined,
+      };
+    }
+    return presetFrom ? { from: presetFrom } : {};
+  }, [historyPreset, presetFrom, historyFrom, historyTo]);
+
+  const applyHistoryPreset = (key: string) => {
+    setHistoryPreset(key);
+    setHistoryFrom("");
+    setHistoryTo("");
+    setPresetFrom(presetWindowStart(presetMs(key)));
+  };
+  const setCustomFrom = (v: string) => { setHistoryPreset("custom"); setPresetFrom(null); setHistoryFrom(v); };
+  const setCustomTo = (v: string) => { setHistoryPreset("custom"); setPresetFrom(null); setHistoryTo(v); };
+  const clearHistoryRange = () => applyHistoryPreset(DEFAULT_HISTORY_PRESET);
+  const hasHistoryFilter = historyPreset !== DEFAULT_HISTORY_PRESET;
+  const customActive = historyPreset === "custom";
+
   const historyOffset = historyPage * HISTORY_PAGE_SIZE;
   const { data: historyData, isFetching: historyFetching } = useMonitorDeviceTelemetryHistory(
     lectorId,
-    { limit: HISTORY_PAGE_SIZE, offset: historyOffset },
+    { limit: HISTORY_PAGE_SIZE, offset: historyOffset, ...historyRange },
   );
   const historyTotal = historyData?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(historyTotal / HISTORY_PAGE_SIZE));
-  useEffect(() => { setHistoryPage(0); }, [lectorId]);
+  useEffect(() => { setHistoryPage(0); }, [lectorId, historyRange]);
 
-  // Convierte una fila cruda de telemetría a la fila "plana" de la tabla.
-  // Se comparte entre la tabla paginada, el gráfico y el export a Excel.
+  // Fila de telemetría → fila plana (tabla, gráfico y Excel).
   const mapHistoryRow = (t: any) => {
     const obj = t.object || {};
     const mppt = obj.Mppt || {};
@@ -239,14 +200,16 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
   const [chartVar, setChartVar] = useState("vBat");
   const chartVarDef = CHART_VARS.find(v => v.key === chartVar) ?? CHART_VARS[0];
 
-  // Muestra para el gráfico: se descarga (una sola vez, sin refetch) solo cuando
-  // el usuario abre la pestaña "Gráfico". Tope CHART_SAMPLE_LIMIT y LTTB → ~500 pts
-  // para que recharts no se atragante.
+  // Se descarga solo al abrir "Gráfico" y se reduce con LTTB (~500 pts) para recharts.
   const CHART_SAMPLE_LIMIT = 4000;
+  // Crece con la ventana: el backend devuelve las filas más recientes del rango.
+  const chartLimit = historyPreset === "custom"
+    ? CHART_SAMPLE_LIMIT
+    : (HISTORY_RANGES.find(r => r.key === historyPreset)?.chartLimit ?? CHART_SAMPLE_LIMIT);
   const chartEnabled = !!lectorId && histTab === "grafico";
   const { data: chartRawData, isFetching: chartFetching } = useQuery({
-    queryKey: ["monitor", "telemetry-chart-sample", lectorId],
-    queryFn: () => monitorService.getDeviceTelemetry(lectorId!, { limit: CHART_SAMPLE_LIMIT }),
+    queryKey: ["monitor", "telemetry-chart-sample", lectorId, historyRange, chartLimit],
+    queryFn: () => monitorService.getDeviceTelemetry(lectorId!, { limit: chartLimit, ...historyRange }),
     enabled: chartEnabled,
     staleTime: 30000,
   });
@@ -261,10 +224,14 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
     return sampled.map((p) => ({ time: format(new Date(p.x), "dd/MM HH:mm"), value: p.y }));
   }, [chartRawData, chartVar]);
 
+  const chartSpan = chartPoints.length
+    ? `${chartPoints[0].time} → ${chartPoints[chartPoints.length - 1].time}`
+    : "";
+
   // Extraer datos de telemetría del primer lector
   const dashboardData = useMemo(() => {
     if (!lectores.length) {
-      return { tel: [], mpttTel: [], chartData: [], lector: { name: 'Sin lector asignado', dev_eui: '—' }, lastT: null, sensores: {}, charger220: {}, vBat: null, pPan: null, iBat: null, iOut: null, loadState: null, chargeState: null, pvVolt: null, charging: false, charger220State: null, charger220Volt: null, temp: null };
+      return { tel: [], mpttTel: [], lector: { name: 'Sin lector asignado', dev_eui: '—' }, lastT: null, sensores: {}, charger220: {}, vBat: null, pPan: null, iBat: null, iOut: null, loadState: null, chargeState: null, pvVolt: null, charging: false, charger220State: null, charger220Volt: null, temp: null };
     }
     if (!latestTelemetry) return null;
     const lector = lectores[0];
@@ -272,21 +239,15 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
       t.dev_eui?.toLowerCase() === lector.dev_eui.toLowerCase() || t.device_id === lector.id
     );
 
-    if (!tel.length) return { tel: [], mpttTel: [], chartData: [], lector, lastT: null, sensores: {}, charger220: {}, vBat: null, pPan: null, iBat: null, iOut: null, loadState: null, chargeState: null, charging: false, charger220State: null, charger220Volt: null, temp: null };
+    if (!tel.length) return { tel: [], mpttTel: [], lector, lastT: null, sensores: {}, charger220: {}, vBat: null, pPan: null, iBat: null, iOut: null, loadState: null, chargeState: null, charging: false, charger220State: null, charger220Volt: null, temp: null };
     const lastT = tel.find((t: any) => t.object?.Mppt) || tel[0] || null;
     const obj = lastT?.object || {};
     const mppt = obj.Mppt || {};
     const security = obj.Security || {};
     const blueSmart = obj.BlueSmartIP67 || {};
     const mpttTel = tel.filter((t: any) => t.object?.Mppt).sort((a: any, b: any) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
-    const cd = mpttTel.slice(-120).map((t: any) => ({
-      time: format(new Date(t.ts), "HH:mm"),
-      volt: cleanVoltage(t.object?.Mppt?.batteryVoltage_V) ?? null,
-      power: cleanPower(t.object?.Mppt?.panelPower_W) ?? null,
-      current: cleanCurrent(t.object?.Mppt?.batteryCurrent_A) ?? null,
-    }));
     return {
-      tel, mpttTel, chartData: cd, lector, lastT,
+      tel, mpttTel, lector, lastT,
       sensores: security,
       charger220: blueSmart,
       vBat: cleanVoltage(mppt.batteryVoltage_V) ?? cleanVoltage(blueSmart.voltaje_V) ?? null,
@@ -315,11 +276,9 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
   if (!dashboardData) return null;
 
   const hasLector = lectores.length > 0;
-  const { chartData, lector, lastT, sensores, vBat, pPan, iBat, chargeState, charging, charger220State, charger220Volt, temp } = dashboardData;
+  const { lector, lastT, sensores, vBat, pPan, iBat, chargeState, charging, charger220State, charger220Volt, temp } = dashboardData;
 
-  // ── Export a Excel del histórico ──
-  // El histórico va paginado, así que el Excel se genera bajo demanda: en el clic
-  // se descarga el total (tope EXPORT_MAX) sin bloquear la entrada al panel.
+  // El Excel se genera al pulsar, con tope de filas.
   const EXPORT_MAX = 20000;
   const exportExcel = async () => {
     if (exporting || !lectorId) return;
@@ -330,6 +289,7 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
         const full = await monitorService.getDeviceTelemetry(lectorId, {
           limit: Math.min(historyTotal, EXPORT_MAX),
           offset: 0,
+          ...historyRange,
         });
         rows = (full?.telemetry || []).map(mapHistoryRow);
       }
@@ -360,11 +320,15 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
   const lastTsMs = lastT?.ts ? new Date(lastT.ts).getTime() : NaN;
   const isLectorOnline = Number.isFinite(lastTsMs) && Math.abs(Date.now() - lastTsMs) < 300000;
 
-  // Estado real del gateway asociado (si se pasa): usa gatewayLastSeen; si no, cae al lector
-  const gwTsMs = gatewayLastSeen ? new Date(gatewayLastSeen).getTime() : NaN;
-  const isGatewayOnline = gatewayLastSeen
-    ? (Number.isFinite(gwTsMs) && Math.abs(Date.now() - gwTsMs) < 300000)
-    : isLectorOnline;
+  // El estado del gateway usa su propio last_seen: heredar el del lector daría falsos "online".
+  const gwLastSeen = gatewayLastSeen ?? assignedGateway?.last_seen ?? null;
+  const gwTsMs = gwLastSeen ? new Date(gwLastSeen).getTime() : NaN;
+  const hasGateway = !!(gatewayNameProp || assignedGateway);
+  const gwState: 'online' | 'offline' | 'unassigned' = !hasGateway
+    ? 'unassigned'
+    : (Number.isFinite(gwTsMs) && Math.abs(Date.now() - gwTsMs) < 300000 ? 'online' : 'offline');
+  const gwColor = gwState === 'online' ? '#22c55e' : gwState === 'offline' ? '#ef4444' : '#6b7280';
+  const gwLabel = gwState === 'online' ? 'GW ONLINE' : gwState === 'offline' ? 'GW OFFLINE' : 'SIN GW ASIGNADO';
 
   const batPct = vBat != null ? Math.max(0, Math.min(100, ((vBat - 11) / (15 - 11)) * 100)) : null;
   const batColor = vBat != null ? (vBat >= 12.5 ? '#22c55e' : vBat >= 11.8 ? '#f97316' : '#ef4444') : '#6b7280';
@@ -443,7 +407,6 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
               </div>
             </div>
           </div>
-          <SparklineChart data={chartData} dataKey="volt" color="#00a3e8" title="Historial Voltaje" unit="V" />
         </div>
 
         {/* CENTER COLUMN: ENERGY FLOW */}
@@ -540,12 +503,12 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
                   </text>
                 </g>
                 <g transform="translate(170, 15)">
-                  <rect width="80" height="30" rx="6" fill="none" stroke={isGatewayOnline ? '#22c55e' : '#ef4444'} strokeWidth={isGatewayOnline ? 1.2 : 1} />
+                  <rect width="80" height="30" rx="6" fill="none" stroke={gwColor} strokeWidth={gwState === 'online' ? 1.2 : 1} />
                   <line x1="30" y1="0" x2="30" y2="-10" stroke="#666" strokeWidth="2" />
                   <line x1="50" y1="0" x2="50" y2="-10" stroke="#666" strokeWidth="2" />
-                  <circle cx="12" cy="15" r="3" fill={isGatewayOnline ? '#22c55e' : '#ef4444'} filter={isGatewayOnline ? 'url(#glowGreen)' : undefined} />
+                  <circle cx="12" cy="15" r="3" fill={gwColor} filter={gwState === 'online' ? 'url(#glowGreen)' : undefined} />
                   <text x="40" y="20" textAnchor="middle" fill="#aaa" fontSize="8" fontWeight="bold">
-                    {gatewayName || 'GATEWAY'}
+                    {gwState === 'unassigned' ? 'SIN GATEWAY' : (gatewayName || 'GATEWAY')}
                   </text>
                 </g>
                 <g transform="translate(490, 90)">
@@ -560,9 +523,9 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
                 <text x="67" y="181" fill={charging ? '#22c55e' : '#6b7280'} fontSize="7" fontWeight="bold">
                   {charging ? 'CARGANDO' : (pPan ?? 0) > 0 ? 'ACTIVO' : 'INACTIVO'}
                 </text>
-                <circle cx="210" cy="178" r="3" fill={isGatewayOnline ? '#22c55e' : '#ef4444'} />
-                <text x="217" y="181" fill={isGatewayOnline ? '#22c55e' : '#ef4444'} fontSize="7" fontWeight="bold">
-                  {isGatewayOnline ? 'GW ONLINE' : 'GW OFFLINE'}
+                <circle cx="210" cy="178" r="3" fill={gwColor} />
+                <text x="217" y="181" fill={gwColor} fontSize="7" fontWeight="bold">
+                  {gwLabel}
                 </text>
                 <circle cx="530" cy="178" r="3" fill="#3b82f6" />
                 <text x="537" y="181" fill="#3b82f6" fontSize="7" fontWeight="bold">
@@ -612,7 +575,6 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
               </div>
             </div>
           </div>
-          <SparklineChart data={chartData} dataKey="power" color="#eab308" title="Potencia Solar" unit="W" />
         </div>
       </div>
 
@@ -624,24 +586,61 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
             <h3 className="text-[10px] font-semibold text-text-200 uppercase tracking-wider">Histórico del lector</h3>
             <span className="ml-auto text-[10px] text-text-300 font-mono">{historyTotal.toLocaleString("es-CL")} registros</span>
             <button onClick={exportExcel} disabled={exporting} title="Descargar histórico en Excel"
-              className="px-2 py-0.5 rounded text-[9px] font-semibold text-green-400 bg-green-500/10 border border-green-500/30 hover:bg-green-500/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-              {exporting ? "⏳ Generando…" : "⬇ Excel"}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-semibold text-green-400 bg-green-500/10 border border-green-500/30 hover:bg-green-500/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+              {exporting ? <><IconLoader2 size={11} className="animate-spin" />Generando…</> : "⬇ Excel"}
             </button>
           </div>
-          {/* Tabs: Datos | Gráfico */}
-          <div className="shrink-0 flex border-b border-border/20">
-            <button onClick={() => setHistTab("datos")}
-              className={`flex-1 py-1.5 text-[10px] font-semibold uppercase tracking-wider transition-colors ${histTab === "datos" ? "text-[#00a3e8] border-b-2 border-[#00a3e8]" : "text-text-300 hover:text-text-200"}`}>
-              Datos
-            </button>
-            <button onClick={() => setHistTab("grafico")}
-              className={`flex-1 py-1.5 text-[10px] font-semibold uppercase tracking-wider transition-colors ${histTab === "grafico" ? "text-[#00a3e8] border-b-2 border-[#00a3e8]" : "text-text-300 hover:text-text-200"}`}>
-              Gráfico
-            </button>
+
+          <div className="shrink-0 px-3 py-1.5 border-b border-border/20 flex items-center gap-2 flex-wrap">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-text-300">Rango</span>
+            <div className="flex gap-1 bg-bg-300/40 p-0.5 rounded-lg">
+              {HISTORY_RANGES.map(r => (
+                <button key={r.key} onClick={() => applyHistoryPreset(r.key)} title={r.title}
+                  className={`px-2.5 py-1 rounded-md text-[10px] font-bold transition-all ${historyPreset === r.key ? 'bg-white/15 text-text-100 shadow-sm border border-white/10' : 'text-text-300 hover:text-text-100 hover:bg-bg-300/50'}`}>
+                  {r.label}
+                </button>
+              ))}
+            </div>
+            <span className="w-px h-5 bg-border/20" />
+            <div className="flex items-center gap-1.5">
+              <label htmlFor="lector-hist-from" className="text-[9px] uppercase tracking-wider text-text-300">Desde</label>
+              <input id="lector-hist-from" type="date" value={historyFrom} max={historyTo || undefined}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                style={{ colorScheme: 'dark' }}
+                className={`px-1.5 py-0.5 rounded-md bg-bg-200/60 border text-[10px] text-text-100 font-mono outline-none ${customActive ? 'border-[#00a3e8]/60' : 'border-border/40 focus:border-[#00a3e8]/60'}`} />
+              <label htmlFor="lector-hist-to" className="text-[9px] uppercase tracking-wider text-text-300">Hasta</label>
+              <input id="lector-hist-to" type="date" value={historyTo} min={historyFrom || undefined}
+                onChange={(e) => setCustomTo(e.target.value)}
+                style={{ colorScheme: 'dark' }}
+                className={`px-1.5 py-0.5 rounded-md bg-bg-200/60 border text-[10px] text-text-100 font-mono outline-none ${customActive ? 'border-[#00a3e8]/60' : 'border-border/40 focus:border-[#00a3e8]/60'}`} />
+              {hasHistoryFilter && (
+                <button onClick={clearHistoryRange} title="Volver al rango por defecto (24h)"
+                  className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-semibold text-text-300 bg-bg-200/60 border border-border/30 hover:text-text-100 hover:bg-bg-200 transition-colors">
+                  <IconX size={10} />
+                  Limpiar
+                </button>
+              )}
+            </div>
           </div>
+          <div className="shrink-0 px-2 py-1.5 border-b border-border/20">
+            <div className="flex items-stretch gap-1 p-1 rounded-lg bg-bg-200/70 border border-border/40">
+              <button onClick={() => setHistTab("datos")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${histTab === "datos" ? "bg-[#00a3e8] text-white shadow-[0_0_10px_rgba(0,163,232,0.35)]" : "text-text-300 hover:text-text-100 hover:bg-bg-100/40"}`}>
+                <IconTable size={12} stroke={2} />
+                Datos
+              </button>
+              <button onClick={() => setHistTab("grafico")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wider transition-all ${histTab === "grafico" ? "bg-[#00a3e8] text-white shadow-[0_0_10px_rgba(0,163,232,0.35)]" : "text-text-300 hover:text-text-100 hover:bg-bg-100/40"}`}>
+                <IconChartLine size={12} stroke={2} />
+                Gráfico
+              </button>
+            </div>
+          </div>
+          {/* Alto fijo: evita el salto al cambiar de pestaña */}
+          <div className="h-64 min-h-0 flex flex-col">
           {histTab === "grafico" ? (
-          <div className="shrink-0 px-3 pt-2.5 pb-2">
-            <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+          <div className="h-full flex flex-col px-3 pt-2.5 pb-2 min-h-0">
+            <div className="shrink-0 flex items-center gap-1.5 mb-2 flex-wrap">
               <span className="text-[10px] font-semibold text-text-200 uppercase tracking-wider">Variable:</span>
               {CHART_VARS.map(v => (
                 <button key={v.key} onClick={() => setChartVar(v.key)}
@@ -649,9 +648,11 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
                   {v.label}
                 </button>
               ))}
-              <span className="ml-auto text-[9px] text-text-300 font-mono">{chartFetching ? "Cargando…" : `${chartSourceCount} pts → ${chartPoints.length} mostrados`}</span>
+              <span className="ml-auto text-[9px] text-text-300 font-mono">
+                {chartFetching ? "Cargando…" : `${chartSourceCount} pts → ${chartPoints.length} mostrados${chartSpan ? ` · ${chartSpan}` : ""}`}
+              </span>
             </div>
-            <div className="h-44">
+            <div className="flex-1 min-h-[176px]">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartPoints}>
                   <defs>
@@ -671,7 +672,7 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
           </div>
           ) : (
           <>
-          <div className="overflow-auto max-h-56">
+          <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-[11px]" style={{ minWidth: 1100 }}>
               <thead className="sticky top-0 z-10">
                 <tr className="bg-bg-200 text-text-300 uppercase tracking-wider text-[9px]">
@@ -792,6 +793,7 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
             </div>
           )}
           </>)}
+          </div>
         </div>
       )}
     </div>

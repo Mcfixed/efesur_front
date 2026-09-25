@@ -1,12 +1,7 @@
 // ─────────────────────────────────────────────────────────────
-// Módulo de audio del dashboard (voz TTS)
-// - speechSynthesis lee la bienvenida y las alertas con nombre.
-// - Cola FIFO: garantiza orden (bienvenida → alertas) y evita solapes.
-// - Si la voz está bloqueada hasta el primer gesto, los mensajes se quedan
-//   en la cola y se reproducen todos al primer clic — no se pierde nada,
-//   aunque tardes en hacer el clic.
-// - detectStickyActivation: si el usuario ya interactuó (ej. login), no
-//   espera otro gesto.
+// Audio del dashboard (voz TTS). speechSynthesis lee la bienvenida y las alertas.
+// Cola FIFO: mantiene el orden y evita solapes; si la voz está bloqueada hasta el
+// primer gesto, los mensajes quedan en la cola y se reproducen todos al primer clic.
 // ─────────────────────────────────────────────────────────────
 
 let unlocked = false;      // la voz está permitida (gesto o habla con éxito)
@@ -91,11 +86,8 @@ export function speak(text: string) {
   flush();
 }
 
-/**
- * Si el usuario ya interactuó con esta página (ej. login), el navegador
- * permite autoplay: lo marca en userActivation (sticky), aunque el clic
- * ocurrió antes de que registráramos nuestros listeners.
- */
+// Si el usuario ya interactuó (ej. login) el navegador permite autoplay: userActivation
+// es sticky, así que el clic pudo ocurrir antes de registrar nuestros listeners.
 function detectStickyActivation() {
   if (
     !unlocked &&
@@ -113,17 +105,11 @@ export function unlockAudio() {
   flush();
 }
 
-/** ¿El navegador aún no ha reproducido la voz ni hubo gesto? */
 export function isAudioBlocked(): boolean {
   return !unlocked;
 }
 
-/**
- * Registra listeners globales de primer gesto para desbloquear la voz.
- * Al primer gesto reproduce toda la cola pendiente en orden (bienvenida +
- * alertas), sin importar cuánto hayas tardado.
- * @param onUnlock Se invoca en el primer gesto real.
- */
+/** Desbloquea la voz al primer gesto y reproduce la cola pendiente en orden. */
 export function registerAudioUnlock(onUnlock?: () => void) {
   if (typeof window === "undefined") return;
   detectStickyActivation();

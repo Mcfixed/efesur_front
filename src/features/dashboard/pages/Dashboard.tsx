@@ -5,7 +5,6 @@ import type { MapRef } from "react-map-gl";
 import { toast } from "sonner";
 import { IconVolume3 } from "@tabler/icons-react";
 import { useCallback } from "react";
-// Custom Hooks
 import { useDashboardData, useGatewayStatus, useAlertTimeline } from "../hooks/useDashboard";
 import { useAlertVoice } from "../hooks/useAlertVoice";
 
@@ -35,12 +34,11 @@ export default function Dashboard() {
   const lastCriticalIds = useRef<string | null>(null);
 
 
-  // Data fetching
   const { data, isLoading } = useDashboardData();
   const { data: gatewayData } = useGatewayStatus();
   const [timelineRange, setTimelineRange] = useState("24h");
   const { data: timelineData } = useAlertTimeline(timelineRange);
-  // Datos para el gráfico "Alertas por Sensor" (rango fijo 30d, independiente del timeline)
+  // Gráfico "Alertas por Sensor": 30d fijo, independiente del timeline
   const { data: chartTimeline } = useAlertTimeline("30d");
   const historyData = useMemo(() => ({
     alerts: chartTimeline?.alerts || [],
@@ -60,8 +58,7 @@ export default function Dashboard() {
 
   const { muted, toggleMute } = useAlertVoice({ alerts: voiceAlerts });
 
-  // Notificación de esquina (sonner, top-right): solo aparece si la voz
-  // realmente no arranca (navegador que la bloquea). Como speechSynthesis
+  // Aviso de esquina (sonner) solo si el navegador bloquea la voz.
   const AUDIO_TOAST_ID = "audio-blocked-toast";
   const audioToastShown = useRef(false);
   useEffect(() => {
@@ -119,7 +116,6 @@ export default function Dashboard() {
       }
     };
 
-    // Wrappear console.error para capturar errores de mapbox-gl
     console.error = function(...args: any[]) {
       const errorStr = String(args[0]);
       if (
@@ -134,7 +130,6 @@ export default function Dashboard() {
       return originalError.apply(console, args);
     };
 
-    // Event listener para uncaught errors
     window.addEventListener('error', errorHandler);
 
     return () => {
@@ -144,8 +139,7 @@ export default function Dashboard() {
   }, []);
 
   // ─── TRACK MAP ZOOM ────────────────────────────────────────
-  // IMPORTANTE: usamos 'moveend' (no 'move') para no hacer setState ~60 veces/seg
-  // mientras se arrastra/rota el mapa, que re-renderizaba todo el dashboard.
+  // 'moveend' (no 'move'): con 'move' hacíamos setState ~60 veces/seg y re-renderizaba todo.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -201,7 +195,6 @@ export default function Dashboard() {
 
   //const gateways = gatewayData?.gateways || [];
 
-  // Determinar color del parpadeo del mapa
   const hasCritical = (data?.alerts?.critical?.length ?? 0) > 0;
   const hasMovements = (data?.alerts?.movimientos_anomalos?.length ?? 0) > 0;
   const pulseClass = hasCritical ? 'map-alert-pulse-red' : hasMovements ? 'map-alert-pulse-purple' : null;
@@ -210,7 +203,7 @@ export default function Dashboard() {
     setShowAllSensors(s => !s);
   }, []);
 
-  // 2. Congela el arreglo de gateways para que no se recree si viene undefined
+  // Referencia estable del arreglo de gateways
   const gateways = useMemo(() => gatewayData?.gateways || [], [gatewayData?.gateways]);
 
 
@@ -219,7 +212,6 @@ export default function Dashboard() {
     <div className="w-full h-full flex flex-col overflow-hidden">
       <AlertTickerBanner data={data} />
 
-      {/* Botón de silenciar voz */}
       <button
         onClick={toggleMute}
         className="absolute top-2 right-2 z-50 w-8 h-8 rounded-full flex items-center justify-center text-[13px] transition-all shadow-lg hover:scale-110"
@@ -262,8 +254,8 @@ export default function Dashboard() {
                 </div>
               )}
 
-              {/* El buscador de sensores vive dentro de MapLayers, que es quien controla el popup del dispositivo */}
-              {/* Warning rojo flotante en esquina superior derecha del mapa: cada alerta crítica con su contador */}
+              {/* El buscador de sensores vive en MapLayers (es quien controla el popup) */}
+              {/* Alertas críticas con su contador, arriba a la derecha del mapa */}
               {(data?.alerts?.critical?.length ?? 0) > 0 && (
                 <div className="absolute top-12 right-12 z-20 flex flex-col bg-red-950/85 border border-red-500/50 rounded-lg px-3 py-2 shadow-lg backdrop-blur-sm min-w-44 max-w-64 max-h-[55vh] overflow-y-auto">
                   <div className="flex items-center gap-1.5 mb-1">

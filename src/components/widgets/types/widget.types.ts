@@ -6,9 +6,7 @@ export interface WidgetGridPosition {
   col?: number;
   /** Fila de inicio (1-based) */
   row?: number;
-  /** Cuántas columnas ocupa */
   colSpan?: number;
-  /** Cuántas filas ocupa */
   rowSpan?: number;
 }
 
@@ -22,13 +20,9 @@ export interface WidgetAbsolutePosition {
 
 // ─── Config base del widget container ─────────────────────────────────────────
 export interface WidgetContainerProps {
-  /** Título del widget */
   title?: string;
-  /** Subtítulo / descripción */
   subtitle?: string;
-  /** Acciones opcionales en la cabecera (botones, menús, etc.) */
   headerActions?: ReactNode;
-  /** Posición dentro del WidgetGrid */
   gridPosition?: WidgetGridPosition;
   /** Si se activa, el widget flota en posición absoluta */
   absolutePosition?: WidgetAbsolutePosition;
@@ -46,7 +40,6 @@ export interface WidgetGridProps {
   children: ReactNode;
   /** Número de columnas del grid (default: 12) */
   columns?: number;
-  /** Gap entre widgets */
   gap?: number | string;
   className?: string;
 }
@@ -57,9 +50,7 @@ export type ChartDataItem = Record<string, string | number>;
 // ─── Props compartidas de widgets de gráfica ──────────────────────────────────
 export interface BaseChartWidgetProps extends Omit<WidgetContainerProps, "children"> {
   data: ChartDataItem[];
-  /** Clave(s) del eje X */
   xAxisKey: string;
-  /** Clave(s) del eje Y / valores */
   dataKey: string | string[];
   chartHeight?: number;
   colors?: string[];
@@ -106,7 +97,6 @@ export interface DataTableWidgetProps<T extends object = any>
   extends Omit<WidgetContainerProps, "children"> {
   data: T[];
   columns: TableColumn<T>[];
-  /** Muestra un estado de carga en lugar de las filas */
   isLoading?: boolean;
   /** Filas por página (0 = sin paginación) */
   pageSize?: number;
@@ -115,7 +105,6 @@ export interface DataTableWidgetProps<T extends object = any>
   compact?: boolean;
   /** Activa un buscador por texto sobre todas las columnas */
   searchable?: boolean;
-  /** Placeholder del buscador */
   searchPlaceholder?: string;
 }
 
