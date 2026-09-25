@@ -329,11 +329,13 @@ export default function MonitorDeviceList({
               {latestTelemetry?.length || 0} registros
             </div>
           </div>
-          <div className="overflow-x-auto max-h-96 overflow-y-auto flex-1">
+          {/* flex-1 + min-h-0: ocupa TODO el alto disponible del panel y hace scroll interno
+              (antes tenia max-h-96, que la cortaba a la mitad y dejaba espacio muerto abajo) */}
+          <div className="flex-1 min-h-0 overflow-auto">
             <table className="w-full text-xs">
               <thead className="sticky top-0 z-10">
                 <tr className="bg-bg-200 text-text-300 uppercase tracking-wider text-[9px]">
-                  <th className="text-left py-2 px-2 font-medium">Hora</th>
+                  <th className="text-left py-2 px-2 font-medium">Fecha / Hora</th>
                   <th className="text-left py-2 px-2 font-medium">Dispositivo</th>
                   <th className="text-left py-2 px-2 font-medium">Tipo</th>
                   <th className="text-left py-2 px-2 font-medium"><MonitorBatteryPopup><span className="flex items-center gap-1 cursor-help">Batería<svg className="w-3 h-3 text-text-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span></MonitorBatteryPopup></th>
@@ -346,7 +348,10 @@ export default function MonitorDeviceList({
                 {latestTelemetry?.map((t: any, i: number) => (
                   <tr key={t.id}
                     className={`${i % 2 === 0 ? "bg-bg-100" : "bg-bg-200/30"} hover:bg-bg-200/60 transition-colors border-b border-border/20`}>
-                    <td className="py-1.5 px-2 text-text-200 font-mono text-[10px] whitespace-nowrap">{format(new Date(t.ts), "HH:mm:ss")}</td>
+                    <td className="py-1.5 px-2 font-mono text-[10px] whitespace-nowrap">
+                      <span className="text-text-300">{format(new Date(t.ts), "dd/MM/yy")}</span>
+                      <span className="text-text-200 ml-1.5">{format(new Date(t.ts), "HH:mm:ss")}</span>
+                    </td>
                     <td className="py-1.5 px-2 text-text-100 truncate max-w-28">{t.device_name}</td>
                     <td className="py-1.5 px-2 text-text-200 text-[10px]">{t.type_device}</td>
                     <td className="py-1.5 px-2 text-text-100 text-right">

@@ -2,7 +2,8 @@ import { useState, useMemo, useEffect } from "react";
 import { format } from "date-fns";
 import { useMonitorDevices } from "../../hooks/useMonitor";
 import { monitorService } from "../../services/monitor.service";
-import { IconX, IconFileReport, IconBattery, IconWifi, IconAlertTriangle } from "@tabler/icons-react";
+import { matchesSearch } from "@/utils/text";
+import { IconX, IconSearch, IconFileReport, IconBattery, IconWifi, IconAlertTriangle } from "@tabler/icons-react";
 
 interface Props {
   onClose: () => void;
@@ -25,31 +26,43 @@ export default function MonitorReportModal({ onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [, setReportData] = useState<any>(null);
   const [reportType, setReportType] = useState<ReportType>('general');
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Dispositivos visibles: todos los tipos en todos los reportes
   const visibleDevices = useMemo(() => (allDevices || []), [allDevices]);
 
+  // ─── Buscador de dispositivos ───
+  // Filtra por nombre, EUI o tipo (ignora mayúsculas y tildes; varios términos = AND).
+  const filteredDevices = useMemo(
+    () => visibleDevices.filter(d => matchesSearch(searchTerm, d.name, d.dev_eui, d.type_device)),
+    [visibleDevices, searchTerm]
+  );
+
+  const isSearching = searchTerm.trim().length > 0;
+
   const deviceTypes = useMemo(() => {
-    const types = new Set(visibleDevices.map(d => d.type_device));
+    const types = new Set(filteredDevices.map(d => d.type_device));
     return [...types].sort();
-  }, [visibleDevices]);
+  }, [filteredDevices]);
 
   const devicesByType = useMemo(() => {
     const map = new Map<string, typeof allDevices>();
-    visibleDevices.forEach(d => {
+    filteredDevices.forEach(d => {
       const arr = map.get(d.type_device) || [];
       arr.push(d);
       map.set(d.type_device, arr);
     });
     return map;
-  }, [visibleDevices]);
+  }, [filteredDevices]);
+
+  // "Seleccionar todos" actúa sobre lo que está visible (resultado del filtro)
+  const allFilteredSelected = filteredDevices.length > 0 && filteredDevices.every(d => selectedIds.has(d.id));
 
   const toggleAll = () => {
-    if (selectedIds.size === visibleDevices.length && visibleDevices.every(d => selectedIds.has(d.id))) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(visibleDevices.map(d => d.id)));
-    }
+    const next = new Set(selectedIds);
+    if (allFilteredSelected) filteredDevices.forEach(d => next.delete(d.id));
+    else filteredDevices.forEach(d => next.add(d.id));
+    setSelectedIds(next);
   };
 
   const toggleDevice = (id: number) => {
@@ -1103,12 +1116,54 @@ export default function MonitorReportModal({ onClose }: Props) {
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-purple-500 mr-1.5 align-middle"></span>
                 Dispositivos
               </p>
-              <button onClick={toggleAll}
-                className="text-xs font-semibold text-brand-200 hover:text-brand-100 transition-colors">
-                {selectedIds.size === visibleDevices.length && visibleDevices.length > 0 ? 'Deseleccionar todos' : 'Seleccionar todos'}
+              <button onClick={toggleAll} disabled={filteredDevices.length === 0}
+                className="text-xs font-semibold text-brand-200 hover:text-brand-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                {allFilteredSelected
+                  ? (isSearching ? 'Quitar los filtrados' : 'Deseleccionar todos')
+                  : (isSearching ? `Seleccionar ${filteredDevices.length} filtrado${filteredDevices.length !== 1 ? 's' : ''}` : 'Seleccionar todos')}
               </button>
             </div>
+
+            {/* Buscador de dispositivos */}
+            <div className="relative mb-2">
+              <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                placeholder="Buscar por nombre, EUI o tipo..."
+                className="w-full bg-bg-200 border border-border/50 rounded-lg pl-9 pr-9 py-2 text-sm text-text-200 placeholder:text-text-300/70 outline-none focus:border-brand-100/50 focus:ring-1 focus:ring-brand-100/30 transition-colors" />
+              <IconSearch size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-300 pointer-events-none" />
+              {isSearching && (
+                <button type="button" onClick={() => setSearchTerm('')} title="Limpiar búsqueda"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-300 hover:text-text-200 transition-colors">
+                  <IconX size={15} />
+                </button>
+              )}
+            </div>
+
+            {(isSearching || selectedIds.size > 0) && (
+              <div className="flex items-center gap-2 mb-2 text-[11px] text-text-300">
+                {isSearching && <span>{filteredDevices.length} de {visibleDevices.length} coinciden</span>}
+                {isSearching && selectedIds.size > 0 && <span className="opacity-40">·</span>}
+                {selectedIds.size > 0 && <span>{selectedIds.size} seleccionado{selectedIds.size !== 1 ? 's' : ''}</span>}
+              </div>
+            )}
+
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              {filteredDevices.length === 0 && (
+                <div className="py-8 text-center">
+                  {isSearching ? (
+                    <>
+                      <p className="text-sm text-text-300">
+                        Sin resultados para <span className="font-semibold text-text-200">«{searchTerm}»</span>
+                      </p>
+                      <button type="button" onClick={() => setSearchTerm('')}
+                        className="mt-2 text-xs font-semibold text-brand-200 hover:text-brand-100 transition-colors">
+                        Limpiar búsqueda
+                      </button>
+                    </>
+                  ) : (
+                    <p className="text-sm text-text-300">Sin dispositivos disponibles</p>
+                  )}
+                </div>
+              )}
               {deviceTypes.map(type => {
                 const devices = devicesByType.get(type) || [];
                 const typeSelected = devices.every(d => selectedIds.has(d.id));

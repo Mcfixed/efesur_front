@@ -17,7 +17,6 @@ import AlertTickerBanner from "../components/AlertTickerBanner";
 import RightBarDashboard from "../components/RightBarDashboard";
 import MapOverlayInfo from "../components/MapOverlayInfo";
 import MapLayers from "../components/MapLayers";
-import MapSearchBox from "../components/MapSearchBox";
 import AlertsChart from "../components/AlertsChart";
 import FpsIndicator from "../components/FpsIndicator";
 import MapErrorBoundary from "../components/MapErrorBoundary";
@@ -263,13 +262,7 @@ export default function Dashboard() {
                 </div>
               )}
 
-              <MapSearchBox
-                data={data}
-                gateways={gateways}
-                onFlyTo={(lng, lat) => {
-                  mapRef.current?.flyTo({ center: [lng, lat], zoom: 15, duration: 1500 });
-                }}
-              />
+              {/* El buscador de sensores vive dentro de MapLayers, que es quien controla el popup del dispositivo */}
               {/* Warning rojo flotante en esquina superior derecha del mapa: cada alerta crítica con su contador */}
               {(data?.alerts?.critical?.length ?? 0) > 0 && (
                 <div className="absolute top-12 right-12 z-20 flex flex-col bg-red-950/85 border border-red-500/50 rounded-lg px-3 py-2 shadow-lg backdrop-blur-sm min-w-44 max-w-64 max-h-[55vh] overflow-y-auto">

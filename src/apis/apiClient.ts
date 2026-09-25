@@ -9,6 +9,30 @@ interface ApiClientConfig {
   headers?: Record<string, string>;
 }
 
+// ─── Recuperación ante sesión de red expirada ───────────────────────────────
+// Cloudflare Access NO está pensado para XHR: cuando la sesión de red expira
+// responde un 302 cross-origin a wisensor.cloudflareaccess.com, y el navegador
+// bloquea esa respuesta por CORS. El SPA no puede leerla ni recuperarse, así que
+// la app queda "rota" hasta que el usuario recarga a mano.
+//
+// Estas guardas convierten ese estado en una recarga automática (una navegación
+// sí puede completar el re-login silencioso de Access). El guard de tiempo evita
+// bucles si el problema persiste (backend caído, Access caído, etc.).
+const RELOAD_GUARD_KEY = "api_reload_at";
+const RELOAD_GUARD_MS = 15000;
+
+function reloadOnce(reason: string): void {
+  try {
+    const last = Number(sessionStorage.getItem(RELOAD_GUARD_KEY) || 0);
+    if (Date.now() - last < RELOAD_GUARD_MS) return;
+    sessionStorage.setItem(RELOAD_GUARD_KEY, String(Date.now()));
+    console.warn(`[apiClient] ${reason}. Recargando para revalidar la sesión...`);
+    window.location.reload();
+  } catch {
+    /* sessionStorage no disponible: mejor no recargar */
+  }
+}
+
 class ApiClient {
   private baseURL: string;
   private defaultHeaders: Record<string, string>;
@@ -43,12 +67,11 @@ class ApiClient {
       }
     }
 
-    // Inyectar token de autorización si existe (cookies cross-origin bloqueadas en HTTP)
-    const token = localStorage.getItem("auth_token");
+    // La autenticación va por la COOKIE de sesión de better-auth (credentials: include).
+    // No se envía `Authorization: Bearer`: el backend no tiene habilitado el plugin
+    // `bearer` de better-auth, así que ese header se ignora y solo daría una falsa
+    // sensación de seguridad.
     const headers: Record<string, string> = { ...this.defaultHeaders };
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
 
     const config: RequestInit = {
       method,
@@ -60,7 +83,30 @@ class ApiClient {
       config.body = JSON.stringify(data);
     }
 
-    const response = await fetch(url, config);
+    // `redirect: "manual"` permite DETECTAR la intercepción de Access en vez de morir
+    // con un error de CORS ilegible.
+    let response: Response;
+    try {
+      response = await fetch(url, { ...config, redirect: "manual" });
+    } catch (err) {
+      if (err instanceof TypeError) {
+        reloadOnce("No se pudo contactar la API (¿sesión de red expirada?)");
+        throw new ApiError("No se pudo contactar la API", 0, null);
+      }
+      throw err;
+    }
+
+    // Respuesta opaca: la petición fue redirigida (típicamente al login de Access)
+    if (response.type === "opaqueredirect" || response.status === 0) {
+      reloadOnce("La petición fue redirigida a un login externo");
+      throw new ApiError("Sesión de red expirada", 0, null);
+    }
+
+    // Sesión de la app expirada o revocada: recargar lleva a ProtectedRoute -> login
+    if (response.status === 401) {
+      reloadOnce("Sesión expirada o revocada");
+      throw new ApiError("Sesión expirada", 401, null);
+    }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -73,7 +119,18 @@ class ApiClient {
 
     // Manejar respuestas vacías (ej: DELETE)
     const text = await response.text();
-    const responseData = text ? JSON.parse(text) : null;
+    let responseData: unknown = null;
+    if (text) {
+      try {
+        responseData = JSON.parse(text);
+      } catch {
+        // No es JSON: casi siempre es la página HTML del login de Access
+        if ((response.headers.get("content-type") || "").includes("text/html")) {
+          reloadOnce("La API devolvió HTML en vez de JSON");
+        }
+        throw new ApiError("Respuesta no válida del servidor", response.status, text.slice(0, 200));
+      }
+    }
 
     return {
       data: responseData as T,

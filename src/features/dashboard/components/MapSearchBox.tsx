@@ -1,14 +1,16 @@
 import { useState, useRef, useEffect } from "react";
 import { IconSearch } from "@tabler/icons-react";
 import type { DashboardData, GatewayDevice } from "../types/dashboard.types";
+import { matchesSearch } from "@/utils/text";
 
 interface Props {
   data?: DashboardData;
   gateways: GatewayDevice[];
-  onFlyTo: (lng: number, lat: number) => void;
+  /** Se dispara al elegir un resultado. El padre decide qué hacer (zoom + popup). */
+  onSelect: (item: SearchItem) => void;
 }
 
-interface SearchItem {
+export interface SearchItem {
   id: string;
   name: string;
   subtitle: string;
@@ -17,7 +19,7 @@ interface SearchItem {
   lat: number;
 }
 
-export default function MapSearchBox({ data, gateways, onFlyTo }: Props) {
+export default function MapSearchBox({ data, gateways, onSelect }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchItem[]>([]);
   const [open, setOpen] = useState(false);
@@ -44,15 +46,10 @@ export default function MapSearchBox({ data, gateways, onFlyTo }: Props) {
     })),
   ];
 
-  // Filtrar al escribir
+  // Filtrar al escribir (ignora mayúsculas y tildes; varios términos = AND)
   useEffect(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) { setResults([]); setOpen(false); return; }
-    const filtered = allItems.filter(
-      item =>
-        item.name.toLowerCase().includes(q) ||
-        item.subtitle.toLowerCase().includes(q)
-    );
+    if (!query.trim()) { setResults([]); setOpen(false); return; }
+    const filtered = allItems.filter(item => matchesSearch(query, item.name, item.subtitle));
     setResults(filtered.slice(0, 20));
     setOpen(filtered.length > 0);
   }, [query, data, gateways]);
@@ -71,7 +68,7 @@ export default function MapSearchBox({ data, gateways, onFlyTo }: Props) {
 
   const select = (item: SearchItem) => {
     if (!item.lng || !item.lat) return;
-    onFlyTo(item.lng, item.lat);
+    onSelect(item);
     setQuery(item.name);
     setOpen(false);
     inputRef.current?.blur();

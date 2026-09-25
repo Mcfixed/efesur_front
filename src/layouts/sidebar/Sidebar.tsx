@@ -126,12 +126,11 @@ const MenuNavigation = ({
       {visibleItems.map((item) => {
         const Icon = item.icon;
         return (
-          <div className="relative">
+          <div className="relative" key={item.id}>
             <div className="absolute w-3 h-3 bg-blue-500 -right-1 top-1/2 -translate-y-1/2 rounded-full blur-xs"></div>
             <div className="absolute w-3 h-3 bg-blue-600 right-0 top-1/2 -translate-y-1/2 rounded-full "></div>
             <LineGradientWhite color="#fffaf0a4" />
             <NavLink
-              key={item.id}
               to={item.link}
               className={({ isActive }: { isActive: boolean }) => `
                relative flex  items-center text-text-200  py-1 px-2 rounded-xl hover:bg-bg-200 transition-all duration-300

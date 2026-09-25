@@ -2,6 +2,7 @@ import { useState, useMemo, Fragment, useEffect, memo } from "react";
 import { Marker, Source, Layer, Popup, useMap } from "react-map-gl";
 import type { DashboardData, GatewayDevice, GpsDevice } from "../types/dashboard.types";
 import DevicePopup from "./DevicePopup";
+import MapSearchBox, { type SearchItem } from "./MapSearchBox";
 import { IconEye, IconEyeOff } from "@tabler/icons-react";
 import roboIcon from "@/assets/iconsdashboard/robo.png";
 
@@ -32,6 +33,9 @@ function createCircleGeoJSON(lng: number, lat: number, radiusKm: number) {
 
 const ZOOM_THRESHOLD = 13;
 
+// Zoom al que se acerca la vista al elegir un sensor en el buscador
+const SEARCH_ZOOM = 20;
+
 // ─── COLORES Y CONFIGURACIÓN PARA LOS PINES WEBGL ───
 const TYPE_COLORS: Record<string, { fill: string; stroke: string; letter: string }> = {
   Gps:         { fill: '#3b82f6', stroke: '#60a5fa', letter: 'G' },
@@ -53,6 +57,30 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
   const [selectedDevice, setSelectedDevice] = useState<GpsDevice | null>(null);
   const [selectedGateway, setSelectedGateway] = useState<GatewayDevice | null>(null);
   const [selectedTrackingAlert, setSelectedTrackingAlert] = useState<number | null>(null);
+
+  // ─── BUSCADOR ───
+  // Al elegir un resultado hace lo mismo que hacer clic en el mapa: abre el
+  // popup del sensor (o del gateway) y además acerca bien la vista.
+  const handleSearchSelect = (item: SearchItem) => {
+    const numericId = Number(item.id.replace(/^(dev|gw)-/, ''));
+    if (!Number.isFinite(numericId)) return;
+
+    if (item.type === 'device') {
+      const device = data?.devices?.find(d => d.id === numericId);
+      if (!device) return;
+      setSelectedGateway(null);
+      setSelectedTrackingAlert(null);
+      setSelectedDevice(device);
+    } else {
+      const gw = gateways.find(g => g.id === numericId);
+      if (!gw) return;
+      setSelectedDevice(null);
+      setSelectedTrackingAlert(null);
+      setSelectedGateway(gw);
+    }
+
+    map?.flyTo({ center: [item.lng, item.lat], zoom: SEARCH_ZOOM, duration: 1600 });
+  };
 
   // ─── CARGAR TUS SVGS PERSONALIZADOS A MAPBOX (WEBGL) ───
   useEffect(() => {
@@ -283,8 +311,6 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
 
   const gatewayAlertMap = useMemo(() => {
     const map = new Map<number, Record<GwAlertKey, boolean>>();
-    const now = Date.now();
-    const thirtyMin = 30 * 60 * 1000;
 
     const gwById = new Map(gateways.map(gw => [gw.id, gw]));
     const gwByName = new Map(gateways.map(gw => [String(gw.name || '').toLowerCase(), gw]));
@@ -310,23 +336,17 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
       map.set(hit.id, entry);
     };
 
-    // Apertura / presencia: eventos puntuales del lector → últimos 30 min
-    (data?.alerts?.apertura || []).forEach(a => {
-      if ((now - new Date(a.created_at).getTime()) < thirtyMin) mark(a, 'apertura');
-    });
-    (data?.alerts?.presencia || []).forEach(a => {
-      if ((now - new Date(a.created_at).getTime()) < thirtyMin) mark(a, 'presencia');
-    });
-    // Desconexión CA 220 / batería del gateway: mientras estén activas Y el gateway siga
-    // offline (o dentro de 30 min por si Node-RED no las cierra al volver).
-    const keepDesconexion = (a: any) => {
-      if (a.status !== 'active') return false;
-      if ((now - new Date(a.created_at).getTime()) < thirtyMin) return true;
-      const hit = resolveGw(a);
-      return !!hit && hit.gw && !hit.gw.is_online;
-    };
-    (data?.alerts?.desconexion220 || []).forEach(a => { if (keepDesconexion(a)) mark(a, 'desconexion220'); });
-    (data?.alerts?.desconexionbatGW || []).forEach(a => { if (keepDesconexion(a)) mark(a, 'desconexionbatGW'); });
+    // ── ALERTAS DEL LECTOR: independientes de la conectividad del gateway ──
+    // El wifi del gateway comunica SU conectividad (verde = online / rojo = offline).
+    // El badge rojo comunica un EVENTO del sitio: apertura, presencia, CA 220 o batería GW.
+    // Son dos hechos distintos y por eso se muestran por separado: mientras la alerta esté
+    // 'active' en BD, el badge sigue rojo aunque el gateway vuelva (wifi verde). Se resolverá
+    // sola cuando el lector vuelva a reportar (Node-RED) o cuando el reconciliador la cierre.
+    const isLive = (a: any) => a.status === 'active';
+    (data?.alerts?.apertura || []).forEach(a => { if (isLive(a)) mark(a, 'apertura'); });
+    (data?.alerts?.presencia || []).forEach(a => { if (isLive(a)) mark(a, 'presencia'); });
+    (data?.alerts?.desconexion220 || []).forEach(a => { if (isLive(a)) mark(a, 'desconexion220'); });
+    (data?.alerts?.desconexionbatGW || []).forEach(a => { if (isLive(a)) mark(a, 'desconexionbatGW'); });
     return map;
   }, [data?.alerts?.apertura, data?.alerts?.presencia, data?.alerts?.desconexion220, data?.alerts?.desconexionbatGW, gateways]);
 
@@ -361,7 +381,7 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
           {/* ── BADGE DE ALERTA (evento del sitio, no significa gateway caído) ── */}
           {topAlert && (
             <span
-              title={`${topAlert === 'apertura' ? 'Apertura' : topAlert === 'presencia' ? 'Presencia' : topAlert === 'desconexion220' ? 'CA 220 Off' : 'Batería GW Off'} · Gateway ${isOnline ? 'online' : 'offline'}`}
+              title={`${topAlert === 'apertura' ? 'Apertura' : topAlert === 'presencia' ? 'Presencia' : topAlert === 'desconexion220' ? 'CA 220 Off' : 'Batería GW Off'} (alerta del lector) · Gateway ${isOnline ? 'online' : 'offline'}`}
               className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 border-2 border-bg-100 shadow-[0_0_6px_rgba(239,68,68,0.7)] flex items-center justify-center animate-pulse"
             >
               {topAlert === 'apertura' && (
@@ -587,6 +607,9 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
           {renderGatewayIcon(gw.is_online, gw.id)}
         </Marker>
       ))}
+
+      {/* Buscador: al elegir un resultado abre el popup del sensor y hace zoom sobre él */}
+      <MapSearchBox data={data} gateways={gateways} onSelect={handleSearchSelect} />
 
       {/* Popups */}
       {selectedGateway && (

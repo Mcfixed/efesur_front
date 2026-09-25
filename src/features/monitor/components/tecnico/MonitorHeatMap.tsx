@@ -1,14 +1,18 @@
 import { useEffect, useRef, useMemo, useState } from "react";
+import type { KeyboardEvent } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { useMonitorDevices, useMonitorLatestTelemetry } from "../../hooks/useMonitor";
 import { renderToString } from "react-dom/server";
 import MonitorSensorPanel from "./MonitorSensorPanel";
+import { matchesSearch } from "@/utils/text";
 import { 
   IconAntenna, 
   IconBook, 
   IconBuildingFactory, 
-  IconMapPin 
+  IconMapPin,
+  IconSearch,
+  IconX
 } from "@tabler/icons-react";
 
 // Colores Neón adaptados para fondo oscuro
@@ -25,8 +29,13 @@ export default function MonitorRadarMap() {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
+  const markersById = useRef<Map<number, L.Marker>>(new Map());
   const hasSetBounds = useRef<boolean>(false);
   const [selectedDevice, setSelectedDevice] = useState<any>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [highlightIdx, setHighlightIdx] = useState(0);
+  const searchBoxRef = useRef<HTMLDivElement>(null);
 
   const { data: allDevices } = useMonitorDevices();
   const { data: latestTelemetry } = useMonitorLatestTelemetry(200);
@@ -60,6 +69,53 @@ export default function MonitorRadarMap() {
     });
   }, [allDevices]);
 
+  // ─── Buscador de sensores ───
+  // Solo busca entre los sensores que están en el mapa (coordenadas válidas),
+  // porque son los únicos sobre los que se puede "hacer clic".
+  const searchResults = useMemo(() => {
+    if (!searchTerm.trim()) return [];
+    return devicesWithPos
+      .filter(d => matchesSearch(searchTerm, d.name, d.dev_eui, d.type_device))
+      .sort((a, b) => String(a.name ?? '').localeCompare(String(b.name ?? ''), 'es'))
+      .slice(0, 8);
+  }, [devicesWithPos, searchTerm]);
+
+  const activeIdx = searchResults.length > 0 ? Math.min(highlightIdx, searchResults.length - 1) : 0;
+
+  // Selecciona un sensor igual que si se hiciera clic en su marcador:
+  // abre el panel inferior, centra el mapa y despliega el popup.
+  const selectDevice = (d: any) => {
+    setSelectedDevice(d);
+    setSearchOpen(false);
+
+    const lat = Number(d.latitude_current);
+    const lng = Number(d.longitude_current);
+    const map = mapInstance.current;
+    if (map && !isNaN(lat) && !isNaN(lng)) {
+      map.flyTo([lat, lng], Math.max(map.getZoom(), 15), { duration: 0.6 });
+    }
+    // Se busca el marcador dentro del timeout: el mapa puede redibujarse durante el vuelo
+    window.setTimeout(() => markersById.current.get(d.id)?.openPopup(), 650);
+  };
+
+  const onSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') { setSearchOpen(false); e.currentTarget.blur(); return; }
+    if (searchResults.length === 0) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setHighlightIdx(i => (i + 1) % searchResults.length); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlightIdx(i => (i - 1 + searchResults.length) % searchResults.length); }
+    else if (e.key === 'Enter') { e.preventDefault(); selectDevice(searchResults[activeIdx]); }
+  };
+
+  // Cerrar el desplegable al hacer clic fuera del buscador
+  useEffect(() => {
+    if (!searchOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target as Node)) setSearchOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [searchOpen]);
+
   // Inicialización del Mapa
   useEffect(() => {
     if (!mapRef.current || mapInstance.current) return;
@@ -86,6 +142,7 @@ export default function MonitorRadarMap() {
 
     markersRef.current.forEach(m => map.removeLayer(m));
     markersRef.current = [];
+    markersById.current.clear();
 
     devicesWithPos.forEach(d => {
       const lat = Number(d.latitude_current);
@@ -172,6 +229,7 @@ export default function MonitorRadarMap() {
       // Click en el sensor → abre el panel inferior con historial
       marker.on('click', () => setSelectedDevice(d));
       markersRef.current.push(marker);
+      markersById.current.set(d.id, marker);
     });
 
     if (!hasSetBounds.current && devicesWithPos.length > 0) {
@@ -217,6 +275,7 @@ export default function MonitorRadarMap() {
 
     return () => {
       markersRef.current.forEach(m => map.removeLayer(m));
+      markersById.current.clear();
       map.removeControl(legend);
     };
   }, [devicesWithPos, telemetryMap]);
@@ -262,6 +321,53 @@ export default function MonitorRadarMap() {
         <div className="flex items-center gap-2 mt-1">
           <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
           <p className="text-xs text-gray-300 font-medium drop-shadow-md">{devicesWithPos.length} sensores activos</p>
+        </div>
+
+        {/* Buscador de sensores: al elegir uno hace lo mismo que hacer clic en su marcador */}
+        <div ref={searchBoxRef} className="relative mt-3 w-76 max-w-[80vw] pointer-events-auto">
+          <input value={searchTerm}
+            onChange={e => { setSearchTerm(e.target.value); setHighlightIdx(0); setSearchOpen(true); }}
+            onFocus={() => setSearchOpen(true)}
+            onKeyDown={onSearchKeyDown}
+            placeholder="Buscar sensor por nombre o EUI..."
+            className="w-full bg-black/85 backdrop-blur-md border border-gray-700/80 rounded-lg pl-9 pr-9 py-2 text-sm text-gray-100 placeholder:text-gray-500 outline-none focus:border-teal-400/60 focus:ring-1 focus:ring-teal-400/30 shadow-lg transition-colors" />
+          <IconSearch size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+          {searchTerm && (
+            <button type="button" onClick={() => { setSearchTerm(''); setSearchOpen(false); }} title="Limpiar búsqueda"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-200 transition-colors">
+              <IconX size={15} />
+            </button>
+          )}
+
+          {searchOpen && searchTerm.trim() && (
+            <div className="absolute left-0 right-0 top-full mt-2 bg-black/95 backdrop-blur-md border border-gray-700/80 rounded-lg shadow-2xl overflow-hidden">
+              {searchResults.length === 0 ? (
+                <div className="px-3 py-3 text-xs text-gray-500">Sin coincidencias en el mapa</div>
+              ) : (
+                <>
+                  <div className="max-h-64 overflow-y-auto">
+                    {searchResults.map((d, i) => (
+                      <button key={d.id} type="button"
+                        onMouseEnter={() => setHighlightIdx(i)}
+                        onClick={() => selectDevice(d)}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors ${i === activeIdx ? 'bg-teal-400/10' : 'hover:bg-white/5'}`}>
+                        <span className="w-2 h-2 rounded-full shrink-0"
+                          style={{ background: rssiColorNeon(telemetryMap.get(d.id)?.rssi ?? null) }} />
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-[13px] text-gray-100 truncate">{d.name}</span>
+                          <span className="block text-[10px] text-gray-500 font-mono truncate">{d.dev_eui} · {d.type_device}</span>
+                        </span>
+                        <IconMapPin size={14} className="text-gray-600 shrink-0" />
+                      </button>
+                    ))}
+                  </div>
+                  <div className="px-3 py-1.5 border-t border-gray-800 text-[10px] text-gray-600">
+                    {searchResults.length} resultado{searchResults.length !== 1 ? 's' : ''} · Enter para abrir
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
