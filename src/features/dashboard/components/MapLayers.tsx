@@ -1,6 +1,6 @@
 import { useState, useMemo, Fragment, useEffect, memo } from "react";
 import { Marker, Source, Layer, Popup, useMap } from "react-map-gl";
-import type { DashboardData, GatewayDevice, GpsDevice } from "../types/dashboard.types";
+import type { DashboardData, GatewayDevice, GpsDevice, MapFocusRequest } from "../types/dashboard.types";
 import DevicePopup from "./DevicePopup";
 import GatewayLectorInfo from "./GatewayLectorInfo";
 import MapSearchBox, { type SearchItem } from "./MapSearchBox";
@@ -13,6 +13,7 @@ interface Props {
   showAllSensors?: boolean;
   onToggleShowAll?: () => void;
   mapZoom?: number;
+  focusRequest?: MapFocusRequest | null;
 }
 
 function createCircleGeoJSON(lng: number, lat: number, radiusKm: number) {
@@ -51,12 +52,46 @@ const getAuraColor = (snr?: number | null) => {
   return '#ef4444';
 };
 
-function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 0 }: Props) {
+function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 0, focusRequest }: Props) {
   const { current: map } = useMap();
   const showSensors = showAllSensors || mapZoom >= ZOOM_THRESHOLD;
   const [selectedDevice, setSelectedDevice] = useState<GpsDevice | null>(null);
   const [selectedGateway, setSelectedGateway] = useState<GatewayDevice | null>(null);
   const [selectedTrackingAlert, setSelectedTrackingAlert] = useState<number | null>(null);
+
+  // Foco pedido desde el panel de alertas: vuela al sitio y abre el popup correspondiente
+  const focusNonce = focusRequest?.nonce ?? 0;
+  useEffect(() => {
+    if (!focusRequest) return;
+
+    const flyTo = (lng: number, lat: number) => {
+      if (Number.isFinite(lng) && Number.isFinite(lat)) {
+        map?.flyTo({ center: [lng, lat], zoom: SEARCH_ZOOM, duration: 1600 });
+      }
+    };
+    const select = (gw: GatewayDevice | null, dev: GpsDevice | null) => {
+      setSelectedTrackingAlert(null);
+      setSelectedGateway(gw);
+      setSelectedDevice(dev);
+    };
+
+    // Alerta de lector: el pin vive en su gateway
+    const gw = focusRequest.gatewayId != null ? gateways.find(g => g.id === focusRequest.gatewayId) : undefined;
+    if (gw) { select(gw, null); flyTo(Number(gw.longitude_current), Number(gw.latitude_current)); return; }
+
+    // Alerta de un GPS/sensor dibujado en el mapa
+    const dev = focusRequest.deviceId != null ? data?.devices?.find(d => d.id === focusRequest.deviceId) : undefined;
+    if (dev) { select(null, dev); flyTo(Number(dev.longitude_current), Number(dev.latitude_current)); return; }
+
+    // Alerta de un gateway (sin lector asignado)
+    const gwById = focusRequest.deviceId != null ? gateways.find(g => g.id === focusRequest.deviceId) : undefined;
+    if (gwById) { select(gwById, null); flyTo(Number(gwById.longitude_current), Number(gwById.latitude_current)); return; }
+
+    // Sin dispositivo en el mapa: al menos se acerca a las coordenadas de la alerta
+    if (focusRequest.lng != null && focusRequest.lat != null) flyTo(focusRequest.lng, focusRequest.lat);
+  // Solo debe dispararse con el botón del panel, no con cada refresco de datos (10 s)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusNonce]);
 
   // ─── BUSCADOR ───
   // Hace lo mismo que el clic en el mapa: abre el popup y acerca la vista.

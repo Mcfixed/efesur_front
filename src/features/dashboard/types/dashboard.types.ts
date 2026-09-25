@@ -78,6 +78,15 @@ export interface DeviceLocation {
   alert_type: string | null;
 }
 
+export interface MapFocusRequest {
+  alertId?: number | null;
+  deviceId?: number | null;
+  gatewayId?: number | null;
+  lng?: number | null;
+  lat?: number | null;
+  nonce: number;
+}
+
 export interface GatewayDevice {
   id: number;
   dev_eui: string;

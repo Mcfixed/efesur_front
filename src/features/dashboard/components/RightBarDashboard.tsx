@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { IconX, IconCheck, IconRadar, IconAlertTriangle, IconAlertCircle, IconDoor, IconUser, IconWifiOff, IconBellOff, IconRun, IconChevronDown, IconChevronUp } from "@tabler/icons-react";
+import { IconX, IconCheck, IconRadar, IconAlertTriangle, IconAlertCircle, IconDoor, IconUser, IconWifiOff, IconBellOff, IconRun, IconChevronDown, IconChevronUp, IconMapPin } from "@tabler/icons-react";
 import { format } from "date-fns";
 import RightBar from "@/components/bars/RightBar";
+import type { Alert } from "../types/dashboard.types";
 import { useResolveAlert } from "../hooks/useDashboard";
 import { useMonitorDevices } from "@/features/monitor/hooks/useMonitor";
 
@@ -13,6 +14,7 @@ interface Props {
   isMobile?: boolean;
   isOpen?: boolean;
   setOpen?: (v: boolean) => void;
+  onFocusAlert: (alert: Alert) => void;
 }
 
 const ranges = [
@@ -22,7 +24,7 @@ const ranges = [
   { key: "total", label: "Todo" },
 ];
 
-export default function RightBarDashboard({ timelineData, timelineRange, setTimelineRange, isLoading, isMobile, isOpen, setOpen }: Props) {
+export default function RightBarDashboard({ timelineData, timelineRange, setTimelineRange, isLoading, isMobile, isOpen, setOpen, onFocusAlert }: Props) {
   const resolveMutation = useResolveAlert();
   const { data: allDevices } = useMonitorDevices();
 
@@ -182,11 +184,16 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
                           </div>
                           {alert.metadata?.reason && <p className="text-[10px] leading-tight truncate mt-1" style={{ color: 'rgba(252,165,165,0.5)' }}>{alert.metadata.reason}</p>}
                         </div>
-                        {alert.type === 'critica' && (
-                          <button onClick={() => handleOpenResolve(alert.id)} disabled={resolveMutation.isPending}
-                            className="shrink-0 flex items-center gap-1 bg-red-500/15 hover:bg-red-500/25 active:bg-red-500/35 text-[8px] font-semibold text-red-400 px-1.5 py-0.5 rounded-lg transition-all duration-200 opacity-70 group-hover:opacity-100"
-                          ><IconCheck size={9} /> Resolver</button>
-                        )}
+                        <div className="shrink-0 flex items-center gap-1">
+                          <button onClick={(e) => { e.stopPropagation(); onFocusAlert(alert); }} title="Ver ubicación en el mapa"
+                            className="p-1 rounded-md text-red-300/60 hover:text-red-100 hover:bg-red-500/15 transition-colors"
+                          ><IconMapPin size={13} /></button>
+                          {alert.type === 'critica' && (
+                            <button onClick={() => handleOpenResolve(alert.id)} disabled={resolveMutation.isPending}
+                              className="shrink-0 flex items-center gap-1 bg-red-500/15 hover:bg-red-500/25 active:bg-red-500/35 text-[8px] font-semibold text-red-400 px-1.5 py-0.5 rounded-lg transition-all duration-200 opacity-70 group-hover:opacity-100"
+                            ><IconCheck size={9} /> Resolver</button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -238,6 +245,13 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
                         </button>
                       )}
                     </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onFocusAlert(alert); }}
+                      title="Ver ubicación en el mapa"
+                      className="shrink-0 p-1.5 rounded-md text-text-300/70 hover:text-text-100 hover:bg-white/10 transition-colors"
+                    >
+                      <IconMapPin size={14} />
+                    </button>
                   </div>
                 </div>
               );

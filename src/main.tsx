@@ -4,6 +4,7 @@ import "./index.css";
 import { BrowserRouter, Route, Routes } from "react-router";
 import Template from "./layouts/Template";
 import { ThemeProvider } from "./context/ThemeContext";
+import SessionCacheGuard from "./context/SessionCacheGuard";
 import { configServer } from "@/config/ConfigServer";
 import {
   AuthProvider,
@@ -22,6 +23,7 @@ createRoot(document.getElementById("root")!).render(
     <BrowserRouter>
       <QueryProvider>
         <AuthProvider>
+          <SessionCacheGuard />
           <ThemeProvider>
             <ToastProvider />
             <Routes>

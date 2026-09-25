@@ -16,6 +16,7 @@ import AlertTickerBanner from "../components/AlertTickerBanner";
 import RightBarDashboard from "../components/RightBarDashboard";
 import MapOverlayInfo from "../components/MapOverlayInfo";
 import MapLayers from "../components/MapLayers";
+import type { Alert, MapFocusRequest } from "../types/dashboard.types";
 import AlertsChart from "../components/AlertsChart";
 import FpsIndicator from "../components/FpsIndicator";
 import MapErrorBoundary from "../components/MapErrorBoundary";
@@ -57,6 +58,20 @@ export default function Dashboard() {
   ], [data?.alerts]);
 
   const { muted, toggleMute } = useAlertVoice({ alerts: voiceAlerts });
+
+  // Foco en el mapa pedido desde el panel de alertas ("ver ubicación")
+  const [mapFocus, setMapFocus] = useState<MapFocusRequest | null>(null);
+  const focusNonce = useRef(0);
+  const handleFocusAlert = useCallback((alert: Alert) => {
+    setMapFocus({
+      alertId: alert.id,
+      deviceId: alert.device_id,
+      gatewayId: alert.gateway_id ?? null,
+      lng: alert.longitude_current,
+      lat: alert.latitude_current,
+      nonce: ++focusNonce.current,
+    });
+  }, []);
 
   // Aviso de esquina (sonner) solo si el navegador bloquea la voz.
   const AUDIO_TOAST_ID = "audio-blocked-toast";
@@ -268,7 +283,7 @@ export default function Dashboard() {
                   <CriticalAlertCounters alerts={data?.alerts?.critical || []} />
                 </div>
               )}
-              <MapLayers data={data} gateways={gateways} showAllSensors={showAllSensors} onToggleShowAll={handleToggleShowAll} mapZoom={mapZoom} />
+              <MapLayers data={data} gateways={gateways} showAllSensors={showAllSensors} onToggleShowAll={handleToggleShowAll} mapZoom={mapZoom} focusRequest={mapFocus} />
             </BaseMap>
           </MapErrorBoundary>
 
@@ -283,6 +298,7 @@ export default function Dashboard() {
           isMobile={isMobile}
           isOpen={isOpenRightBar}
           setOpen={setOpenRightBar}
+          onFocusAlert={handleFocusAlert}
         />
       </div>
     </div>

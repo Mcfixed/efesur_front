@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { useMonitorSummary, useMonitorActiveSensors, useMonitorAlertsPerDay } from "../../hooks/useMonitor";
-import { BarChartWrapper, AreaChartWrapper } from "@/libs/recharts";
+import { ActiveSensorsChart, AlertsPerDayChart } from "./ResumenCharts";
 import { IconDeviceSdCard, IconSignal5g, IconAlertTriangle, IconAlertCircle, IconDoor, IconUser, IconMoodSearch, IconWifiOff, IconFileReport } from "@tabler/icons-react";
 import MonitorReportModal from "../tecnico/MonitorReportModal";
 
@@ -38,19 +38,19 @@ export default function MonitorResumen() {
 
   const sensorChart = useMemo(() => {
     if (!sensors?.length) return [];
-    return sensors.map(s => ({ dia: format(new Date(s.dia), "dd/MM"), activos: s.activos }));
+    return sensors.map(s => ({ dia: format(new Date(s.dia), "dd/MM"), activos: Number(s.activos) || 0 }));
   }, [sensors]);
 
   const alertChart = useMemo(() => {
     if (!alertsPerDay?.length) return [];
     return alertsPerDay.map(a => ({
       dia: format(new Date(a.dia), "dd/MM"),
-      criticas: a.criticas,
-      atencion: a.atencion,
-      apertura: a.apertura,
-      presencia: a.presencia,
-      movimientos: a.movimientos,
-      desconexion: a.desconexion,
+      criticas: Number(a.criticas) || 0,
+      atencion: Number(a.atencion) || 0,
+      apertura: Number(a.apertura) || 0,
+      presencia: Number(a.presencia) || 0,
+      movimientos: Number(a.movimientos) || 0,
+      desconexion: Number(a.desconexion) || 0,
     }));
   }, [alertsPerDay]);
 
@@ -118,32 +118,8 @@ export default function MonitorResumen() {
       </div>
 
       <div className="flex-1 grid grid-rows-2 gap-1.5 min-h-0">
-        <div className="rounded-lg bg-bg-100 border border-border/30 shadow-sm overflow-hidden flex flex-col min-h-0">
-          <div className="shrink-0 px-3 py-1.5 border-b border-border/20 flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
-            <h3 className="text-[10px] font-semibold text-text-200 uppercase tracking-wider">Sensores activos por día</h3>
-          </div>
-          <div className="flex-1 min-h-0 p-1">
-            {sensorChart.length > 0 ? (
-              <AreaChartWrapper data={sensorChart} dataKey="activos" xAxisKey="dia" colors={["#14b8a6"]} showLegend={false} showGrid={true} gradient={true} />
-            ) : (
-              <div className="flex items-center justify-center h-full text-[12px] text-text-300">Sin datos</div>
-            )}
-          </div>
-        </div>
-        <div className="rounded-lg bg-bg-100 border border-border/30 shadow-sm overflow-hidden flex flex-col min-h-0">
-          <div className="shrink-0 px-3 py-1.5 border-b border-border/20 flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-            <h3 className="text-[10px] font-semibold text-text-200 uppercase tracking-wider">Alertas por día</h3>
-          </div>
-          <div className="flex-1 min-h-0 p-1">
-            {alertChart.length > 0 ? (
-              <BarChartWrapper data={alertChart} dataKey={["criticas", "apertura", "presencia", "atencion", "movimientos", "desconexion"]} xAxisKey="dia" colors={["#ef4444", "#dc2626", "#ef4444", "#eab308", "#a855f7", "#f97316"]} stacked={true} showLegend={true} nameMap={{ criticas: 'Críticas', apertura: 'Apertura', presencia: 'Presencia', atencion: 'Atención', movimientos: 'Movimientos', desconexion: 'Desconexión' }} />
-            ) : (
-              <div className="flex items-center justify-center h-full text-[12px] text-text-300">Sin datos</div>
-            )}
-          </div>
-        </div>
+        <ActiveSensorsChart data={sensorChart} />
+        <AlertsPerDayChart data={alertChart} />
       </div>
     </div>
   );
