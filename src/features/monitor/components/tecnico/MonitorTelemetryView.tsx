@@ -54,11 +54,18 @@ export default function MonitorTelemetryView() {
   const lastT = telemetryData?.telemetry?.[0];
   const hasMore = telemetryData?.telemetry?.length === PAGE_SIZE;
 
+  // El gráfico tiene su propia consulta con `sample`: reparte los puntos sobre TODO el
+  // rango. La tabla sigue paginada de 200 en 200, por eso antes el gráfico solo cubría
+  // el tramo final del rango seleccionado.
+  const CHART_POINTS = 700;
+  const { data: chartSampleData } = useMonitorDeviceTelemetry(selectedDevice?.id || null, { from, sample: CHART_POINTS });
+  const chartRows = useMemo(() => chartSampleData?.telemetry ?? [], [chartSampleData]);
+
   useEffect(() => { setTelemetryOffset(0); }, [selectedDevice?.id, range]);
 
   const chartData = useMemo(() => {
-    if (!telemetryData?.telemetry?.length) return [];
-    return telemetryData.telemetry.map(t => {
+    if (!chartRows.length) return [];
+    return chartRows.map(t => {
       const rx = Array.isArray(t.rxinfo) ? t.rxinfo : [];
       const entry: any = { time: format(new Date(t.ts), "MM/dd HH:mm"), voltage: t.object?.voltage_mV ?? null, temperature: t.object?.temperature_C ?? null };
       rx.forEach((gw: any, i: number) => {
@@ -67,20 +74,20 @@ export default function MonitorTelemetryView() {
         entry[`rssi_${id}`] = gw.rssi;
       });
       return entry;
-    }).reverse();
-  }, [telemetryData]);
+    });
+  }, [chartRows]);
 
   const gatewayNames = useMemo(() => {
     const names = new Set<string>();
-    telemetryData?.telemetry?.forEach(t => { if (Array.isArray(t.rxinfo)) t.rxinfo.forEach((gw: any) => { if (gw.gatewayId) names.add(gw.gatewayId.slice(-6)); }); });
+    chartRows.forEach(t => { if (Array.isArray(t.rxinfo)) t.rxinfo.forEach((gw: any) => { if (gw.gatewayId) names.add(gw.gatewayId.slice(-6)); }); });
     return [...names];
-  }, [telemetryData]);
+  }, [chartRows]);
 
   const activeGatewayIds = useMemo(() => {
     const ids = new Set<string>();
-    telemetryData?.telemetry?.forEach(t => { if (Array.isArray(t.rxinfo)) t.rxinfo.forEach((gw: any) => { if (gw.gatewayId) ids.add(gw.gatewayId); }); });
+    chartRows.forEach(t => { if (Array.isArray(t.rxinfo)) t.rxinfo.forEach((gw: any) => { if (gw.gatewayId) ids.add(gw.gatewayId); }); });
     return [...ids];
-  }, [telemetryData]);
+  }, [chartRows]);
 
   const handleSelectDevice = (device: MonitorDevice) => {
     setSelectedDevice(device);

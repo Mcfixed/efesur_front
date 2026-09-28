@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { format } from "date-fns";
 import { useMonitorDeviceTelemetry, useMonitorDeviceAlerts } from "../../../hooks/useMonitor";
 import { IconCloud, IconPlugConnected, IconClock } from "@tabler/icons-react";
@@ -6,11 +7,20 @@ interface Props {
   deviceId: number;
   deviceName: string;
   lastTs?: string | null;
+  range?: string;
 }
 
-export default function MonitorSubEstacionDetailPanel({ deviceId }: Props) {
+// Ventana del rango elegido en el header (antes eran 7 días fijos, ignorando el selector).
+const RANGE_HOURS: Record<string, number> = { "24h": 24, "7d": 168, "30d": 720 };
+const RANGE_LABEL: Record<string, string> = { "24h": "24H", "7d": "7 días", "30d": "30 días" };
+
+export default function MonitorSubEstacionDetailPanel({ deviceId, range = "24h" }: Props) {
   const { data: deviceAlerts } = useMonitorDeviceAlerts(deviceId);
-  const { data: telemetryData, isLoading } = useMonitorDeviceTelemetry(deviceId, { from: new Date(Date.now() - 7 * 24 * 3600000).toISOString(), limit: 200 });
+  const from = useMemo(
+    () => new Date(Date.now() - (RANGE_HOURS[range] ?? 24) * 3600000).toISOString(),
+    [range],
+  );
+  const { data: telemetryData, isLoading } = useMonitorDeviceTelemetry(deviceId, { from, limit: 200 });
 
   const lastT = telemetryData?.telemetry?.[0];
   const totalRecords = telemetryData?.telemetry?.length || 0;
@@ -21,7 +31,7 @@ export default function MonitorSubEstacionDetailPanel({ deviceId }: Props) {
         <div className="bg-bg-100 border border-border/30 rounded-lg flex flex-col items-center justify-center shadow min-h-0 p-4">
           <IconCloud size={28} className="text-sky-400 mb-2" />
           <span className="text-2xl font-bold text-text-100">{totalRecords}</span>
-          <span className="text-[10px] text-text-300 mt-1">Registros (7d)</span>
+          <span className="text-[10px] text-text-300 mt-1">Registros ({RANGE_LABEL[range] ?? "24H"})</span>
         </div>
         <div className="bg-bg-100 border border-border/30 rounded-lg flex flex-col items-center justify-center shadow min-h-0 p-4">
           <IconPlugConnected size={28} className="text-emerald-400 mb-2" />

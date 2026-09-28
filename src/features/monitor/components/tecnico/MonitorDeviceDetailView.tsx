@@ -101,7 +101,7 @@ export default function MonitorDeviceDetailView({
         <MonitorLectorDetailPanel deviceId={device.id} deviceName={device.name} deviceEui={device.dev_eui} lastTs={lastT?.ts} />
       )}
       {device.type_device === 'SubEstacion' && (
-        <MonitorSubEstacionDetailPanel deviceId={device.id} deviceName={device.name} lastTs={lastT?.ts} />
+        <MonitorSubEstacionDetailPanel deviceId={device.id} deviceName={device.name} lastTs={lastT?.ts} range={range} />
       )}
     </div>
   );

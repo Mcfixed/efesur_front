@@ -60,13 +60,17 @@ const CHART_VARS = [
 ];
 
 // Presets de rango del histórico (ms = ventana hacia atrás desde ahora).
-// chartLimit: filas del gráfico (el backend devuelve las más recientes del rango).
 const HISTORY_RANGES = [
-  { key: "24h", label: "24h", ms: 24 * 3600000, chartLimit: 1200, title: "Últimas 24 horas (por defecto)" },
-  { key: "7d", label: "7d", ms: 7 * 24 * 3600000, chartLimit: 2500, title: "Últimos 7 días" },
-  { key: "15d", label: "15d", ms: 15 * 24 * 3600000, chartLimit: 3500, title: "Últimos 15 días" },
-  { key: "30d", label: "30d", ms: 30 * 24 * 3600000, chartLimit: 5000, title: "Últimos 30 días" },
+  { key: "24h", label: "24h", ms: 24 * 3600000, title: "Últimas 24 horas (por defecto)" },
+  { key: "7d", label: "7d", ms: 7 * 24 * 3600000, title: "Últimos 7 días" },
+  { key: "15d", label: "15d", ms: 15 * 24 * 3600000, title: "Últimos 15 días" },
+  { key: "30d", label: "30d", ms: 30 * 24 * 3600000, title: "Últimos 30 días" },
 ];
+
+// Puntos del gráfico: el backend los reparte sobre TODO el rango seleccionado.
+const CHART_POINTS = 800;
+// Puntos que se dibujan: LTTB reduce cualquier volumen a este máximo.
+const CHART_DRAW_POINTS = 500;
 
 const DEFAULT_HISTORY_PRESET = "24h";
 const presetMs = (key: string) => HISTORY_RANGES.find(r => r.key === key)?.ms ?? 0;
@@ -201,26 +205,21 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
   const chartVarDef = CHART_VARS.find(v => v.key === chartVar) ?? CHART_VARS[0];
 
   // Se descarga solo al abrir "Gráfico" y se reduce con LTTB (~500 pts) para recharts.
-  const CHART_SAMPLE_LIMIT = 4000;
-  // Crece con la ventana: el backend devuelve las filas más recientes del rango.
-  const chartLimit = historyPreset === "custom"
-    ? CHART_SAMPLE_LIMIT
-    : (HISTORY_RANGES.find(r => r.key === historyPreset)?.chartLimit ?? CHART_SAMPLE_LIMIT);
   const chartEnabled = !!lectorId && histTab === "grafico";
   const { data: chartRawData, isFetching: chartFetching } = useQuery({
-    queryKey: ["monitor", "telemetry-chart-sample", lectorId, historyRange, chartLimit],
-    queryFn: () => monitorService.getDeviceTelemetry(lectorId!, { limit: chartLimit, ...historyRange }),
+    queryKey: ["monitor", "telemetry-chart-sample", lectorId, historyRange, CHART_POINTS],
+    queryFn: () => monitorService.getDeviceTelemetry(lectorId!, { sample: CHART_POINTS, ...historyRange }),
     enabled: chartEnabled,
     staleTime: 30000,
   });
-  const chartSourceCount = chartRawData?.telemetry?.length ?? 0;
+  const chartRangeTotal = chartRawData?.total ?? 0;
   const chartPoints = useMemo(() => {
     const pts = (chartRawData?.telemetry || [])
       .map(mapHistoryRow)
       .map((r: any) => ({ x: new Date(r.ts).getTime(), y: r[chartVar] }))
       .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y))
       .sort((a, b) => a.x - b.x);
-    const sampled = pts.length > 600 ? downsampleLTTB(pts, 500) : pts;
+    const sampled = downsampleLTTB(pts, CHART_DRAW_POINTS);
     return sampled.map((p) => ({ time: format(new Date(p.x), "dd/MM HH:mm"), value: p.y }));
   }, [chartRawData, chartVar]);
 
@@ -649,7 +648,7 @@ export default function MonitorLectorDashboard({ lectorDeviceId, showHeader = tr
                 </button>
               ))}
               <span className="ml-auto text-[9px] text-text-300 font-mono">
-                {chartFetching ? "Cargando…" : `${chartSourceCount} pts → ${chartPoints.length} mostrados${chartSpan ? ` · ${chartSpan}` : ""}`}
+                {chartFetching ? "Cargando…" : `${chartRangeTotal} datos en el rango · ${chartPoints.length} puntos en el gráfico${chartSpan ? ` · ${chartSpan}` : ""}`}
               </span>
             </div>
             <div className="flex-1 min-h-[176px]">
