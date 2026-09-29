@@ -758,6 +758,7 @@ function DevicesTab() {
     activeDeviceType ? { type: activeDeviceType } : undefined
   );
   const { data: lectors } = useDevices({ type: 'Lector' });
+  const { data: gateways } = useDevices({ type: 'Gateway' });
   const { data: companies } = useCompanies();
   
   const createMutation = useCreateDevice();
@@ -909,6 +910,7 @@ function DevicesTab() {
           initialData={editingDevice}
           companies={safeCompanies}
           lectors={lectors || []}
+          gateways={gateways || []}
           onSubmit={handleSubmit} 
           onCancel={() => setIsModalOpen(false)}
           isLoading={createMutation.isPending || updateMutation.isPending}

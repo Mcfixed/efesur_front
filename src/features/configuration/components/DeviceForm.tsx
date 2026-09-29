@@ -6,12 +6,13 @@ interface DeviceFormProps {
   initialData?: Device | null;
   companies: Company[];
   lectors: Device[];
+  gateways?: Device[];
   onSubmit: (data: Partial<Device>) => Promise<void>;
   onCancel: () => void;
   isLoading?: boolean;
 }
 
-export function DeviceForm({ initialData, companies, lectors, onSubmit, onCancel, isLoading }: DeviceFormProps) {
+export function DeviceForm({ initialData, companies, lectors, gateways, onSubmit, onCancel, isLoading }: DeviceFormProps) {
   const [formData, setFormData] = useState<Partial<Device>>({
     dev_eui: "",
     name: "",
@@ -56,16 +57,16 @@ export function DeviceForm({ initialData, companies, lectors, onSubmit, onCancel
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const payload = { ...formData };
-    // Limpiar campos nulos para que el backend los trate como opcionales
+    // latitude/longitude: se omiten si vienen vacíos (el backend los trata como opcionales)
     if (payload.latitude_current == null) {
       delete payload.latitude_current;
     }
     if (payload.longitude_current == null) {
       delete payload.longitude_current;
     }
-    if (payload.id_device_father === null || payload.id_device_father === undefined) {
-      delete payload.id_device_father;
-    }
+    // id_device_father SÍ se envía aunque sea null: es la única forma de que
+    // "Sin lector asociado" libere al lector. Antes se borraba del payload, el
+    // backend no recibía el campo y el lector quedaba asignado a dos gateways.
     await onSubmit(payload);
   };
 
@@ -131,9 +132,15 @@ export function DeviceForm({ initialData, companies, lectors, onSubmit, onCancel
             <option value="">Sin lector asociado</option>
             {lectors
               .filter(l => l.company_id === formData.company_id || !formData.company_id)
-              .map((l) => (
-                <option key={l.id} value={l.id}>{l.name} ({l.dev_eui})</option>
-              ))}
+              .map((l) => {
+                // Avisa si el lector ya está tomado por OTRO gateway (al guardar se moverá aquí)
+                const otroGw = gateways?.find(g => g.id_device_father === l.id && g.id !== initialData?.id);
+                return (
+                  <option key={l.id} value={l.id}>
+                    {l.name} ({l.dev_eui}){otroGw ? ` — ya asignado a ${otroGw.name}` : ""}
+                  </option>
+                );
+              })}
           </select>
           <p className="text-xs text-text-300">Selecciona el dispositivo Lector que este gateway supervisa. Los datos del lector (batería, panel solar) aparecerán en el tab "Lector asignado".</p>
         </div>
