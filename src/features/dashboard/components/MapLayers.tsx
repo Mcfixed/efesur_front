@@ -55,9 +55,20 @@ const getAuraColor = (snr?: number | null) => {
 function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 0, focusRequest }: Props) {
   const { current: map } = useMap();
   const showSensors = showAllSensors || mapZoom >= ZOOM_THRESHOLD;
-  const [selectedDevice, setSelectedDevice] = useState<GpsDevice | null>(null);
-  const [selectedGateway, setSelectedGateway] = useState<GatewayDevice | null>(null);
+  // Se guarda el ID, no el objeto: el popup se re-alimenta de la data fresca (el dashboard
+  // refetchea cada 10 s). Guardando el objeto, quedaba con los valores del momento del clic.
+  const [selectedDeviceId, setSelectedDeviceId] = useState<number | null>(null);
+  const [selectedGatewayId, setSelectedGatewayId] = useState<number | null>(null);
   const [selectedTrackingAlert, setSelectedTrackingAlert] = useState<number | null>(null);
+
+  const selectedDevice = useMemo(
+    () => (selectedDeviceId == null ? null : data?.devices?.find(d => d.id === selectedDeviceId) ?? null),
+    [data?.devices, selectedDeviceId]
+  );
+  const selectedGateway = useMemo(
+    () => (selectedGatewayId == null ? null : gateways.find(g => g.id === selectedGatewayId) ?? null),
+    [gateways, selectedGatewayId]
+  );
 
   // Foco pedido desde el panel de alertas: vuela al sitio y abre el popup correspondiente
   const focusNonce = focusRequest?.nonce ?? 0;
@@ -71,8 +82,8 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
     };
     const select = (gw: GatewayDevice | null, dev: GpsDevice | null) => {
       setSelectedTrackingAlert(null);
-      setSelectedGateway(gw);
-      setSelectedDevice(dev);
+      setSelectedGatewayId(gw?.id ?? null);
+      setSelectedDeviceId(dev?.id ?? null);
     };
 
     // Alerta de lector: el pin vive en su gateway
@@ -102,15 +113,15 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
     if (item.type === 'device') {
       const device = data?.devices?.find(d => d.id === numericId);
       if (!device) return;
-      setSelectedGateway(null);
+      setSelectedGatewayId(null);
       setSelectedTrackingAlert(null);
-      setSelectedDevice(device);
+      setSelectedDeviceId(device.id);
     } else {
       const gw = gateways.find(g => g.id === numericId);
       if (!gw) return;
-      setSelectedDevice(null);
+      setSelectedDeviceId(null);
       setSelectedTrackingAlert(null);
-      setSelectedGateway(gw);
+      setSelectedGatewayId(gw.id);
     }
 
     map?.flyTo({ center: [item.lng, item.lat], zoom: SEARCH_ZOOM, duration: 1600 });
@@ -245,7 +256,7 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
       const device = data?.devices?.find(d => d.id === deviceId);
       if (device) {
         e.originalEvent.stopPropagation(); 
-        setSelectedDevice(device);
+        setSelectedDeviceId(device.id);
       }
     };
 
@@ -561,7 +572,7 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
             key={`alert-${device.id}`}
             longitude={Number(device.longitude_current)}
             latitude={Number(device.latitude_current)}
-            onClick={e => { e.originalEvent.stopPropagation(); setSelectedDevice(device); }}
+            onClick={e => { e.originalEvent.stopPropagation(); setSelectedDeviceId(device.id); }}
           >
             {isMovAnomalos ? renderAlertIcon('movimientos_anomalos') : isApertura ? renderAlertIcon('apertura') : isPresencia ? renderAlertIcon('presencia') : renderAlertIcon('atencion')}
           </Marker>
@@ -578,7 +589,7 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
             key={`crit-${device.id}`}
             longitude={Number(device.longitude_current)}
             latitude={Number(device.latitude_current)}
-            onClick={e => { e.originalEvent.stopPropagation(); setSelectedDevice(device); }}
+            onClick={e => { e.originalEvent.stopPropagation(); setSelectedDeviceId(device.id); }}
             style={{ zIndex: 50 }}
           >
             {renderAlertIcon('critical')}
@@ -627,7 +638,7 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
           key={`gw-${gw.id}`}
           longitude={Number(gw.longitude_current)}
           latitude={Number(gw.latitude_current)}
-          onClick={e => { e.originalEvent.stopPropagation(); setSelectedGateway(gw); }}
+          onClick={e => { e.originalEvent.stopPropagation(); setSelectedGatewayId(gw.id); }}
         >
           {renderGatewayIcon(gw.is_online, gw.id)}
         </Marker>
@@ -638,9 +649,9 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
 
       {/* Popups */}
       {selectedGateway && (
-        <Popup longitude={Number(selectedGateway.longitude_current)} latitude={Number(selectedGateway.latitude_current)} anchor="bottom" onClose={() => setSelectedGateway(null)} closeOnClick={false} className="device-popup" offset={15} maxWidth="280px">
+        <Popup longitude={Number(selectedGateway.longitude_current)} latitude={Number(selectedGateway.latitude_current)} anchor="bottom" onClose={() => setSelectedGatewayId(null)} closeOnClick={false} className="device-popup" offset={15} maxWidth="280px">
           <div className="bg-bg-100 border border-border/50 rounded-lg shadow-xl p-3 min-w-48 relative">
-            <button onClick={() => setSelectedGateway(null)} className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center rounded-full bg-bg-300 border border-border/50 text-text-300 hover:text-text-100 shadow-md outline-none">
+            <button onClick={() => setSelectedGatewayId(null)} className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center rounded-full bg-bg-300 border border-border/50 text-text-300 hover:text-text-100 shadow-md outline-none">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
 
@@ -662,8 +673,8 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
       )}
 
       {selectedDevice && (
-        <Popup longitude={Number(selectedDevice.longitude_current)} latitude={Number(selectedDevice.latitude_current)} anchor="bottom" onClose={() => setSelectedDevice(null)} closeOnClick={false} className="device-popup" offset={15} maxWidth="320px">
-          <DevicePopup device={selectedDevice} alerts={data?.alerts} onClose={() => setSelectedDevice(null)} />
+        <Popup longitude={Number(selectedDevice.longitude_current)} latitude={Number(selectedDevice.latitude_current)} anchor="bottom" onClose={() => setSelectedDeviceId(null)} closeOnClick={false} className="device-popup" offset={15} maxWidth="320px">
+          <DevicePopup device={selectedDevice} alerts={data?.alerts} onClose={() => setSelectedDeviceId(null)} />
         </Popup>
       )}
       {selectedTrackingAlert && (() => {
