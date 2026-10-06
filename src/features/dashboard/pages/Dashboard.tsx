@@ -28,7 +28,7 @@ export default function Dashboard() {
   const [isOpenRightBar, setOpenRightBar] = useState(false);
   const [showAllSensors, setShowAllSensors] = useState(false);
   const [mapZoom, setMapZoom] = useState(5);
-  const [mapPitch, setMapPitch] = useState(69);
+  const [mapPitch, setMapPitch] = useState(45);
   const [mapBearing, setMapBearing] = useState(-55);
   const mapRef = useRef<MapRef | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -203,7 +203,7 @@ export default function Dashboard() {
       // Hacer zoom
       mapRef.current.fitBounds(
         [[minLng - padLng, minLat - padLat], [maxLng + padLng, maxLat + padLat]],
-        { padding: hasCritical ? 10 : 60, maxZoom: 25, duration: 1000, pitch: 69, bearing: -55 }
+        { padding: hasCritical ? 10 : 60, maxZoom: 25, duration: 1000, pitch: 45, bearing: -55 }
       );
     }
   }, [data, mapLoaded, gatewayData]);
@@ -244,7 +244,7 @@ export default function Dashboard() {
               onMapRef={(map) => { mapRef.current = map; setMapLoaded(!!map); }} 
               initialCenter={{ longitude: -71.0, latitude: -33.0 }} 
               initialZoom={5}
-              initialPitch={69}
+              initialPitch={45}
               initialBearing={-55}
             >
               {pulseClass && (
@@ -256,12 +256,18 @@ export default function Dashboard() {
               <MapOverlayInfo data={data} />
 
               {/* Indicadores de inclinación, rotación y FPS */}
-              <div className="absolute bottom-2 left-2 z-20 bg-black/70 border border-white/20 rounded px-3 py-1.5 text-[11px] font-mono text-white/90 shadow-lg space-y-0.5">
-                <div className="flex items-center gap-2"><span className="text-white/50">Pitch</span><span className="font-bold text-cyan-300">{Math.round(mapPitch)}°</span></div>
-                <div className="flex items-center gap-2"><span className="text-white/50">Bear</span><span className="font-bold text-amber-300">{Math.round(mapBearing)}°</span></div>
-                {/* <div className="flex items-center gap-2"><span className="text-white/50">FPS</span><span className="font-bold" style={{ color: fps === null ? '#9ca3af' : fps >= 50 ? '#4ade80' : fps >= 30 ? '#facc15' : '#f87171' }}>{fps ?? '—'}</span></div> */}
-                <FpsIndicator mapLoaded={mapLoaded} />
-              </div>
+<div className="absolute bottom-2 left-2 z-20 bg-black/70 border border-white/20 rounded px-2 py-1 text-[10px] font-mono text-white/90 shadow-lg flex items-center gap-3">
+  <div className="flex items-center gap-1">
+    <span className="text-white/50">Pitch</span>
+    <span className="font-bold text-cyan-300">{Math.round(mapPitch)}°</span>
+  </div>
+  <div className="flex items-center gap-1">
+    <span className="text-white/50">Bear</span>
+    <span className="font-bold text-amber-300">{Math.round(mapBearing)}°</span>
+  </div>
+  
+  <FpsIndicator mapLoaded={mapLoaded} />
+</div>
 
               {gateways.length > 0 && (
                 <div className="absolute left-2 z-10" style={{ top: '120px' }}>

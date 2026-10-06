@@ -1,11 +1,12 @@
 import type { MapRef } from "react-map-gl";
+import type { StyleSpecification } from "mapbox-gl";
 
-export type MapLayer = "street" | "dark" | "satellite" | "smooth";
+export type MapLayer = "street" | "dark" | "satellite" | "smooth" | "smooth_labels";
 
 export interface MapLayerConfig {
   name: string;
   icon: React.ReactNode;
-  style: string;
+  style: string | StyleSpecification;
 }
 
 export interface MapCenter {
