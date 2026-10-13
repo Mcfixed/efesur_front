@@ -6,6 +6,15 @@ const KEYS = { all: ["monitor"] as const };
 export const useMonitorSummary = () => useQuery({ queryKey: [...KEYS.all, "summary"], queryFn: () => monitorService.getSummary(), refetchInterval: 30000 });
 export const useMonitorActiveSensors = () => useQuery({ queryKey: [...KEYS.all, "active-sensors"], queryFn: () => monitorService.getActiveSensors(), refetchInterval: 60000 });
 export const useMonitorAlertsPerDay = () => useQuery({ queryKey: [...KEYS.all, "alerts-per-day"], queryFn: () => monitorService.getAlertsPerDay(), refetchInterval: 60000 });
+// Reporte de un día: es histórico, no se refresca solo. En la vista de cobertura se pide
+// el día en curso con refresco periódico (opts.refetchInterval).
+export const useMonitorDayReport = (dia: string | null, opts?: { enabled?: boolean; refetchInterval?: number }) => useQuery({
+  queryKey: [...KEYS.all, "day-report", dia],
+  queryFn: () => monitorService.getDayReport(dia!),
+  enabled: !!dia && (opts?.enabled ?? true),
+  staleTime: opts?.refetchInterval ? 30000 : 5 * 60 * 1000,
+  refetchInterval: opts?.refetchInterval,
+});
 export const useMonitorCalendar = (year: number, month: number) => useQuery({ queryKey: [...KEYS.all, "calendar", year, month], queryFn: () => monitorService.getCalendar(year, month), refetchInterval: 60000 });
 export const useMonitorAlertsByDate = (date: string | null) => useQuery({ queryKey: [...KEYS.all, "alerts-by-date", date], queryFn: () => monitorService.getAlertsByDate(date!), enabled: !!date });
 export const useMonitorDevices = () => useQuery({ queryKey: [...KEYS.all, "devices"], queryFn: () => monitorService.getDevices(), refetchInterval: 30000 });

@@ -16,7 +16,6 @@ const RANGES = [
 export default function MonitorTelemetryView() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState("");
-  const [selectedDevice, setSelectedDevice] = useState<MonitorDevice | null>(null);
   const [range, setRange] = useState("24h");
   const [deviceTab, setDeviceTab] = useState("Gps");
   const [telemetryOffset, setTelemetryOffset] = useState(0);
@@ -25,6 +24,19 @@ export default function MonitorTelemetryView() {
 
   const { data: allDevices } = useMonitorDevices();
   const { data: latestTelemetry } = useMonitorLatestTelemetry(30);
+
+  // El dispositivo seleccionado se guarda como copia del objeto del clic, así que sus campos
+  // (last_seen, is_active, posiciones…) quedaban congelados: el header mostraba el gateway como
+  // OFFLINE a los 5 minutos y el esquema del lector se ponía en rojo, aunque siguiera reportando
+  // (la tabla de "Últimos registros" sí refrescaba porque usa su propia consulta).
+  // Ahora se resuelve contra la lista viva (`useMonitorDevices` refresca cada 30 s); si el
+  // dispositivo ya no está en la lista (p. ej. por el filtro de búsqueda) se conserva la copia.
+  const [selectedDeviceSnapshot, setSelectedDeviceSnapshot] = useState<MonitorDevice | null>(null);
+  const selectedDevice = useMemo(() => {
+    if (!selectedDeviceSnapshot) return null;
+    const live = (allDevices || []).find((d) => d.id === selectedDeviceSnapshot.id);
+    return live ?? selectedDeviceSnapshot;
+  }, [allDevices, selectedDeviceSnapshot]);
 
   // Filtro por tipo + búsqueda (como Telemetría)
   const filteredDevices = useMemo(() => {
@@ -90,7 +102,7 @@ export default function MonitorTelemetryView() {
   }, [chartRows]);
 
   const handleSelectDevice = (device: MonitorDevice) => {
-    setSelectedDevice(device);
+    setSelectedDeviceSnapshot(device);
     setSearchTerm("");
   };
 
@@ -98,7 +110,7 @@ export default function MonitorTelemetryView() {
     return (
       <MonitorDeviceDetailView
         device={selectedDevice}
-        onBack={() => setSelectedDevice(null)}
+        onBack={() => setSelectedDeviceSnapshot(null)}
         range={range}
         onRangeChange={setRange}
         telemetryData={telemetryData}

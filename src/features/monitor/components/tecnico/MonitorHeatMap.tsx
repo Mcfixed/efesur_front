@@ -1,15 +1,19 @@
 import { useEffect, useRef, useMemo, useState } from "react";
 import type { KeyboardEvent } from "react";
+import { format } from "date-fns";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useMonitorDevices, useMonitorLatestTelemetry } from "../../hooks/useMonitor";
+import { useMonitorDevices, useMonitorLatestTelemetry, useMonitorDayReport } from "../../hooks/useMonitor";
+import type { MonitorDayGateway, MonitorDaySensor, MonitorDevice } from "../../types/monitor.types";
 import { renderToString } from "react-dom/server";
 import MonitorSensorPanel from "./MonitorSensorPanel";
+import MonitorDayReportModal from "../shared/MonitorDayReportModal";
 import { matchesSearch } from "@/utils/text";
 import { 
   IconAntenna, 
   IconBook, 
   IconBuildingFactory, 
+  IconFileSpreadsheet,
   IconMapPin,
   IconSearch,
   IconX
@@ -25,6 +29,23 @@ function rssiColorNeon(rssi: number | null): string {
   return '#f87171'; // Rojo Neón
 }
 
+// ─── Vista cobertura ───
+// Verde = reportó hoy · Rojo = sin datos hoy · Gris = sin información (lectores, dispositivos de prueba).
+// Los gateways se evalúan con su propio last_seen, porque no generan telemetría propia.
+const COB_VERDE = '#4ade80';
+const COB_ROJO = '#f87171';
+const COB_GRIS = '#64748b';
+const CELESTE = '#38bdf8'; // color del logo (antena) de los gateways
+
+function coberturaColor(d: MonitorDevice, s?: MonitorDaySensor): string {
+  if (d.type_device === 'Gateway') {
+    const ts = d.last_seen ? new Date(d.last_seen).getTime() : null;
+    return ts && Date.now() - ts < 300000 ? COB_VERDE : COB_ROJO;
+  }
+  if (!s) return COB_GRIS;
+  return s.ultimo_ts ? COB_VERDE : COB_ROJO;
+}
+
 export default function MonitorRadarMap() {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<L.Map | null>(null);
@@ -36,6 +57,29 @@ export default function MonitorRadarMap() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(0);
   const searchBoxRef = useRef<HTMLDivElement>(null);
+
+  // Reporte del día (vista previa + Excel): el día por defecto es hoy y se puede cambiar
+  const [reportDia, setReportDia] = useState(() => format(new Date(), "yyyy-MM-dd"));
+  const [reportOpen, setReportOpen] = useState(false);
+
+  // ─── Vista del mapa ───
+  // 'senal'   → color por calidad de señal (SNR/RSSI del último dato)
+  // 'cobertura' → verde si reportó HOY, y el popup muestra los gateways de ese último dato
+  const [viewMode, setViewMode] = useState<'senal' | 'cobertura'>('senal');
+  const hoy = format(new Date(), "yyyy-MM-dd");
+  const { data: dayReport } = useMonitorDayReport(hoy, {
+    enabled: viewMode === 'cobertura',
+    refetchInterval: viewMode === 'cobertura' ? 60000 : undefined,
+  });
+  const coberturaMap = useMemo(() => {
+    const m = new Map<number, MonitorDaySensor>();
+    (dayReport?.sensores ?? []).forEach(s => m.set(s.id, s));
+    return m;
+  }, [dayReport]);
+  const coberturaResumen = useMemo(() => ({
+    conDatos: dayReport?.conDatos ?? 0,
+    total: dayReport?.total ?? 0,
+  }), [dayReport]);
 
   const { data: allDevices } = useMonitorDevices();
   const { data: latestTelemetry } = useMonitorLatestTelemetry(200);
@@ -122,11 +166,15 @@ export default function MonitorRadarMap() {
     const map = L.map(mapRef.current, {
       center: [-33.45, -70.65], zoom: 12,
       zoomControl: false, attributionControl: false,
+      // El proveedor de tiles solo llega a z16, pero se permite acercar más (los tiles se
+      // escalan) para poder separar marcadores que están pegados y abrir sus popups.
+      maxZoom: 20,
+      zoomSnap: 0.5,
     });
     
     // Mapa base Dark Matter
     L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", { 
-  maxZoom: 16, attribution: "&copy; Esri" 
+  maxZoom: 20, maxNativeZoom: 16, attribution: "&copy; Esri" 
 }).addTo(map);
     
     L.control.zoom({ position: "topright" }).addTo(map);
@@ -151,18 +199,29 @@ export default function MonitorRadarMap() {
 
       const tel = telemetryMap.get(d.id);
       const rssi = tel?.rssi ?? null;
-      const color = rssiColorNeon(rssi);
       const isGateway = d.type_device === 'Gateway';
+      const cob = coberturaMap.get(d.id);
+      // Color según la vista activa
+      const color = viewMode === 'senal' ? rssiColorNeon(rssi) : coberturaColor(d, cob);
 
       const size = isGateway ? 24 : 14;
       const borderRadius = '50%';
       const zIndexOffset = isGateway ? 1000 : 0;
+      // Área clicable mayor que el punto visible: permite abrir el popup correcto cuando
+      // hay varios sensores muy juntos (el aspecto del marcador no cambia).
+      const hitSize = size + 10;
       
       const animationDelay = (Math.random() * 2).toFixed(2);
-      const gatewayIconSvg = isGateway ? renderToString(<IconAntenna size={14} stroke={2} />) : '';
+      // El logo del gateway va un poco más grande y en celeste, para no confundirlo con un sensor
+      const gatewayIconSvg = isGateway ? renderToString(<IconAntenna size={17} stroke={2} />) : '';
 
       const icon = L.divIcon({
         html: `
+        <div style="
+          width:${hitSize}px;height:${hitSize}px;
+          display:flex;align-items:center;justify-content:center;
+          cursor:pointer;
+        ">
         <div style="
           position: relative;
           width:${size}px;height:${size}px;
@@ -181,14 +240,15 @@ export default function MonitorRadarMap() {
             animation-delay: ${animationDelay}s;
           "></div>
           
-          ${isGateway ? `<div style="display:flex;align-items:center;justify-content:center;color:${color};">${gatewayIconSvg}</div>` : ''}
+          ${isGateway ? `<div style="display:flex;align-items:center;justify-content:center;color:${CELESTE};">${gatewayIconSvg}</div>` : ''}
+        </div>
         </div>`,
         className: "",
-        iconSize: [size, size],
-        iconAnchor: [size / 2, size / 2],
+        iconSize: [hitSize, hitSize],
+        iconAnchor: [hitSize / 2, hitSize / 2],
       });
 
-      const marker = L.marker([lat, lng], { icon, zIndexOffset }).addTo(map);
+      const marker = L.marker([lat, lng], { icon, zIndexOffset, riseOnHover: true }).addTo(map);
 
       const rssiText = rssi != null ? `${rssi.toFixed(1)} dBm` : '—';
       const snrText = tel?.snr != null ? `${tel.snr.toFixed(1)} dB` : '—';
@@ -201,10 +261,43 @@ export default function MonitorRadarMap() {
         ? renderToString(<IconBuildingFactory size={18} stroke={1.5} />) 
         : renderToString(<IconMapPin size={18} stroke={1.5} />);
 
-      marker.bindPopup(`
-        <div style="font-family:sans-serif;min-width:180px;color:#f8fafc;">
+      // ── Popup: en vista señal, SNR/RSSI; en vista cobertura, último dato + gateways ──
+      const ultimoCob = isGateway
+        ? (d.last_seen ? format(new Date(d.last_seen), "dd/MM HH:mm:ss") : '—')
+        : cob?.ultimo_ts
+          ? format(new Date(cob.ultimo_ts), "dd/MM HH:mm:ss")
+          : cob
+            ? `sin datos hoy${cob.last_seen_global ? ` · últ. ${format(new Date(cob.last_seen_global), "dd/MM/yyyy")}` : ' · nunca reportó'}`
+            : 'sin información';
+
+      // Gateways del último dato, de mejor a peor señal. Si la API aún no devuelve la lista
+      // (proceso con código anterior), se cae al "mejor gateway" para no perder el dato.
+      const gwListaCob: MonitorDayGateway[] = cob?.gateways?.length
+        ? cob.gateways
+        : cob?.ultimo_ts && (cob.gw_name || cob.gw_eui)
+          ? [{ eui: cob.gw_eui ?? '', name: cob.gw_name, snr: cob.snr, rssi: cob.rssi }]
+          : [];
+
+      const gwListaHtml = cob?.ultimo_ts
+        ? (gwListaCob.length > 0
+            ? `<div style="margin-top:8px;">
+                 <div style="color:#64748b;font-size:9px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Gateways de ese dato (${gwListaCob.length})</div>
+                 ${gwListaCob.map(g => {
+                   const gname = g.name ?? `(no registrado) ${String(g.eui).slice(-6)}`;
+                   const gcolor = g.snr == null ? '#94a3b8' : g.snr >= 10 ? '#4ade80' : g.snr >= 5 ? '#fbbf24' : '#f87171';
+                   return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:11px;padding:2px 0;">
+                     <span style="color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${gname}</span>
+                     <span style="font-family:monospace;color:${gcolor};white-space:nowrap;">${g.snr != null ? `${g.snr.toFixed(1)} dB` : '—'} · ${g.rssi != null ? `${g.rssi.toFixed(0)} dBm` : '—'}</span>
+                   </div>`;
+                 }).join('')}
+               </div>`
+            : `<div style="margin-top:8px;font-size:10px;color:#64748b;">El registro de hoy no trae información de gateways</div>`)
+        : '';
+
+      const popupHtml = viewMode === 'senal'
+        ? `<div style="font-family:sans-serif;min-width:180px;color:#f8fafc;">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:8px;">
-            <span style="display:flex;align-items:center;color:${color};">
+            <span style="display:flex;align-items:center;color:${isGateway ? CELESTE : color};">
               ${typeIcon}
             </span>
             <span style="font-size:14px;font-weight:700;letter-spacing:0.3px;">${d.name}</span>
@@ -223,8 +316,23 @@ export default function MonitorRadarMap() {
           <div style="font-size:9px;color:#64748b;margin-top:8px;text-align:right;">
             Últ. Tx: ${d.last_seen ? new Date(d.last_seen).toLocaleTimeString() : '—'}
           </div>
-        </div>
-      `, { maxWidth: 280, className: 'dark-popup' });
+        </div>`
+        : `<div style="font-family:sans-serif;min-width:200px;color:#f8fafc;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:8px;">
+            <span style="display:flex;align-items:center;color:${isGateway ? CELESTE : color};">
+              ${typeIcon}
+            </span>
+            <span style="font-size:14px;font-weight:700;letter-spacing:0.3px;">${d.name}</span>
+          </div>
+          <div style="font-size:10px;color:#94a3b8;margin-bottom:8px;font-family:monospace;">${d.dev_eui}</div>
+          <div style="background:rgba(0,0,0,0.3);padding:8px;border-radius:6px;">
+            <div style="color:#64748b;font-size:9px;text-transform:uppercase;letter-spacing:0.5px;">${isGateway ? 'Último reporte' : 'Último dato de hoy'}</div>
+            <div style="color:${color};font-weight:600;font-family:monospace;font-size:13px;">${ultimoCob}</div>
+          </div>
+          ${isGateway ? '' : gwListaHtml}
+        </div>`;
+
+      marker.bindPopup(popupHtml, { maxWidth: 280, className: 'dark-popup' });
 
       // Click en el sensor → abre el panel inferior con historial
       marker.on('click', () => setSelectedDevice(d));
@@ -248,8 +356,9 @@ export default function MonitorRadarMap() {
       const div = L.DomUtil.create("div");
       div.innerHTML = `
         <div style="background:rgba(9,9,11,0.85);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.05);border-radius:8px;padding:12px;font-family:sans-serif;box-shadow:0 8px 32px rgba(0,0,0,0.8);min-width:140px;">
-          <div style="font-weight:600;color:#f8fafc;margin-bottom:8px;font-size:11px;letter-spacing:0.5px;text-transform:uppercase;">Nivel de Señal</div>
+          <div style="font-weight:600;color:#f8fafc;margin-bottom:8px;font-size:11px;letter-spacing:0.5px;text-transform:uppercase;">${viewMode === 'senal' ? 'Nivel de Señal' : 'Cobertura de hoy'}</div>
           <div style="display:flex;flex-direction:column;gap:6px;font-size:11px;color:#94a3b8;">
+            ${viewMode === 'senal' ? `
             <div style="display:flex;align-items:center;justify-content:space-between;">
               <div style="display:flex;align-items:center;gap:6px"><div style="width:8px;height:8px;border-radius:50%;background:#4ade80;box-shadow:0 0 8px #4ade80;"></div> Excelente</div>
               <span style="font-family:monospace;font-size:9px;">>-100</span>
@@ -266,7 +375,11 @@ export default function MonitorRadarMap() {
             <div style="display:flex;align-items:center;justify-content:space-between;">
               <div style="display:flex;align-items:center;gap:6px"><div style="width:8px;height:8px;border-radius:50%;background:#f87171;box-shadow:0 0 8px #f87171;"></div> Crítica</div>
               <span style="font-family:monospace;font-size:9px;"><-120</span>
-            </div>
+            </div>` : `
+            <div style="display:flex;align-items:center;gap:6px"><div style="width:8px;height:8px;border-radius:50%;background:#4ade80;box-shadow:0 0 8px #4ade80;"></div> Reportó hoy</div>
+            <div style="display:flex;align-items:center;gap:6px"><div style="width:8px;height:8px;border-radius:50%;background:#f87171;box-shadow:0 0 8px #f87171;"></div> Sin datos hoy</div>
+            <div style="display:flex;align-items:center;gap:6px"><div style="width:8px;height:8px;border-radius:50%;background:#64748b;box-shadow:0 0 8px #64748b;"></div> Sin información</div>
+            <div style="font-size:9px;color:#64748b;margin-top:2px;">Clic en un sensor → gateways de su último dato</div>`}
           </div>
         </div>`;
       return div;
@@ -278,7 +391,7 @@ export default function MonitorRadarMap() {
       markersById.current.clear();
       map.removeControl(legend);
     };
-  }, [devicesWithPos, telemetryMap]);
+  }, [devicesWithPos, telemetryMap, viewMode, coberturaMap]);
 
   return (
     <div className="p-0 h-full flex flex-col min-h-0 relative bg-gray-950 rounded-xl overflow-hidden border border-gray-800">
@@ -319,8 +432,22 @@ export default function MonitorRadarMap() {
       <div className="absolute top-4 left-4 z-400 pointer-events-none">
         <h1 className="text-xl font-bold text-white drop-shadow-md">MONITOREO DE SEÑAL EQUIPOS SNR/RSSI</h1>
         <div className="flex items-center gap-2 mt-1">
-          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
-          <p className="text-xs text-gray-300 font-medium drop-shadow-md">{devicesWithPos.length} sensores activos</p>
+          <div className={`w-2 h-2 rounded-full animate-pulse ${viewMode === 'senal' ? 'bg-green-400' : 'bg-teal-400'}`}></div>
+          <p className="text-xs text-gray-300 font-medium drop-shadow-md">
+            {viewMode === 'senal'
+              ? `${devicesWithPos.length} sensores en el mapa`
+              : `${coberturaResumen.conDatos} de ${coberturaResumen.total} sensores con datos hoy`}
+          </p>
+        </div>
+
+        {/* Selector de vista: señal (SNR/RSSI) o cobertura (reportó hoy + gateways) */}
+        <div className="mt-2 flex w-fit items-center gap-0.5 rounded-lg border border-gray-700/80 bg-black/85 p-0.5 backdrop-blur-md pointer-events-auto">
+          {([['senal', 'Vista señal'], ['cobertura', 'Vista cobertura']] as const).map(([key, label]) => (
+            <button key={key} type="button" onClick={() => setViewMode(key)}
+              className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${viewMode === key ? 'bg-white/15 text-gray-100' : 'text-gray-400 hover:text-gray-100'}`}>
+              {label}
+            </button>
+          ))}
         </div>
 
         {/* Buscador de sensores: al elegir uno hace lo mismo que hacer clic en su marcador */}
@@ -369,6 +496,19 @@ export default function MonitorRadarMap() {
             </div>
           )}
         </div>
+
+        {/* Reporte del día: vista previa en pantalla + descarga Excel de los sensores */}
+        <div className="mt-3 flex items-center gap-2 pointer-events-auto">
+          <input type="date" value={reportDia} max={format(new Date(), "yyyy-MM-dd")}
+            onChange={e => setReportDia(e.target.value)}
+            title="Día del reporte"
+            className="rounded-lg border border-gray-700/80 bg-black/85 px-3 py-2 text-sm text-gray-100 shadow-lg outline-none backdrop-blur-md transition-colors focus:border-teal-400/60 focus:ring-1 focus:ring-teal-400/30 scheme-dark" />
+          <button type="button" onClick={() => setReportOpen(true)} disabled={!reportDia}
+            title="Ver el reporte del día y descargarlo en Excel"
+            className="flex items-center gap-2 rounded-lg border border-teal-400/40 bg-teal-500/15 px-3 py-2 text-sm font-medium text-teal-300 shadow-lg transition-colors hover:bg-teal-500/25 disabled:opacity-40">
+            <IconFileSpreadsheet size={16} /> Reporte del día
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 min-h-0 w-full">
@@ -379,6 +519,9 @@ export default function MonitorRadarMap() {
       {selectedDevice && (
         <MonitorSensorPanel device={selectedDevice} onClose={() => setSelectedDevice(null)} />
       )}
+
+      {/* Reporte del día: vista previa + Excel */}
+      {reportOpen && <MonitorDayReportModal dia={reportDia} onClose={() => setReportOpen(false)} />}
     </div>
   );
 }

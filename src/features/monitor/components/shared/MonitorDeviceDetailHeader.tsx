@@ -33,6 +33,11 @@ export default function MonitorDeviceDetailHeader({ device, onBack, lastTs, reco
   const refTsMs = refTs ? new Date(refTs).getTime() : NaN;
   const isOnline = device.is_active && Number.isFinite(refTsMs) && Math.abs(Date.now() - refTsMs) < 300000;
 
+  // Los gateways no generan telemetría propia (solo retransmiten uplinks de los sensores),
+  // así que su "último dato" es el last_seen que registra el ingest al pasar tráfico.
+  // Sin este respaldo el card mostraba "—" en un gateway que sí estaba reportando.
+  const esLastSeen = !lastTs && !!device.last_seen;
+
   return (
     <div className="relative rounded-lg bg-bg-100 shadow-sm border border-border/20 px-4 py-3">
       {/* ── Fila 1: identidad + rango ── */}
@@ -69,12 +74,15 @@ export default function MonitorDeviceDetailHeader({ device, onBack, lastTs, reco
 
       {/* ── Fila 2: métricas en grid ── */}
       <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5">
-        {/* Último dato */}
+        {/* Último dato: telemetría propia, o el last_seen del dispositivo si no genera telemetría */}
         <div className="rounded-lg bg-bg-300/30 border border-border/15 px-2.5 py-1.5">
-          <p className="text-[9px] uppercase tracking-wider text-text-300 font-semibold">Último dato</p>
-          {lastTs ? (
+          <p className="text-[9px] uppercase tracking-wider text-text-300 font-semibold"
+            title={esLastSeen ? 'Este dispositivo no genera telemetría propia: se muestra el último reporte registrado (last_seen)' : undefined}>
+            {esLastSeen ? 'Último reporte' : 'Último dato'}
+          </p>
+          {refTs ? (
             <p className={`text-[13px] font-semibold mt-0.5 ${isOnline ? 'text-green-400' : 'text-yellow-400'}`}>
-              {format(new Date(lastTs), "dd/MM HH:mm:ss")}
+              {format(new Date(refTs), "dd/MM HH:mm:ss")}
             </p>
           ) : (
             <p className="text-[13px] text-text-300 mt-0.5">—</p>

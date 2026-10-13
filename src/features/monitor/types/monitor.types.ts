@@ -18,3 +18,29 @@ export interface SystemServicesStatus {
   checkedAt: string; total: number; online: number; offline: number;
   services: SystemServiceStatus[];
 }
+
+// ─── Reporte de un día (Excel del mapa de calor): una fila por sensor activo ───
+// Si el sensor no reportó ese día, ultimo_ts/bat_mv/snr/rssi/gw_* llegan en null.
+export interface MonitorDayGateway {
+  eui: string;
+  name: string | null;
+  snr: number | null;
+  rssi: number | null;
+}
+export interface MonitorDaySensor {
+  id: number; name: string; dev_eui: string;
+  last_seen_global: string | null;
+  ultimo_ts: string | null;
+  bat_mv: number | null;
+  temp_c: number | null;
+  gw_eui: string | null;
+  gw_name: string | null;
+  snr: number | null;
+  rssi: number | null;
+  // Gateways que recibieron el último dato del día, ordenados por mejor señal
+  gateways: MonitorDayGateway[] | null;
+}
+export interface MonitorDayReport {
+  dia: string; total: number; conDatos: number; sinDatos: number;
+  sensores: MonitorDaySensor[];
+}

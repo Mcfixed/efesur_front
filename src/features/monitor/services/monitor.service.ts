@@ -1,5 +1,5 @@
 import { apiClient } from "@/apis";
-import type { MonitorSummary, MonitorSensorDay, MonitorAlertDay, MonitorCalendarDay, MonitorAlertDetail, MonitorDevice, SystemServicesStatus } from "../types/monitor.types";
+import type { MonitorSummary, MonitorSensorDay, MonitorAlertDay, MonitorCalendarDay, MonitorAlertDetail, MonitorDevice, SystemServicesStatus, MonitorDayReport } from "../types/monitor.types";
 
 export const monitorService = {
   getSummary: async () => {
@@ -12,6 +12,11 @@ export const monitorService = {
   },
   getAlertsPerDay: async () => {
     const r = await apiClient.get<{data: MonitorAlertDay[]}>("/monitor/alerts-per-day");
+    return r.data.data;
+  },
+  // Reporte de un día (YYYY-MM-DD, día de Chile) para el Excel del mapa de calor
+  getDayReport: async (dia: string) => {
+    const r = await apiClient.get<{data: MonitorDayReport}>("/monitor/day-report", { dia });
     return r.data.data;
   },
   getCalendar: async (year: number, month: number) => {
