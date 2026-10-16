@@ -1,21 +1,24 @@
 import { useState, useMemo, useEffect } from "react";
 import { format } from "date-fns";
+import { toast } from "sonner";
 import { useMonitorDevices } from "../../hooks/useMonitor";
 import { monitorService } from "../../services/monitor.service";
+import { generarAnexoSat } from "../../utils/satExcel";
 import { matchesSearch } from "@/utils/text";
-import { IconX, IconSearch, IconFileReport, IconBattery, IconWifi, IconAlertTriangle } from "@tabler/icons-react";
+import { IconX, IconSearch, IconFileReport, IconBattery, IconWifi, IconAlertTriangle, IconClipboardCheck } from "@tabler/icons-react";
 
 interface Props {
   onClose: () => void;
 }
 
-type ReportType = 'general' | 'battery' | 'connectivity' | 'alerts';
+type ReportType = 'general' | 'battery' | 'connectivity' | 'alerts' | 'sat';
 
 const REPORT_OPTIONS: { key: ReportType; label: string; desc: string; icon: any }[] = [
   { key: 'general', label: 'Reporte general', desc: 'Métricas y alertas por dispositivo', icon: IconFileReport },
   { key: 'battery', label: 'Salud de baterías', desc: 'Estado, voltaje y proyección', icon: IconBattery },
   { key: 'connectivity', label: 'Conectividad', desc: 'SNR, RSSI y cobertura', icon: IconWifi },
   { key: 'alerts', label: 'Alertas y Tracking', desc: 'Alertas y recorridos por dispositivo', icon: IconAlertTriangle },
+  { key: 'sat', label: 'Doc. verificación', desc: 'Anexo SAT · últimos 5 días', icon: IconClipboardCheck },
 ];
 
 export default function MonitorReportModal({ onClose }: Props) {
@@ -93,6 +96,21 @@ export default function MonitorReportModal({ onClose }: Props) {
     else if (reportType === 'battery') await generateBatteryPDF();
     else if (reportType === 'connectivity') await generateConnectivityPDF();
     else if (reportType === 'alerts') await generateAlertsPDF();
+  };
+
+  // Anexo SAT: arma el Excel de verificación de funcionamiento con los últimos 5 días.
+  // No usa selección de dispositivos: el documento cubre todos los sensores activos.
+  const generateSatExcel = async () => {
+    setLoading(true);
+    try {
+      const data = await monitorService.getSatData(5);
+      const r = generarAnexoSat(data);
+      toast.success(`Anexo SAT generado · ${r.total} sensores · ${r.CONFORME} conformes, ${r['NO CONFORME']} no conformes, ${r.INCONCLUSO} inconclusos`);
+    } catch (e) {
+      console.error('Error anexo SAT:', e);
+      toast.error('No se pudo generar el anexo SAT');
+    }
+    setLoading(false);
   };
 
   const generateGeneralPDF = async () => {
@@ -1073,7 +1091,7 @@ export default function MonitorReportModal({ onClose }: Props) {
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand-200 mr-1.5 align-middle"></span>
               Tipo de reporte
             </p>
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-6 gap-2">
               {REPORT_OPTIONS.map(opt => (
                 <button key={opt.key} onClick={() => setReportType(opt.key)}
                   className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border-2 text-center transition-all ${
@@ -1089,7 +1107,8 @@ export default function MonitorReportModal({ onClose }: Props) {
             </div>
           </div>
 
-          {/* Fechas */}
+          {/* Fechas (no aplica al anexo SAT: usa siempre los últimos 5 días) */}
+          {reportType !== 'sat' && (
           <div>
             <p className="text-xs font-bold text-text-300 uppercase tracking-wider mb-3">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 align-middle"></span>
@@ -1108,8 +1127,34 @@ export default function MonitorReportModal({ onClose }: Props) {
               </div>
             </div>
           </div>
+          )}
 
-          {/* Dispositivos */}
+          {/* Anexo SAT: resumen de lo que entrega el documento */}
+          {reportType === 'sat' && (
+          <div className="bg-bg-200/40 border border-border/20 rounded-xl px-4 py-3.5 space-y-2">
+            <p className="text-xs font-bold text-text-200 uppercase tracking-wider">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand-200 mr-1.5 align-middle"></span>
+              Documento verificación de funcionamiento
+            </p>
+            <p className="text-xs text-text-300 leading-relaxed">
+              Anexo SAT de los <span className="text-text-200 font-semibold">últimos 5 días</span> sobre todos los sensores
+              activos de la plataforma. No requiere seleccionar dispositivos.
+            </p>
+            <ul className="text-[11px] text-text-300 space-y-1 pl-1">
+              <li>· Control documental y firmas</li>
+              <li>· Matriz de cumplimiento por sensor (modo, datos, señal, batería, resultado)</li>
+              <li>· Detalle por sensor y resumen por gateway</li>
+              <li>· Prueba funcional y criterios aplicados</li>
+            </ul>
+            <p className="text-[11px] text-text-300/80 leading-relaxed">
+              Los sensores que no están en modo Producción quedan como <span className="text-text-200">INCONCLUSO</span>.
+              Los ítems de terreno (movimiento inducido, firmware, GPS vs plan) quedan por verificar en la inspección.
+            </p>
+          </div>
+          )}
+
+          {/* Dispositivos (no aplica al anexo SAT: cubre todos los sensores activos) */}
+          {reportType !== 'sat' && (
           <div>
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-bold text-text-300 uppercase tracking-wider">
@@ -1194,6 +1239,7 @@ export default function MonitorReportModal({ onClose }: Props) {
               })}
             </div>
           </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -1202,10 +1248,15 @@ export default function MonitorReportModal({ onClose }: Props) {
             className="px-4 py-2.5 text-sm font-semibold text-text-300 hover:text-text-200 bg-bg-200/50 hover:bg-bg-200 rounded-lg transition-colors">
             Cancelar
           </button>
-          <button onClick={generatePDF} disabled={selectedIds.size === 0 || loading}
+          <button onClick={() => (reportType === 'sat' ? generateSatExcel() : generatePDF())}
+            disabled={loading || (reportType !== 'sat' && selectedIds.size === 0)}
             className="flex items-center gap-2.5 px-5 py-2.5 text-sm font-bold text-white bg-brand-200 hover:bg-brand-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors shadow-sm">
-            <IconFileReport size={18} />
-            {loading ? 'Generando...' : `Generar PDF  ·  ${selectedIds.size} dispositivo${selectedIds.size !== 1 ? 's' : ''}`}
+            {reportType === 'sat' ? <IconClipboardCheck size={18} /> : <IconFileReport size={18} />}
+            {loading
+              ? 'Generando...'
+              : reportType === 'sat'
+                ? 'Descargar Excel  ·  Anexo SAT'
+                : `Generar PDF  ·  ${selectedIds.size} dispositivo${selectedIds.size !== 1 ? 's' : ''}`}
           </button>
         </div>
       </div>

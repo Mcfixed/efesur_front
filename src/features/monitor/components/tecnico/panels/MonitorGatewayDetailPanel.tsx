@@ -6,6 +6,7 @@ import { IconAntennaBars3, IconWifi } from "@tabler/icons-react";
 import MonitorTelemetryMap from "../MonitorTelemetryMap";
 import MonitorLectorDashboard from "./MonitorLectorDashboard";
 import { cleanVoltage, cleanCurrent, cleanPower, cleanState, cleanTemp } from "../../../utils/mppt";
+import { intervalosCaida, segmentosUptime, statsUptime, bucketsUptime, fmtDuracion, uptimeTextClass, uptimeDotClass } from "../../../utils/uptime";
 
 interface Props {
   deviceId: number;
@@ -15,15 +16,6 @@ interface Props {
   lastTs?: string | null;
   range?: string;
   onRangeChange?: (range: string) => void;
-}
-
-// Duración legible a partir de milisegundos ("12 min", "5 h 20 min")
-function fmtDur(ms: number): string {
-  const min = Math.round(ms / 60000);
-  if (min < 60) return `${min} min`;
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-  return m > 0 ? `${h} h ${m} min` : `${h} h`;
 }
 
 // Tooltip del minigráfico: activo / inactivo / caídas / uptime del bucket
@@ -43,12 +35,12 @@ const ConectividadTooltip = ({ active, payload }: BucketTooltipProps) => {
       <p className="flex items-center gap-2 leading-5">
         <span className="w-2 h-2 rounded-full shrink-0 bg-green-400" />
         <span className="text-white/50 font-medium">Activo:</span>
-        <span className="text-green-400 font-bold ml-auto">{fmtDur(d.activo)}</span>
+        <span className="text-green-400 font-bold ml-auto">{fmtDuracion(d.activo)}</span>
       </p>
       <p className="flex items-center gap-2 leading-5">
         <span className="w-2 h-2 rounded-full shrink-0 bg-red-400" />
         <span className="text-white/50 font-medium">Inactivo:</span>
-        <span className="text-red-400 font-bold ml-auto">{fmtDur(d.inactivo)}</span>
+        <span className="text-red-400 font-bold ml-auto">{fmtDuracion(d.inactivo)}</span>
       </p>
       <p className="flex items-center gap-2 leading-5 mt-1 pt-1 border-t border-white/5">
         <span className="text-white/50 font-medium">Caídas:</span>
@@ -175,11 +167,7 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
 
   const rangeHours = RANGES.find(r => r.key === range)?.hours ?? 168;
 
-  // Línea de tiempo activo/inactivo del gateway.
-  // Importante: cada alerta se RECORTA a la ventana visible y basta con que la solape.
-  // Antes se descartaban las alertas cuyo created_at caía antes del inicio del rango, lo que
-  // borraba del gráfico las caídas largas que empezaron antes de la ventana y seguían abiertas
-  // dentro de ella (p. ej. una caída de 37 días mostraba el rango completo en verde).
+  // Línea de tiempo activo/inactivo del gateway (funciones compartidas con la tabla del panel)
   const timelineData = useMemo(() => {
     const now = Date.now();
     const firstAlertTs = (deviceAlerts || [])
@@ -188,81 +176,36 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
       .sort((a: number, b: number) => a - b)[0];
     // El rango "Todo" arranca en la alerta más antigua (no en 1970)
     const rangeStart = rangeHours > 0 ? now - rangeHours * 3600000 : (firstAlertTs ?? now - 30 * 86400000);
-
-    const intervalos = (deviceAlerts || [])
-      .filter((a) => a.type === 'desconexionGW' || a.type === 'desconexion220' || a.type === 'desconexionbatGW')
-      .map((a) => ({
-        start: Math.max(new Date(a.created_at).getTime(), rangeStart),
-        end: Math.min(a.resolved_at ? new Date(a.resolved_at).getTime() : now, now),
-      }))
-      .filter((i) => Number.isFinite(i.start) && i.end > i.start)
-      .sort((a, b) => a.start - b.start);
-
+    const alertas = (deviceAlerts || []).filter((a) =>
+      a.type === 'desconexionGW' || a.type === 'desconexion220' || a.type === 'desconexionbatGW');
     const currentlyOnline = !!lastSeen && (now - new Date(lastSeen).getTime() < 300000);
-    const segments: { start: number; end: number; online: boolean }[] = [];
-    let cursor = rangeStart;
-    for (const i of intervalos) {
-      if (i.end <= cursor) continue;
-      if (i.start > cursor + 60000) segments.push({ start: cursor, end: i.start, online: true });
-      segments.push({ start: Math.max(cursor, i.start), end: i.end, online: false });
-      cursor = i.end;
-    }
-    if (cursor < now) {
-      segments.push({ start: cursor, end: now, online: currentlyOnline });
-    }
-    return segments;
+    return segmentosUptime(intervalosCaida(alertas, rangeStart, now), rangeStart, now, currentlyOnline);
   }, [deviceAlerts, lastSeen, rangeHours]);
 
   // Totales del período (activo / inactivo / nº de caídas) para la leyenda y el uptime
-  const conectividadStats = useMemo(() => {
-    let onlineMs = 0, offlineMs = 0, caidas = 0;
-    for (const s of timelineData) {
-      if (s.online) onlineMs += s.end - s.start;
-      else { offlineMs += s.end - s.start; caidas += 1; }
-    }
-    const total = onlineMs + offlineMs;
-    return { onlineMs, offlineMs, caidas, uptime: total > 0 ? Math.round((onlineMs / total) * 100) : 100 };
-  }, [timelineData]);
+  const conectividadStats = useMemo(() => statsUptime(timelineData), [timelineData]);
 
   const uptimePct = conectividadStats.uptime;
-  const uptimeTextClass = uptimePct >= 95 ? 'text-green-400' : uptimePct >= 80 ? 'text-yellow-400' : 'text-red-400';
-  const uptimeDotClass = uptimePct >= 95 ? 'bg-green-400' : uptimePct >= 80 ? 'bg-yellow-400' : 'bg-red-400';
+  const uptimeText = uptimeTextClass(uptimePct);
+  const uptimeDot = uptimeDotClass(uptimePct);
 
-  // Datos del minigráfico: buckets por hora (24H) o por día (7D/30D) con minutos activo/inactivo
+  // Datos del minigráfico: bloques por hora (24H) o por día (7D/30D) con tiempo activo/inactivo
   const conectividadChart = useMemo(() => {
     const now = Date.now();
     const rangeStart = timelineData[0]?.start ?? now;
-    const span = Math.max(now - rangeStart, 1);
     const porHora = rangeHours > 0 && rangeHours <= 24;
     const count = porHora ? 24 : rangeHours > 0 && rangeHours <= 168 ? 7 : 30;
-    const step = span / count;
     const dias = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-
-    const rows = Array.from({ length: count }, (_, i) => {
-      const t0 = rangeStart + i * step;
-      const d = new Date(t0);
+    return bucketsUptime(timelineData, rangeStart, now, count).map(b => {
+      const d = new Date(b.start);
       return {
-        t0, t1: t0 + step,
+        ...b,
         label: porHora ? format(d, "HH:mm") : count === 7 ? dias[d.getDay()] : format(d, "dd/MM"),
         titulo: porHora ? format(d, "dd/MM HH:mm") : format(d, "dd/MM/yyyy"),
-        activoMs: 0, inactivoMs: 0, caidas: 0,
+        activo: b.onlineMs,
+        inactivo: b.offlineMs,
       };
     });
-
-    for (const seg of timelineData) {
-      for (const b of rows) {
-        const s = Math.max(seg.start, b.t0);
-        const e = Math.min(seg.end, b.t1);
-        if (e <= s) continue;
-        if (seg.online) b.activoMs += e - s;
-        else {
-          b.inactivoMs += e - s;
-          if (seg.start === s) b.caidas += 1; // la caída se contabiliza en el bucket donde inicia
-        }
-      }
-    }
-
-    return rows.map(b => ({ ...b, activo: b.activoMs, inactivo: b.inactivoMs }));
   }, [timelineData, rangeHours]);
 
   const gatewayRecords = useMemo(() => {
@@ -504,9 +447,9 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
               <div className="border-b border-border/30 shrink-0">
                 <div className="flex items-center justify-between px-3 py-2">
                   <p className="text-xs font-bold text-text-100 uppercase tracking-wider flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${uptimeDotClass}`} /> Conectividad
+                    <span className={`w-2 h-2 rounded-full ${uptimeDot}`} /> Conectividad
                   </p>
-                  <span className={`text-sm font-bold ${uptimeTextClass}`}>{uptimePct}%</span>
+                  <span className={`text-sm font-bold ${uptimeText}`}>{uptimePct}%</span>
                 </div>
               </div>
               <div className="flex-1 p-2.5 flex flex-col min-h-0">
@@ -526,8 +469,8 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
                   const m: any[] = [0]; for (let i = 10; i <= 60; i += 10) { const d = new Date(Date.now() - i * 86400000); m.push(<span key={i}>{format(d, "dd/MM")}</span>); } return m;
                 })()}</div>
                 <div className="flex items-center gap-3 mt-1.5 text-[11px] shrink-0">
-                  <span><span className="w-2 h-2 rounded-full bg-green-400 inline-block mr-1" /><span className="font-semibold text-green-400">{fmtDur(conectividadStats.onlineMs)}</span> <span className="text-text-200">activo</span></span>
-                  <span><span className="w-2 h-2 rounded-full bg-red-400 inline-block mr-1" /><span className="font-semibold text-red-400">{fmtDur(conectividadStats.offlineMs)}</span> <span className="text-text-200">inactivo</span></span>
+                  <span><span className="w-2 h-2 rounded-full bg-green-400 inline-block mr-1" /><span className="font-semibold text-green-400">{fmtDuracion(conectividadStats.onlineMs)}</span> <span className="text-text-200">activo</span></span>
+                  <span><span className="w-2 h-2 rounded-full bg-red-400 inline-block mr-1" /><span className="font-semibold text-red-400">{fmtDuracion(conectividadStats.offlineMs)}</span> <span className="text-text-200">inactivo</span></span>
                   {conectividadStats.caidas > 0 && (
                     <span className="text-text-300 ml-auto">{conectividadStats.caidas} {conectividadStats.caidas === 1 ? 'caída' : 'caídas'}</span>
                   )}

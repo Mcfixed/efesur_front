@@ -4,6 +4,7 @@ import { useMonitorDevices } from "../../hooks/useMonitor";
 import { useMonitorDeviceTelemetry, useMonitorLatestTelemetry } from "../../hooks/useMonitor";
 import MonitorDeviceList from "./MonitorDeviceList";
 import MonitorDeviceDetailView from "./MonitorDeviceDetailView";
+import { matchesSearch } from "@/utils/text";
 import type { MonitorDevice } from "../../types/monitor.types";
 
 // Presets de rango. Sin opción "Todo": el rango por defecto es 24H.
@@ -15,9 +16,8 @@ const RANGES = [
 
 export default function MonitorTelemetryView() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedType, setSelectedType] = useState("");
   const [range, setRange] = useState("24h");
-  const [deviceTab, setDeviceTab] = useState("Gps");
+  const [deviceTab, setDeviceTab] = useState("Gateway");
   const [telemetryOffset, setTelemetryOffset] = useState(0);
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
   const PAGE_SIZE = 200;
@@ -38,22 +38,15 @@ export default function MonitorTelemetryView() {
     return live ?? selectedDeviceSnapshot;
   }, [allDevices, selectedDeviceSnapshot]);
 
-  // Filtro por tipo + búsqueda (como Telemetría)
+  // Lista de la tabla. El buscador vive en el header de los tabs, así que cuando hay búsqueda
+  // cubre TODOS los tipos de equipo y deja de importar el tab activo (antes eran filtros
+  // acumulativos: buscar un gateway estando en el tab Gps no devolvía nada). Sin búsqueda, la
+  // lista es la del tab.
   const filteredDevices = useMemo(() => {
-    let list = allDevices || [];
-    list = list.filter(d => d.type_device === deviceTab);
-    if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase();
-      list = list.filter(d =>
-        d.name.toLowerCase().includes(q) ||
-        d.dev_eui.toLowerCase().includes(q)
-      );
-    }
-    if (selectedType) {
-      list = list.filter(d => d.type_device === selectedType);
-    }
-    return list;
-  }, [allDevices, deviceTab, searchTerm, selectedType]);
+    const list = allDevices || [];
+    if (searchTerm.trim()) return list.filter(d => matchesSearch(searchTerm, d.name, d.dev_eui, d.type_device));
+    return list.filter(d => d.type_device === deviceTab);
+  }, [allDevices, deviceTab, searchTerm]);
 
   const { from } = useMemo(() => {
     const r = RANGES.find(r => r.key === range);
@@ -104,6 +97,9 @@ export default function MonitorTelemetryView() {
   const handleSelectDevice = (device: MonitorDevice) => {
     setSelectedDeviceSnapshot(device);
     setSearchTerm("");
+    // Si abriste un equipo que no era del tab activo (búsqueda sobre todos los tipos), al volver
+    // la tabla queda en el tab de ese equipo en vez del anterior.
+    setDeviceTab(device.type_device);
   };
 
   if (selectedDevice) {
@@ -129,8 +125,6 @@ export default function MonitorTelemetryView() {
     <MonitorDeviceList
       searchTerm={searchTerm}
       onSearchChange={setSearchTerm}
-      selectedType={selectedType}
-      onTypeChange={setSelectedType}
       deviceTab={deviceTab}
       onDeviceTabChange={setDeviceTab}
       filteredDevices={filteredDevices}

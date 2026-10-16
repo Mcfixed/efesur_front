@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { formatBattery, batteryColor } from "../../utils/battery";
+import { isFreshForDevice, onlineThresholdMs } from "../../utils/online";
 import MonitorBatteryPopup from "./MonitorBatteryPopup";
 import type { MonitorDevice } from "../../types/monitor.types";
 
@@ -13,6 +14,8 @@ interface Props {
   lastMotion?: string | null;
   lastGwCount?: number;
   lastGwNames?: string[];
+  avgSnr?: number | null;
+  avgRssi?: number | null;
   range?: string;
   onRangeChange?: (range: string) => void;
   onLoadMore?: () => void;
@@ -26,12 +29,13 @@ const RANGES = [
   { key: "30d", label: "30 Días", hours: 720 },
 ];
 
-export default function MonitorDeviceDetailHeader({ device, onBack, lastTs, recordCount, lastVoltage, lastTemp, lastMotion, lastGwNames, range, onRangeChange, onLoadMore, hasMore }: Props) {
+export default function MonitorDeviceDetailHeader({ device, onBack, lastTs, recordCount, lastVoltage, lastTemp, lastMotion, lastGwNames, avgSnr, avgRssi, range, onRangeChange, onLoadMore, hasMore }: Props) {
   // Estado online: usar el último dato real de telemetría (lastTs) con fallback a last_seen de la DB.
-  // Diferencia absoluta <= 5 min, tolerante a reloj adelantado/atrasado y a NaN.
+  // El margen depende del tipo: 4 h 15 min para sensores (keepalive cada 4 h) y 5 min para gateways.
   const refTs = lastTs ?? device.last_seen ?? null;
   const refTsMs = refTs ? new Date(refTs).getTime() : NaN;
-  const isOnline = device.is_active && Number.isFinite(refTsMs) && Math.abs(Date.now() - refTsMs) < 300000;
+  const isOnline = device.is_active && isFreshForDevice(refTsMs, device.type_device);
+  const margenTxt = Math.round(onlineThresholdMs(device.type_device) / 60000);
 
   // Los gateways no generan telemetría propia (solo retransmiten uplinks de los sensores),
   // así que su "último dato" es el last_seen que registra el ingest al pasar tráfico.
@@ -55,7 +59,8 @@ export default function MonitorDeviceDetailHeader({ device, onBack, lastTs, reco
           </div>
           <span className="text-[12px] font-mono text-text-300 truncate block">{device.dev_eui}</span>
         </div>
-        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded shrink-0 ${isOnline ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded shrink-0 ${isOnline ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}
+          title={isOnline ? `Reportando (margen: ${margenTxt} min)` : `Sin datos hace más de ${margenTxt} min`}>
           {isOnline ? '● Online' : '● Offline'}
         </span>
         <div className="flex-1" />
@@ -73,7 +78,7 @@ export default function MonitorDeviceDetailHeader({ device, onBack, lastTs, reco
       </div>
 
       {/* ── Fila 2: métricas en grid ── */}
-      <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5">
+      <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5">
         {/* Último dato: telemetría propia, o el last_seen del dispositivo si no genera telemetría */}
         <div className="rounded-lg bg-bg-300/30 border border-border/15 px-2.5 py-1.5">
           <p className="text-[9px] uppercase tracking-wider text-text-300 font-semibold"
@@ -88,6 +93,16 @@ export default function MonitorDeviceDetailHeader({ device, onBack, lastTs, reco
             <p className="text-[13px] text-text-300 mt-0.5">—</p>
           )}
         </div>
+
+        {/* Promedio de la mejor señal en los últimos 5 registros */}
+        {(avgSnr != null || avgRssi != null) && (
+          <div className="rounded-lg bg-bg-300/30 border border-border/15 px-2.5 py-1.5">
+            <p className="text-[9px] uppercase tracking-wider text-text-300 font-semibold" title="Promedio del mejor gateway en los últimos 5 registros">Señal (prom. 5)</p>
+            <p className="text-[13px] font-bold font-mono mt-0.5 text-text-100">
+              {avgSnr != null ? `${avgSnr.toFixed(1)} dB` : '—'} <span className="text-text-300 font-normal">/</span> {avgRssi != null ? `${avgRssi.toFixed(0)} dBm` : '—'}
+            </p>
+          </div>
+        )}
 
         {/* Batería */}
         {lastVoltage != null && (
@@ -105,14 +120,14 @@ export default function MonitorDeviceDetailHeader({ device, onBack, lastTs, reco
         {lastTemp != null && (
           <div className="rounded-lg bg-bg-300/30 border border-border/15 px-2.5 py-1.5">
             <p className="text-[9px] uppercase tracking-wider text-text-300 font-semibold">Temperatura</p>
-            <p className="text-[13px] font-bold font-mono mt-0.5 text-cyan-400">{lastTemp}°C</p>
+            <p className="text-[13px] font-bold font-mono mt-0.5 text-text-100">{lastTemp}°C</p>
           </div>
         )}
 
-        {/* Movimiento */}
+        {/* Último dato (Caída / Sí / KeepAlive, según los flags del último paquete) */}
         {lastMotion != null && (
           <div className="rounded-lg bg-bg-300/30 border border-border/15 px-2.5 py-1.5">
-            <p className="text-[9px] uppercase tracking-wider text-text-300 font-semibold">Movimiento</p>
+            <p className="text-[9px] uppercase tracking-wider text-text-300 font-semibold">Último dato</p>
             <p className={`text-[13px] font-bold mt-0.5 ${lastMotion === 'Caída' ? 'text-red-400' : lastMotion === 'Sí' ? 'text-yellow-400' : 'text-green-400'}`}>{lastMotion}</p>
           </div>
         )}
@@ -121,7 +136,7 @@ export default function MonitorDeviceDetailHeader({ device, onBack, lastTs, reco
         {lastGwNames && lastGwNames.length > 0 ? (
           <div className="rounded-lg bg-bg-300/30 border border-border/15 px-2.5 py-1.5">
             <p className="text-[9px] uppercase tracking-wider text-text-300 font-semibold">Gateways</p>
-            <p className="text-[13px] font-bold mt-0.5 text-blue-400 truncate">
+            <p className="text-[13px] font-bold mt-0.5 text-text-100 truncate">
               {lastGwNames.join(', ')}
             </p>
           </div>

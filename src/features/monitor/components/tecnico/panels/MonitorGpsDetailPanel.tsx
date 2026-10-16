@@ -6,6 +6,7 @@ import MonitorTelemetryMap from "../MonitorTelemetryMap";
 import { MonitorChartTooltip } from "../../shared/MonitorChartTooltip";
 import { formatBattery } from "../../../utils/battery";
 import MonitorBatteryPopup from "../../shared/MonitorBatteryPopup";
+import { mejorSenal, promedioSenal } from "../../../utils/signal";
 
 interface Props {
   deviceId: number;
@@ -31,6 +32,9 @@ export default function MonitorGpsDetailPanel({
   const { data: deviceAlerts } = useMonitorDeviceAlerts(deviceId);
   const { data: gatewayPositions } = useMonitorGatewayPositions();
 
+  // Promedio de la mejor señal en los últimos 5 registros (la API los devuelve del más reciente
+  // al más antiguo). La lógica vive en utils/signal.ts y la comparte el header del dispositivo.
+  const promSenal = useMemo(() => promedioSenal(telemetryData?.telemetry, 5), [telemetryData]);
   const gwNameMap = useMemo(() => {
     const map = new Map<string, string>();
     (gatewayPositions || []).forEach(gw => {
@@ -50,6 +54,14 @@ export default function MonitorGpsDetailPanel({
                 <span className="text-xs font-bold text-text-100 uppercase tracking-wider">Registros</span>
                 <button onClick={onExportCSV} className="text-[10px] hover:text-brand-200 px-1.5 py-0.5 rounded hover:bg-bg-100 transition-colors" title="Exportar CSV">CSV</button>
                 <button onClick={onExportPDF} className="text-[10px] hover:text-brand-200 px-1.5 py-0.5 rounded hover:bg-bg-100 transition-colors" title="Exportar PDF">PDF</button>
+                {(promSenal.snr != null || promSenal.rssi != null) && (
+                  <span className="text-[10px] text-text-300 border-l border-border/30 pl-2 ml-0.5"
+                    title={`Promedio de la mejor señal en los últimos ${promSenal.n} registros`}>
+                    prom. {promSenal.n}: <span className="font-mono text-text-200">SNR {promSenal.snr != null ? promSenal.snr.toFixed(1) : '—'} dB</span>
+                    {' · '}
+                    <span className="font-mono text-text-200">RSSI {promSenal.rssi != null ? promSenal.rssi.toFixed(0) : '—'} dBm</span>
+                  </span>
+                )}
               </div>
               <span className="text-sm font-bold text-text-100">{telemetryData?.telemetry?.length || 0}</span>
             </div>
@@ -60,8 +72,9 @@ export default function MonitorGpsDetailPanel({
                 <tr className="bg-bg-200 text-text-300 uppercase tracking-wider text-[9px]">
                   <th className="text-left py-2 px-2 font-medium">Fecha</th>
                   <th className="text-left py-2 px-2 font-medium"><MonitorBatteryPopup><span className="flex items-center gap-1 cursor-help">Bat<svg className="w-3 h-3 text-text-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span></MonitorBatteryPopup></th>
-                  <th className="text-left py-2 px-2 font-medium">°C</th>
                   <th className="text-left py-2 px-2 font-medium">Mov</th>
+                  <th className="text-right py-2 px-2 font-medium">SNR</th>
+                  <th className="text-right py-2 px-2 font-medium">RSSI</th>
                   <th className="text-left py-2 px-2 font-medium">Gateways</th>
                 </tr>
               </thead>
@@ -70,7 +83,6 @@ export default function MonitorGpsDetailPanel({
                   <tr key={t.id} className={`${i % 2 === 0 ? "bg-bg-100" : "bg-bg-200/30"} hover:bg-bg-200/60 transition-colors border-b border-border/20`}>
                     <td className="py-1.5 px-2 text-text-200 font-mono text-[10px] whitespace-nowrap">{format(new Date(t.ts), "dd HH:mm")}</td>
                     <td className="py-1.5 px-2 font-mono text-[10px] text-text-100">{formatBattery(t.object?.voltage_mV)}</td>
-                    <td className="py-1.5 px-2 font-mono text-[10px] text-text-100">{t.object?.temperature_C != null ? <span>{t.object.temperature_C}°</span> : <span className="text-text-300">—</span>}</td>
                     <td className="py-1.5 px-2">
                       {t.object?.packetType?.startsWith?.('COMMAND')
                         ? <span className="text-cyan-400 font-semibold text-[10px]" title={t.object.systemMessage || ''}>{t.object.systemMessage || t.object.packetType}</span>
@@ -83,6 +95,12 @@ export default function MonitorGpsDetailPanel({
                                 : t.object?.voltage_mV != null && t.object?.temperature_C != null ? <span className="text-green-400" title="KeepAlive">●</span>
                                   : <span className="text-text-300">○</span>}
                     </td>
+                    {(() => { const { snr, rssi } = mejorSenal(t.rxinfo); return (
+                      <>
+                        <td className="py-1.5 px-2 text-right font-mono text-[10px] text-text-100">{snr != null ? snr.toFixed(1) : '—'}</td>
+                        <td className="py-1.5 px-2 text-right font-mono text-[10px] text-text-100">{rssi != null ? rssi.toFixed(0) : '—'}</td>
+                      </>
+                    ); })()}
                     <td className="py-1.5 px-2">
                       {Array.isArray(t.rxinfo) && t.rxinfo.length > 0
                         ? <span className="flex items-center gap-1 flex-wrap">{t.rxinfo.map((gw: any, gi: number) => {

@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
-import { IconX, IconFileSpreadsheet, IconAlertTriangle, IconFileTypePdf } from "@tabler/icons-react";
+import { IconX, IconFileSpreadsheet, IconAlertTriangle, IconFileTypePdf, IconSearch } from "@tabler/icons-react";
+import { matchesSearch } from "@/utils/text";
 import { useMonitorDayReport } from "../../hooks/useMonitor";
 import { voltageToPercent } from "../../utils/battery";
 import type { MonitorDaySensor } from "../../types/monitor.types";
@@ -42,13 +43,17 @@ const fmtFecha = (ts: string | null, conHora = false) => (ts ? format(new Date(t
 export default function MonitorDayReportModal({ dia, onClose }: Props) {
   const { data, isLoading, isError } = useMonitorDayReport(dia);
   const [filtro, setFiltro] = useState<Filtro>("todos");
+  const [busqueda, setBusqueda] = useState("");
 
   const sensores = useMemo(() => data?.sensores ?? [], [data]);
   const filas = useMemo(() => {
-    if (filtro === "ok") return sensores.filter(s => s.ultimo_ts);
-    if (filtro === "sin") return sensores.filter(s => !s.ultimo_ts);
-    return sensores;
-  }, [sensores, filtro]);
+    let lista = sensores;
+    if (filtro === "ok") lista = lista.filter(s => s.ultimo_ts);
+    else if (filtro === "sin") lista = lista.filter(s => !s.ultimo_ts);
+    // El buscador ignora mayúsculas y tildes, y busca en nombre y EUI (igual que el mapa)
+    if (busqueda.trim()) lista = lista.filter(s => matchesSearch(busqueda, s.name, s.dev_eui));
+    return lista;
+  }, [sensores, filtro, busqueda]);
 
   const total = data?.total ?? 0;
   const conDatos = data?.conDatos ?? 0;
@@ -170,6 +175,20 @@ export default function MonitorDayReportModal({ dia, onClose }: Props) {
               </button>
             ))}
           </div>
+
+          {/* Buscador: nombre o EUI, ignora mayúsculas y tildes */}
+          <div className="relative">
+            <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
+              placeholder="Buscar sensor o EUI..."
+              className="w-52 rounded-lg border border-white/10 bg-white/5 py-1.5 pl-8 pr-7 text-[12px] text-gray-100 outline-none transition-colors placeholder:text-gray-500 focus:border-teal-400/50 focus:ring-1 focus:ring-teal-400/20" />
+            <IconSearch size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
+            {busqueda && (
+              <button onClick={() => setBusqueda("")} title="Limpiar búsqueda"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 transition-colors hover:text-gray-200">
+                <IconX size={13} />
+              </button>
+            )}
+          </div>
           <div className="ml-auto flex items-center gap-2">
             <span className="text-[10px] text-gray-500">{filas.length} filas (lo que ves)</span>
             <button onClick={exportPdf} disabled={!filas.length} title="Vista previa en PDF (imprimir → Guardar como PDF)"
@@ -198,7 +217,9 @@ export default function MonitorDayReportModal({ dia, onClose }: Props) {
             </div>
           )}
           {!isLoading && !isError && filas.length === 0 && (
-            <div className="flex h-full items-center justify-center text-[13px] text-gray-500">Sin sensores para este filtro</div>
+            <div className="flex h-full items-center justify-center text-[13px] text-gray-500">
+              {busqueda.trim() ? "Sin coincidencias para la búsqueda" : "Sin sensores para este filtro"}
+            </div>
           )}
           {!isLoading && !isError && filas.length > 0 && (
             <table className="w-full border-collapse text-[12px]">

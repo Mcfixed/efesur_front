@@ -5,6 +5,7 @@ import MonitorGatewayDetailPanel from "./panels/MonitorGatewayDetailPanel";
 import MonitorLectorDetailPanel from "./panels/MonitorLectorDetailPanel";
 import MonitorSubEstacionDetailPanel from "./panels/MonitorSubEstacionDetailPanel";
 import { useMonitorDevices } from "../../hooks/useMonitor";
+import { promedioSenal } from "../../utils/signal";
 import type { MonitorDevice } from "../../types/monitor.types";
 
 interface Props {
@@ -28,6 +29,9 @@ export default function MonitorDeviceDetailView({
   hasMore, onLoadMore, lastT,
 }: Props) {
   const { data: allDevices } = useMonitorDevices();
+
+  // Promedio de la mejor señal en los últimos 5 registros (para el header)
+  const promSenal = useMemo(() => promedioSenal(telemetryData?.telemetry, 5), [telemetryData]);
 
   // Mapa gatewayId -> nombre (por eui completo y por últimos 6 caracteres, case-insensitive),
   // construido desde TODOS los gateways (sin filtrar por posición)
@@ -79,6 +83,8 @@ export default function MonitorDeviceDetailView({
         lastTemp={lastT?.object?.temperature_C ?? null}
         lastMotion={lastT?.object?.systemStatus?.freeFallFlag ? 'Caída' : lastT?.object?.systemStatus?.motionFlag ? 'Sí' : lastT?.object?.voltage_mV != null && lastT?.object?.temperature_C != null ? 'KeepAlive' : null}
         lastGwNames={lastGwNames}
+        avgSnr={promSenal.snr}
+        avgRssi={promSenal.rssi}
         // El Lector ya tiene su propio filtro en la tarjeta de histórico.
         range={device.type_device === 'Lector' ? undefined : range}
         onRangeChange={device.type_device === 'Lector' ? undefined : onRangeChange}

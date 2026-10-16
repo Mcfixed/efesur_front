@@ -17,9 +17,19 @@ const BATTERY_TABLE = [
   { v: 3.50, p: 0 },
 ];
 
-export default function MonitorBatteryPopup({ children }: { children: React.ReactNode }) {
+// Banco de la estación (plomo 12 V): la energía de gateways y lectores sale del MPPT del lector.
+const STATION_TABLE = [
+  { v: 15.0, p: 100 },
+  { v: 14.0, p: 75 },
+  { v: 13.0, p: 50 },
+  { v: 12.0, p: 25 },
+  { v: 11.0, p: 0 },
+];
+
+export default function MonitorBatteryPopup({ children, variant = 'litio' }: { children: React.ReactNode; variant?: 'litio' | 'estacion' }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const esEstacion = variant === 'estacion';
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -35,16 +45,19 @@ export default function MonitorBatteryPopup({ children }: { children: React.Reac
       {open && (
         <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 w-56" style={{ pointerEvents: 'none' }}>
           <div className="bg-[#1a1d23]/95 backdrop-blur-md border border-white/10 rounded-lg shadow-2xl p-3 text-[11px]">
-            <p className="text-white font-semibold mb-2 text-[10px] uppercase tracking-wider">Voltaje → %</p>
+            <p className="text-white font-semibold mb-2 text-[10px] uppercase tracking-wider">
+              {esEstacion ? 'Banco 12 V → %' : 'Voltaje → %'}
+            </p>
             <div className="space-y-1">
-              {BATTERY_TABLE.map((row, i) => {
+              {(esEstacion ? STATION_TABLE : BATTERY_TABLE).map((row, i) => {
                 const barW = row.p;
-                const barColor = row.p >= 50 ? 'bg-green-500' : row.p >= 20 ? 'bg-orange-500' : 'bg-red-500';
+                const barColor = (esEstacion ? row.v >= 12.5 : row.p >= 50) ? 'bg-green-500' : (esEstacion ? row.v >= 11.8 : row.p >= 20) ? 'bg-orange-500' : 'bg-red-500';
+                const txtColor = (esEstacion ? row.v >= 12.5 : row.p >= 50) ? '#4ade80' : (esEstacion ? row.v >= 11.8 : row.p >= 20) ? '#fb923c' : '#f87171';
                 return (
                   <div key={i} className="flex items-center gap-2">
                     <span className="w-9 text-right font-mono text-white/80 text-[10px]">{row.v.toFixed(2)}V</span>
                     <span className="text-white/30 text-[10px]">→</span>
-                    <span className="w-6 text-right font-mono font-bold text-[11px]" style={{ color: row.p >= 50 ? '#4ade80' : row.p >= 20 ? '#fb923c' : '#f87171' }}>{row.p}%</span>
+                    <span className="w-6 text-right font-mono font-bold text-[11px]" style={{ color: txtColor }}>{row.p}%</span>
                     <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
                       <div className={`h-full rounded-full ${barColor}`} style={{ width: `${barW}%` }} />
                     </div>
@@ -53,7 +66,9 @@ export default function MonitorBatteryPopup({ children }: { children: React.Reac
               })}
             </div>
             <p className="text-[10px] text-white/50 mt-2 border-t border-white/10 pt-2 leading-snug">
-              El dispositivo puede funcionar con menos de 3.50V, pero 3.50V es la base segura recomendada.
+              {esEstacion
+                ? 'Gateways y lectores no tienen batería propia: es el banco de 12 V de la estación, que reporta el MPPT del lector asignado. Bajo 11.8 V se muestra en rojo.'
+                : 'El dispositivo puede funcionar con menos de 3.50V, pero 3.50V es la base segura recomendada.'}
             </p>
           </div>
         </div>

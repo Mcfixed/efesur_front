@@ -47,3 +47,31 @@ export function batteryColor(mV: number | null | undefined): string {
   if (pct >= 20) return 'text-orange-400';
   return 'text-red-400';
 }
+
+// ─── Batería de la estación (plomo 12 V) ───
+// Los gateways y los lectores no tienen batería propia: su energía es el banco de 12 V de la
+// estación, que reporta el MPPT del lector (`Mppt.batteryVoltage_V`). La escala útil va de 11 a
+// 15 V, igual que en el panel del gateway.
+const BATERIA_12V_MIN = 11;
+const BATERIA_12V_MAX = 15;
+
+/** Porcentaje del banco de 12 V a partir del voltaje (null si no hay dato válido) */
+export function stationBatteryPercent(v: number | null | undefined): number | null {
+  if (v == null || !Number.isFinite(v) || v >= 500) return null;
+  return Math.max(0, Math.min(100, Math.round(((v - BATERIA_12V_MIN) / (BATERIA_12V_MAX - BATERIA_12V_MIN)) * 100)));
+}
+
+/** Formatea el voltaje del banco: "13.49V · 62%" */
+export function formatStationBattery(v: number | null | undefined): string {
+  const pct = stationBatteryPercent(v);
+  if (pct == null) return '—';
+  return `${Number(v).toFixed(2)}V · ${pct}%`;
+}
+
+/** Color del texto según el voltaje del banco (mismos cortes que el panel del gateway) */
+export function stationBatteryColor(v: number | null | undefined): string {
+  if (stationBatteryPercent(v) == null) return 'text-text-300';
+  if (Number(v) >= 12.5) return 'text-green-400';
+  if (Number(v) >= 11.8) return 'text-orange-400';
+  return 'text-red-400';
+}

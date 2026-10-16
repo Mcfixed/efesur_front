@@ -38,11 +38,22 @@ const ZOOM_THRESHOLD = 13;
 const SEARCH_ZOOM = 20;
 
 // ─── COLORES Y CONFIGURACIÓN PARA LOS PINES WEBGL ───
-const TYPE_COLORS: Record<string, { fill: string; stroke: string; letter: string }> = {
-  Gps:         { fill: '#3b82f6', stroke: '#60a5fa', letter: 'G' },
-  Gateway:     { fill: '#10b981', stroke: '#34d399', letter: 'G' },
-  SubEstacion: { fill: '#8b5cf6', stroke: '#a78bfa', letter: 'S' },
-  Lector:      { fill: '#f97316', stroke: '#fb923c', letter: 'L' },
+// Degradado de 3 paradas: stroke (luz) → fill (base) → deep (sombra). La letra usa `deep`.
+const TYPE_COLORS: Record<string, { fill: string; stroke: string; deep: string; letter: string }> = {
+  Gps:         { fill: '#3b82f6', stroke: '#7cb2fc', deep: '#1d4ed8', letter: 'G' },
+  Gateway:     { fill: '#10b981', stroke: '#4ade80', deep: '#047857', letter: 'G' },
+  SubEstacion: { fill: '#8b5cf6', stroke: '#bda2fd', deep: '#6d28d9', letter: 'S' },
+  Lector:      { fill: '#f97316', stroke: '#fcb27a', deep: '#c2410c', letter: 'L' },
+};
+
+// ─── ESTILO DEL CÍRCULO DE EVENTO ───
+// Solo apertura y presencia: crítica, anomalía y atención conservan el diseño plano original.
+const EVENT_ALERT_STYLE = {
+  light: '#fca5a5',
+  base: '#ef4444',
+  deep: '#b91c1c',
+  edge: '#7f1d1d',
+  sheen: 0.34,
 };
 
 const getAuraColor = (snr?: number | null) => {
@@ -140,12 +151,14 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
           <defs>
             <linearGradient id="grad-${type}" x1="0%" y1="0%" x2="0%" y2="100%">
               <stop offset="0%" stop-color="${colors.stroke}" />
-              <stop offset="100%" stop-color="${colors.fill}" />
+              <stop offset="55%" stop-color="${colors.fill}" />
+              <stop offset="100%" stop-color="${colors.deep}" />
             </linearGradient>
           </defs>
-          <path d="M14 1C6.8 1 1 6.8 1 14c0 9.5 13 19.5 13 19.5S27 23.5 27 14C27 6.8 21.2 1 14 1z" fill="url(#grad-${type})" stroke="${colors.fill}" stroke-width="1.3" />
-          <circle cx="14" cy="13" r="6" fill="white" />
-          <text x="14" y="16.5" text-anchor="middle" fill="${colors.fill}" font-size="8" font-weight="800" font-family="sans-serif">${colors.letter}</text>
+          <path d="M14 1C6.8 1 1 6.8 1 14c0 9.5 13 19.5 13 19.5S27 23.5 27 14C27 6.8 21.2 1 14 1z" fill="url(#grad-${type})" />
+          <ellipse cx="10" cy="8" rx="4.4" ry="3.1" fill="#ffffff" opacity="0.22" transform="rotate(-35 10 8)" />
+          <circle cx="14" cy="13.8" r="6.3" fill="#ffffff" />
+          <text x="14" y="16.9" text-anchor="middle" fill="${colors.deep}" font-size="8.6" font-weight="800" font-family="Inter, Segoe UI, sans-serif">${colors.letter}</text>
         </svg>
       `;
 
@@ -275,76 +288,94 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
   }, [map, data?.devices]);
 
   const renderAlertIcon = (type: 'critical' | 'atencion' | 'movimientos_anomalos' | 'apertura' | 'presencia') => {
-  const isCrit = type === 'critical';
-  const isMov = type === 'movimientos_anomalos';
-  const isRed = type === 'apertura' || type === 'presencia';
-  const color = isCrit ? '#ef4444' : isRed ? '#ef4444' : isMov ? '#a855f7' : '#eab308';
-  const borderColor = isCrit ? '#b91c1c' : isRed ? '#b91c1c' : isMov ? '#7e22ce' : '#a16207';
-  const size = isCrit ? 48 : isRed ? 42 : isMov ? 42 : 36;
-  const glowColor = isCrit ? '#ef4444' : isRed ? '#ef4444' : isMov ? '#a855f7' : '#eab308';
+    const isCrit = type === 'critical';
+    const isMov = type === 'movimientos_anomalos';
+    const isEvent = type === 'apertura' || type === 'presencia';
+    const size = isCrit ? 48 : isEvent ? 42 : isMov ? 42 : 36;
+    const glowColor = isCrit ? '#ef4444' : isEvent ? EVENT_ALERT_STYLE.base : isMov ? '#a855f7' : '#eab308';
+    // Relleno y borde del diseño plano original (crítica, anomalía, atención).
+    const color = isCrit ? '#ef4444' : isMov ? '#a855f7' : '#eab308';
+    const borderColor = isCrit ? '#b91c1c' : isMov ? '#7e22ce' : '#a16207';
+    // Los ids se repiten entre alertas del MISMO tipo, pero las definiciones son idénticas: es inocuo.
+    const gradId = `alert-${type}`;
+    const sheenId = `alert-${type}-sheen`;
 
-  return (
-    <div className="relative flex items-center justify-center cursor-pointer group">
-      <span className="absolute rounded-full aura-ping"
-        style={{
-          width: size + 16,
-          height: size + 16,
-          backgroundColor: glowColor,
-          opacity: 0.15,
-        }}
-      />
-      <div className="relative transition-transform group-hover:scale-125">
-        <svg width={size} height={size} viewBox="-24 -24 48 48">
-          {isCrit ? (
-            // CRITICAL (Rombo rojo)
-            <>
-              <polygon points="0,-20 20,0 0,20 -20,0" fill={color} stroke={borderColor} strokeWidth="2" strokeLinejoin="round" />
-              <polygon points="0,-15 14,0 0,15 -14,0" fill="none" stroke="white" strokeWidth="0.8" opacity="0.25" />
-              <rect x="-3" y="-10" width="6" height="13" rx="2" fill="white" />
-              <circle cx="0" cy="9" r="4" fill="white" />
-            </>
-          ) : isRed ? (
-            // APERTURA / PRESENCIA (Rombo rojo con icono)
-            <>
-              <polygon points="0,-18 18,0 0,18 -18,0" fill={color} stroke={borderColor} strokeWidth="2" strokeLinejoin="round" />
-              <polygon points="0,-13 12,0 0,13 -12,0" fill="none" stroke="white" strokeWidth="0.8" opacity="0.2" />
-              {type === 'apertura' ? (
-                // Icono de puerta abierta
-                <>
-                  <rect x="-5" y="-6" width="10" height="12" rx="1" fill="none" stroke="white" strokeWidth="1.8" />
-                  <line x1="5" y1="-6" x2="5" y2="6" stroke="white" strokeWidth="1.8" />
-                  <circle cx="2" cy="0" r="1" fill="white" />
-                </>
-              ) : (
-                // Icono de presencia (silueta de persona)
-                <>
-                  <circle cx="0" cy="-5" r="4" fill="none" stroke="white" strokeWidth="1.8" />
-                  <path d="M-6 6 Q0 -1 6 6" fill="none" stroke="white" strokeWidth="1.8" />
-                </>
-              )}
-            </>
-          ) : isMov ? (
-            // MOVIMIENTOS ANÓMALOS (Hexágono morado)
-          <>
-            <polygon points="0,-18 15.5,-9 15.5,9 0,18 -15.5,9 -15.5,-9" fill={color} stroke={borderColor} strokeWidth="2" strokeLinejoin="round" />
-            <polygon points="0,-13 11,-6.5 11,6.5 0,13 -11,6.5 -11,-6.5" fill="none" stroke="white" strokeWidth="0.8" opacity="0.25" />
-            <path d="M-4,-5 C-4,-9 4,-9 4,-5 C4,-2 0,-1 0,2" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-            <circle cx="0" cy="6" r="2" fill="white" />
-          </>
-          ) : (
-            // ATENCIÓN (Triángulo amarillo clásico)
-           <>
-            <polygon points="0,-20 17,-10 17,10 0,20 -17,10 -17,-10" fill={color} stroke={borderColor} strokeWidth="2" strokeLinejoin="round" />
-            <polygon points="0,-15 12,-7 12,7 0,15 -12,7 -12,-7" fill="none" stroke="white" strokeWidth="1" opacity="0.25" />
-            <rect x="-3" y="-9" width="6" height="11" rx="1.5" fill="white" />
-            <circle cx="0" cy="9" r="2.5" fill="white" />
-          </>
-          )}
-        </svg>
+    return (
+      <div className="relative flex items-center justify-center cursor-pointer group">
+        <span className="absolute rounded-full aura-ping"
+          style={{
+            width: size + 16,
+            height: size + 16,
+            backgroundColor: glowColor,
+            opacity: 0.15,
+          }}
+        />
+        <div className="relative transition-transform group-hover:scale-125">
+          <svg width={size} height={size} viewBox="-24 -24 48 48">
+            {isEvent && (
+              <defs>
+                <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stopColor={EVENT_ALERT_STYLE.light} />
+                  <stop offset="0.55" stopColor={EVENT_ALERT_STYLE.base} />
+                  <stop offset="1" stopColor={EVENT_ALERT_STYLE.deep} />
+                </linearGradient>
+                <linearGradient id={sheenId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stopColor="#fff" stopOpacity={EVENT_ALERT_STYLE.sheen} />
+                  <stop offset="0.75" stopColor="#fff" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+            )}
+            {isCrit ? (
+              // CRITICAL (Rombo rojo) — diseño original
+              <>
+                <polygon points="0,-20 20,0 0,20 -20,0" fill={color} stroke={borderColor} strokeWidth="2" strokeLinejoin="round" />
+                <polygon points="0,-15 14,0 0,15 -14,0" fill="none" stroke="white" strokeWidth="0.8" opacity="0.25" />
+                <rect x="-3" y="-10" width="6" height="13" rx="2" fill="white" />
+                <circle cx="0" cy="9" r="4" fill="white" />
+              </>
+            ) : isEvent ? (
+              // APERTURA / PRESENCIA (Rombo/círculo de evento con icono)
+              <>
+                <circle r="19" fill={`url(#${gradId})`} />
+                <circle r="19" fill={`url(#${sheenId})`} />
+                <circle r="19" fill="none" stroke={EVENT_ALERT_STYLE.edge} strokeOpacity="0.35" strokeWidth="1.2" />
+                {type === 'apertura' ? (
+                  // Icono de puerta abierta
+                  <>
+                    <rect x="-7.4" y="-8.8" width="10" height="17.6" rx="2.2" fill="none" stroke="#fff" strokeWidth="2" strokeLinejoin="round" />
+                    <circle cx="0.6" cy="0.6" r="1.25" fill="#fff" />
+                    <path d="M5 -6.4 Q7.4 0 5 6.4" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" opacity="0.9" />
+                  </>
+                ) : (
+                  // Icono de presencia (silueta de persona)
+                  <>
+                    <circle cx="0" cy="-4.6" r="4.4" fill="#fff" />
+                    <path d="M-7.6 9.6 c0-5 3.4-8.2 7.6-8.2 s7.6 3.2 7.6 8.2 Z" fill="#fff" />
+                  </>
+                )}
+              </>
+            ) : isMov ? (
+              // MOVIMIENTOS ANÓMALOS (Hexágono morado) — diseño original
+              <>
+                <polygon points="0,-18 15.5,-9 15.5,9 0,18 -15.5,9 -15.5,-9" fill={color} stroke={borderColor} strokeWidth="2" strokeLinejoin="round" />
+                <polygon points="0,-13 11,-6.5 11,6.5 0,13 -11,6.5 -11,-6.5" fill="none" stroke="white" strokeWidth="0.8" opacity="0.25" />
+                <path d="M-4,-5 C-4,-9 4,-9 4,-5 C4,-2 0,-1 0,2" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx="0" cy="6" r="2" fill="white" />
+              </>
+            ) : (
+              // ATENCIÓN (Hexágono amarillo clásico) — diseño original
+              <>
+                <polygon points="0,-20 17,-10 17,10 0,20 -17,10 -17,-10" fill={color} stroke={borderColor} strokeWidth="2" strokeLinejoin="round" />
+                <polygon points="0,-15 12,-7 12,7 0,15 -12,7 -12,-7" fill="none" stroke="white" strokeWidth="1" opacity="0.25" />
+                <rect x="-3" y="-9" width="6" height="11" rx="1.5" fill="white" />
+                <circle cx="0" cy="9" r="2.5" fill="white" />
+              </>
+            )}
+          </svg>
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
   // ─── PRIORIDAD VISUAL DE ALERTAS SOBRE UN GATEWAY ───
   // Con varias alertas a la vez se muestra solo la de mayor jerarquía
@@ -394,6 +425,8 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
     const gwAlert = gatewayId ? gatewayAlertMap.get(gatewayId) : undefined;
     const topAlert = gwAlert ? GW_ALERT_PRIORITY.find(k => gwAlert[k]) : undefined;
     // Wifi = conectividad real; el badge de alerta es un evento del sitio.
+    // Color SÓLIDO: el degradado a oscuro apagaba los arcos bajos y el punto sobre el mapa,
+    // y al no haber <defs> el icono tampoco depende de un id (ni colisiona entre gateways).
     const connColor = isOnline ? '#22c55e' : '#ef4444';
 
     return (
@@ -407,45 +440,46 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
             top: '50%',
             left: '50%',
           }} />
-        <div className="relative transition-transform group-hover:scale-125">
+        <div className="relative transition-transform group-hover:scale-125"
+          style={{ filter: `drop-shadow(0 0 6px ${isOnline ? 'rgba(34,197,94,0.6)' : 'rgba(239,68,68,0.6)'}) drop-shadow(0 3px 6px rgba(0,0,0,0.45))` }}>
           <svg width="34" height="34" viewBox="0 0 34 34">
-            <path d="M7 12 Q11 7 17 7 Q23 7 27 12" fill="none" stroke={connColor} strokeWidth="3" strokeLinecap="round" />
-            <path d="M10 16 Q13 12 17 12 Q21 12 24 16" fill="none" stroke={connColor} strokeWidth="2.5" strokeLinecap="round" />
-            <path d="M13 20 Q15 17 17 17 Q19 17 21 20" fill="none" stroke={connColor} strokeWidth="2" strokeLinecap="round" />
-            <circle cx="17" cy="24" r="3" fill={connColor} />
+            <path d="M6.4 12.4 Q11 6.6 17 6.6 Q23 6.6 27.6 12.4" fill="none" stroke={connColor} strokeWidth="3.6" strokeLinecap="round" />
+            <path d="M10 16.4 Q13 12.4 17 12.4 Q21 12.4 24 16.4" fill="none" stroke={connColor} strokeWidth="3" strokeLinecap="round" />
+            <path d="M13.2 20.4 Q15 17.4 17 17.4 Q19 17.4 20.8 20.4" fill="none" stroke={connColor} strokeWidth="2.4" strokeLinecap="round" />
+            <circle cx="17" cy="24.4" r="3.6" fill={connColor} />
           </svg>
           {/* Badge de alerta (evento del sitio, no que el gateway esté caído) */}
           {topAlert && (
             <span
               title={`${topAlert === 'apertura' ? 'Apertura' : topAlert === 'presencia' ? 'Presencia' : topAlert === 'desconexion220' ? 'CA 220 Off' : 'Batería GW Off'} (alerta del lector) · Gateway ${isOnline ? 'online' : 'offline'}`}
-              className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 border-2 border-bg-100 shadow-[0_0_6px_rgba(239,68,68,0.7)] flex items-center justify-center animate-pulse"
+              className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-linear-to-br from-rose-400 to-red-600 shadow-[0_2px_7px_rgba(239,68,68,0.55),0_0_12px_rgba(239,68,68,0.35)] flex items-center justify-center marker-badge-soft"
             >
               {topAlert === 'apertura' && (
-                <svg width="12" height="12" viewBox="0 0 12 12">
-                  <rect x="1.5" y="1.5" width="9" height="9" rx="1" fill="none" stroke="white" strokeWidth="1.3" />
-                  <line x1="5.5" y1="1.5" x2="5.5" y2="10.5" stroke="white" strokeWidth="1.3" />
-                  <circle cx="3.3" cy="6" r="0.9" fill="white" />
+                <svg width="13" height="13" viewBox="0 0 12 12">
+                  <rect x="2.4" y="1.6" width="6" height="8.8" rx="1.3" fill="none" stroke="white" strokeWidth="1.5" />
+                  <circle cx="6.6" cy="6" r="0.9" fill="white" />
+                  <path d="M10 3.6 Q11.3 6 10 8.4" fill="none" stroke="white" strokeWidth="1.4" strokeLinecap="round" opacity="0.9" />
                 </svg>
               )}
               {topAlert === 'presencia' && (
-                <svg width="12" height="12" viewBox="0 0 12 12">
-                  <circle cx="6" cy="4.2" r="1.9" fill="none" stroke="white" strokeWidth="1.3" />
-                  <path d="M2.2 10.4 Q6 6.4 9.8 10.4" fill="none" stroke="white" strokeWidth="1.3" strokeLinecap="round" />
+                <svg width="13" height="13" viewBox="0 0 12 12">
+                  <circle cx="6" cy="4" r="2.15" fill="white" />
+                  <path d="M2 10.6 c0-2.5 1.8-4.2 4-4.2 s4 1.7 4 4.2 Z" fill="white" />
                 </svg>
               )}
               {topAlert === 'desconexion220' && (
-                <svg width="12" height="12" viewBox="0 0 12 12">
-                  <rect x="2.5" y="4.2" width="7" height="5" rx="1" fill="none" stroke="white" strokeWidth="1.3" />
-                  <line x1="4.5" y1="4.2" x2="4.5" y2="2.2" stroke="white" strokeWidth="1.3" strokeLinecap="round" />
-                  <line x1="7.5" y1="4.2" x2="7.5" y2="2.2" stroke="white" strokeWidth="1.3" strokeLinecap="round" />
+                <svg width="13" height="13" viewBox="0 0 12 12">
+                  <rect x="2.2" y="4.4" width="7.6" height="5.6" rx="1.6" fill="none" stroke="white" strokeWidth="1.5" />
+                  <path d="M4.6 4.4 V2.2" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M7.4 4.4 V2.2" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M2.2 10.4 L9.8 1.6" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
                 </svg>
               )}
               {topAlert === 'desconexionbatGW' && (
-                <svg width="12" height="12" viewBox="0 0 12 12">
-                  <rect x="1.5" y="3" width="8" height="6" rx="1" fill="none" stroke="white" strokeWidth="1.3" />
-                  <line x1="9.5" y1="5" x2="10.8" y2="5" stroke="white" strokeWidth="1.3" strokeLinecap="round" />
-                  <line x1="9.5" y1="7" x2="10.8" y2="7" stroke="white" strokeWidth="1.3" strokeLinecap="round" />
-                  <rect x="3" y="4.5" width="2.4" height="3" fill="white" />
+                <svg width="13" height="13" viewBox="0 0 12 12">
+                  <rect x="1.6" y="3.4" width="8.2" height="5.6" rx="1.6" fill="none" stroke="white" strokeWidth="1.5" />
+                  <rect x="9.8" y="5.2" width="1.6" height="2" rx="0.7" fill="white" />
+                  <rect x="3.2" y="5" width="2.4" height="2.4" rx="0.6" fill="white" />
                 </svg>
               )}
             </span>

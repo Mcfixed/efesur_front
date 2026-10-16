@@ -22,6 +22,14 @@ export const useMonitorDeviceTelemetry = (deviceId: number | null, params?: { fr
 export const useMonitorDeviceTelemetryHistory = (deviceId: number | null, params?: { from?: string; to?: string; limit?: number; offset?: number; sample?: number }) => useQuery({ queryKey: [...KEYS.all, "telemetry-history", deviceId, params], queryFn: () => monitorService.getDeviceTelemetry(deviceId!, params), enabled: !!deviceId });
 export const useMonitorDeviceAlerts = (deviceId: number | null) => useQuery({ queryKey: [...KEYS.all, "alerts", deviceId], queryFn: () => monitorService.getDeviceAlerts(deviceId!), enabled: !!deviceId, refetchInterval: 30000 });
 export const useMonitorGatewayPositions = () => useQuery({ queryKey: [...KEYS.all, "gateways"], queryFn: () => monitorService.getGatewayPositions(), staleTime: 300000 });
+// Uptime de gateways (caídas del período): alimenta el mini gráfico de la tabla, por eso se refresca
+// solo, y solo cuando la pestaña de gateways está a la vista (opts.enabled).
+export const useMonitorGatewaysUptime = (dias = 7, opts?: { enabled?: boolean }) => useQuery({
+  queryKey: [...KEYS.all, "gateways-uptime", dias],
+  queryFn: () => monitorService.getGatewaysUptime(dias),
+  enabled: opts?.enabled ?? true,
+  refetchInterval: 60000,
+});
 export const useMonitorAlertTracking = (alertId: number | null) => useQuery({ queryKey: [...KEYS.all, "tracking", alertId], queryFn: () => monitorService.getAlertTracking(alertId!), enabled: !!alertId, refetchInterval: false });
 export const useMonitorLatestTelemetry = (limit?: number) => useQuery({ queryKey: [...KEYS.all, "latest", limit], queryFn: () => monitorService.getLatestTelemetry(limit), refetchInterval: 15000 });
 export const useSystemServices = () => useQuery({ queryKey: [...KEYS.all, "system-services"], queryFn: () => monitorService.getSystemServices(), refetchInterval: 30000 });

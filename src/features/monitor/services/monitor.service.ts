@@ -1,5 +1,5 @@
 import { apiClient } from "@/apis";
-import type { MonitorSummary, MonitorSensorDay, MonitorAlertDay, MonitorCalendarDay, MonitorAlertDetail, MonitorDevice, SystemServicesStatus, MonitorDayReport } from "../types/monitor.types";
+import type { MonitorSummary, MonitorSensorDay, MonitorAlertDay, MonitorCalendarDay, MonitorAlertDetail, MonitorDevice, SystemServicesStatus, MonitorDayReport, MonitorSatReport, MonitorGatewaysUptime } from "../types/monitor.types";
 
 export const monitorService = {
   getSummary: async () => {
@@ -17,6 +17,16 @@ export const monitorService = {
   // Reporte de un día (YYYY-MM-DD, día de Chile) para el Excel del mapa de calor
   getDayReport: async (dia: string) => {
     const r = await apiClient.get<{data: MonitorDayReport}>("/monitor/day-report", { dia });
+    return r.data.data;
+  },
+  // Datos del anexo SAT (documento verificación de funcionamiento) de los últimos N días
+  getSatData: async (dias = 5) => {
+    const r = await apiClient.get<{data: MonitorSatReport}>("/monitor/sat-data", { dias });
+    return r.data.data;
+  },
+  // Caídas del período por gateway (mini gráfico de uptime de la tabla del panel técnico)
+  getGatewaysUptime: async (dias = 7) => {
+    const r = await apiClient.get<{data: MonitorGatewaysUptime}>("/monitor/gateways/uptime", { dias });
     return r.data.data;
   },
   getCalendar: async (year: number, month: number) => {

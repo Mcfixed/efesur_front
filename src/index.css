@@ -242,6 +242,16 @@ body {
 .marker-pulse-gw {
   animation: markerPulseGw 2.2s ease-out infinite;
 }
+/* Badge de evento del gateway: respiración lenta y de baja amplitud.
+   Con `animate-pulse` de Tailwind (opacidad 1 -> 0.5 cada 2 s) el badge parpadeaba
+   y llamaba demasiado la atención sobre el mapa. */
+@keyframes badgeBreathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.04); opacity: 0.88; }
+}
+.marker-badge-soft {
+  animation: badgeBreathe 3.6s ease-in-out infinite;
+}
 /* alerttickerbanner */
 .ticker-track {
   mask-image: linear-gradient(to right, transparent, black 3%, black 97%, transparent);
