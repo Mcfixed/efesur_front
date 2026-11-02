@@ -14,6 +14,9 @@ const RANGES = [
   { key: "30d", label: "30 Días", hours: 720 },
 ];
 
+// Tipos que tienen pestaña propia en la lista (Gateway, Gps, Lector). El resto (LillieGo) se
+const TABS_CON_TABLA = ["Gateway", "Gps", "Lector"];
+
 export default function MonitorTelemetryView() {
   const [searchTerm, setSearchTerm] = useState("");
   const [range, setRange] = useState("24h");
@@ -26,11 +29,6 @@ export default function MonitorTelemetryView() {
   const { data: latestTelemetry } = useMonitorLatestTelemetry(30);
 
   // El dispositivo seleccionado se guarda como copia del objeto del clic, así que sus campos
-  // (last_seen, is_active, posiciones…) quedaban congelados: el header mostraba el gateway como
-  // OFFLINE a los 5 minutos y el esquema del lector se ponía en rojo, aunque siguiera reportando
-  // (la tabla de "Últimos registros" sí refrescaba porque usa su propia consulta).
-  // Ahora se resuelve contra la lista viva (`useMonitorDevices` refresca cada 30 s); si el
-  // dispositivo ya no está en la lista (p. ej. por el filtro de búsqueda) se conserva la copia.
   const [selectedDeviceSnapshot, setSelectedDeviceSnapshot] = useState<MonitorDevice | null>(null);
   const selectedDevice = useMemo(() => {
     if (!selectedDeviceSnapshot) return null;
@@ -39,9 +37,6 @@ export default function MonitorTelemetryView() {
   }, [allDevices, selectedDeviceSnapshot]);
 
   // Lista de la tabla. El buscador vive en el header de los tabs, así que cuando hay búsqueda
-  // cubre TODOS los tipos de equipo y deja de importar el tab activo (antes eran filtros
-  // acumulativos: buscar un gateway estando en el tab Gps no devolvía nada). Sin búsqueda, la
-  // lista es la del tab.
   const filteredDevices = useMemo(() => {
     const list = allDevices || [];
     if (searchTerm.trim()) return list.filter(d => matchesSearch(searchTerm, d.name, d.dev_eui, d.type_device));
@@ -60,13 +55,26 @@ export default function MonitorTelemetryView() {
   const hasMore = telemetryData?.telemetry?.length === PAGE_SIZE;
 
   // El gráfico tiene su propia consulta con `sample`: reparte los puntos sobre TODO el
-  // rango. La tabla sigue paginada de 200 en 200, por eso antes el gráfico solo cubría
-  // el tramo final del rango seleccionado.
   const CHART_POINTS = 700;
   const { data: chartSampleData } = useMonitorDeviceTelemetry(selectedDevice?.id || null, { from, sample: CHART_POINTS });
   const chartRows = useMemo(() => chartSampleData?.telemetry ?? [], [chartSampleData]);
 
   useEffect(() => { setTelemetryOffset(0); }, [selectedDevice?.id, range]);
+
+  const gatewayNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    (allDevices || [])
+      .filter((d: any) => d.type_device === 'Gateway')
+      .forEach((gw: any) => {
+        const eui = String(gw.dev_eui || '').toLowerCase();
+        if (eui) {
+          map.set(eui, gw.name || 'Desconocido');
+          if (eui.length >= 6) map.set(eui.slice(-6), gw.name || 'Desconocido');
+        }
+        if (gw.name) map.set(String(gw.name || '').toLowerCase(), gw.name);
+      });
+    return map;
+  }, [allDevices]);
 
   const chartData = useMemo(() => {
     if (!chartRows.length) return [];
@@ -74,19 +82,29 @@ export default function MonitorTelemetryView() {
       const rx = Array.isArray(t.rxinfo) ? t.rxinfo : [];
       const entry: any = { time: format(new Date(t.ts), "MM/dd HH:mm"), voltage: t.object?.voltage_mV ?? null, temperature: t.object?.temperature_C ?? null };
       rx.forEach((gw: any, i: number) => {
-        const id = (gw.gatewayId || `gw${i}`).slice(-6);
-        entry[`snr_${id}`] = gw.snr;
-        entry[`rssi_${id}`] = gw.rssi;
+        const gatewayId = String(gw.gatewayId || `gw${i}`);
+        const rawName = gatewayNameMap.get(gatewayId.toLowerCase()) || gatewayNameMap.get(gatewayId.slice(-6).toLowerCase()) || gw.name || gw.gateway_id || gatewayId.slice(-6);
+        const safeKey = String(rawName || `gw${i}`).replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || `gw${i}`;
+        entry[`snr_${safeKey}`] = gw.snr;
+        entry[`rssi_${safeKey}`] = gw.rssi;
       });
       return entry;
     });
-  }, [chartRows]);
+  }, [chartRows, gatewayNameMap]);
 
   const gatewayNames = useMemo(() => {
     const names = new Set<string>();
-    chartRows.forEach(t => { if (Array.isArray(t.rxinfo)) t.rxinfo.forEach((gw: any) => { if (gw.gatewayId) names.add(gw.gatewayId.slice(-6)); }); });
+    chartRows.forEach(t => {
+      if (Array.isArray(t.rxinfo)) {
+        t.rxinfo.forEach((gw: any) => {
+          const gatewayId = String(gw.gatewayId || '');
+          const resolved = gatewayNameMap.get(gatewayId.toLowerCase()) || gatewayNameMap.get(gatewayId.slice(-6).toLowerCase()) || gw.name || gw.gateway_id || gatewayId.slice(-6) || 'Desconocido';
+          names.add(resolved);
+        });
+      }
+    });
     return [...names];
-  }, [chartRows]);
+  }, [chartRows, gatewayNameMap]);
 
   const activeGatewayIds = useMemo(() => {
     const ids = new Set<string>();
@@ -98,8 +116,7 @@ export default function MonitorTelemetryView() {
     setSelectedDeviceSnapshot(device);
     setSearchTerm("");
     // Si abriste un equipo que no era del tab activo (búsqueda sobre todos los tipos), al volver
-    // la tabla queda en el tab de ese equipo en vez del anterior.
-    setDeviceTab(device.type_device);
+    if (TABS_CON_TABLA.includes(device.type_device)) setDeviceTab(device.type_device);
   };
 
   if (selectedDevice) {

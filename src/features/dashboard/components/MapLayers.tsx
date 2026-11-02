@@ -12,7 +12,8 @@ interface Props {
   gateways: GatewayDevice[];
   showAllSensors?: boolean;
   onToggleShowAll?: () => void;
-  mapZoom?: number;
+  /** Ya resuelto por el dashboard: true si el zoom alcanza el umbral de sensores. */
+  showSensorsFromZoom?: boolean;
   focusRequest?: MapFocusRequest | null;
 }
 
@@ -33,8 +34,6 @@ function createCircleGeoJSON(lng: number, lat: number, radiusKm: number) {
   return { type: "Polygon" as const, coordinates: [coordinates] };
 }
 
-const ZOOM_THRESHOLD = 13;
-
 const SEARCH_ZOOM = 20;
 
 // ─── COLORES Y CONFIGURACIÓN PARA LOS PINES WEBGL ───
@@ -44,6 +43,23 @@ const TYPE_COLORS: Record<string, { fill: string; stroke: string; deep: string; 
   Gateway:     { fill: '#10b981', stroke: '#4ade80', deep: '#047857', letter: 'G' },
   SubEstacion: { fill: '#8b5cf6', stroke: '#bda2fd', deep: '#6d28d9', letter: 'S' },
   Lector:      { fill: '#f97316', stroke: '#fcb27a', deep: '#c2410c', letter: 'L' },
+};
+
+// ─── SENSOR SIN REPORTE RECIENTE ───
+// Si el último dato tiene más de 24 h (o no hay dato), el pin pasa a gris para que se
+// distinga de un vistazo de los sensores que sí están reportando.
+const STALE_AFTER_MS = 24 * 60 * 60 * 1000;
+const STALE_AURA = '#94a3b8';
+
+const toStaleColors = (c: { letter: string }) => ({
+  fill: '#9ca3af', stroke: '#d7dce2', deep: '#6b7280', letter: c.letter,
+});
+
+const isStaleLastSeen = (lastSeen?: string | null): boolean => {
+  if (!lastSeen) return true;
+  const ts = new Date(lastSeen).getTime();
+  if (!Number.isFinite(ts)) return true;
+  return Date.now() - ts > STALE_AFTER_MS;
 };
 
 // ─── ESTILO DEL CÍRCULO DE EVENTO ───
@@ -63,9 +79,9 @@ const getAuraColor = (snr?: number | null) => {
   return '#ef4444';
 };
 
-function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 0, focusRequest }: Props) {
+function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, showSensorsFromZoom, focusRequest }: Props) {
   const { current: map } = useMap();
-  const showSensors = showAllSensors || mapZoom >= ZOOM_THRESHOLD;
+  const showSensors = !!showAllSensors || !!showSensorsFromZoom;
   // Se guarda el ID, no el objeto: el popup se re-alimenta de la data fresca (el dashboard
   // refetchea cada 10 s). Guardando el objeto, quedaba con los valores del momento del clic.
   const [selectedDeviceId, setSelectedDeviceId] = useState<number | null>(null);
@@ -142,20 +158,19 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
   useEffect(() => {
     if (!map) return;
 
-    Object.entries(TYPE_COLORS).forEach(([type, colors]) => {
-      const imageId = `pin-${type}`;
+    const addPinImage = (imageId: string, colors: { fill: string; stroke: string; deep: string; letter: string }) => {
       if (map.hasImage(imageId)) return;
 
       const svgString = `
         <svg width="28" height="36" viewBox="0 0 28 36" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <linearGradient id="grad-${type}" x1="0%" y1="0%" x2="0%" y2="100%">
+            <linearGradient id="grad-${imageId}" x1="0%" y1="0%" x2="0%" y2="100%">
               <stop offset="0%" stop-color="${colors.stroke}" />
               <stop offset="55%" stop-color="${colors.fill}" />
               <stop offset="100%" stop-color="${colors.deep}" />
             </linearGradient>
           </defs>
-          <path d="M14 1C6.8 1 1 6.8 1 14c0 9.5 13 19.5 13 19.5S27 23.5 27 14C27 6.8 21.2 1 14 1z" fill="url(#grad-${type})" />
+          <path d="M14 1C6.8 1 1 6.8 1 14c0 9.5 13 19.5 13 19.5S27 23.5 27 14C27 6.8 21.2 1 14 1z" fill="url(#grad-${imageId})" />
           <ellipse cx="10" cy="8" rx="4.4" ry="3.1" fill="#ffffff" opacity="0.22" transform="rotate(-35 10 8)" />
           <circle cx="14" cy="13.8" r="6.3" fill="#ffffff" />
           <text x="14" y="16.9" text-anchor="middle" fill="${colors.deep}" font-size="8.6" font-weight="800" font-family="Inter, Segoe UI, sans-serif">${colors.letter}</text>
@@ -169,6 +184,12 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
         }
       };
       img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString);
+    };
+
+    Object.entries(TYPE_COLORS).forEach(([type, colors]) => {
+      addPinImage(`pin-${type}`, colors);
+      // Variante gris para sensores sin reporte en las últimas 24 h
+      addPinImage(`pin-${type}-stale`, toStaleColors(colors));
     });
   }, [map]);
 
@@ -238,8 +259,12 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
 
       if (hasAnyAlert) return; // Se dibuja como <Marker> HTML más abajo
 
-      const auraColor = getAuraColor(device.best_snr);
-      const iconId = `pin-${device.type_device || 'Gps'}`;
+      // Pin gris si el último dato es de hace más de 24 h (o no existe)
+      const stale = isStaleLastSeen(device.last_seen);
+      const rawType = device.type_device || 'Gps';
+      const pinType = TYPE_COLORS[rawType] ? rawType : 'Gps';
+      const auraColor = stale ? STALE_AURA : getAuraColor(device.best_snr);
+      const iconId = stale ? `pin-${pinType}-stale` : `pin-${pinType}`;
 
       features.push({
         type: "Feature",
@@ -251,6 +276,7 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
           deviceId: device.id,
           iconId: iconId,
           auraColor: auraColor,
+          stale,
         }
       });
     });
@@ -440,8 +466,9 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
             top: '50%',
             left: '50%',
           }} />
-        <div className="relative transition-transform group-hover:scale-125"
-          style={{ filter: `drop-shadow(0 0 6px ${isOnline ? 'rgba(34,197,94,0.6)' : 'rgba(239,68,68,0.6)'}) drop-shadow(0 3px 6px rgba(0,0,0,0.45))` }}>
+        {/* Sin `filter: drop-shadow(...)`: aplicado sobre el canvas WebGL obliga a
+            re-rasterizar cada marcador en cada frame y era una de las causas del lag. */}
+        <div className="relative transition-transform group-hover:scale-125">
           <svg width="34" height="34" viewBox="0 0 34 34">
             <path d="M6.4 12.4 Q11 6.6 17 6.6 Q23 6.6 27.6 12.4" fill="none" stroke={connColor} strokeWidth="3.6" strokeLinecap="round" />
             <path d="M10 16.4 Q13 12.4 17 12.4 Q21 12.4 24 16.4" fill="none" stroke={connColor} strokeWidth="3" strokeLinecap="round" />
@@ -548,7 +575,7 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, mapZoom = 
       <div className="absolute top-20 left-2 z-20">
         <button
           onClick={onToggleShowAll}
-          className="flex items-center gap-1.5 bg-bg-100/90 hover:bg-bg-100 border border-border/40 rounded-lg px-2.5 py-1.5 shadow-lg backdrop-blur-sm transition-all text-[11px] font-medium"
+          className="flex items-center gap-1.5 bg-bg-100/95 hover:bg-bg-100 border border-border/40 rounded-lg px-2.5 py-1.5 shadow-lg transition-all text-[11px] font-medium"
           title={showAllSensors ? "Ocultar sensores (solo gateways)" : "Mostrar todos los sensores"}
         >
           {showAllSensors ? <IconEyeOff size={14} className="text-text-300" /> : <IconEye size={14} className="text-text-300" />}

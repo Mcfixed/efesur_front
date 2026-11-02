@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, memo } from "react";
 import { IconX, IconCheck, IconRadar, IconAlertTriangle, IconAlertCircle, IconDoor, IconUser, IconWifiOff, IconBellOff, IconRun, IconChevronDown, IconChevronUp, IconMapPin } from "@tabler/icons-react";
 import { format } from "date-fns";
+import { useTheme } from "@/context/ThemeContext";
 import RightBar from "@/components/bars/RightBar";
 import type { Alert } from "../types/dashboard.types";
 import { useResolveAlert } from "../hooks/useDashboard";
@@ -24,7 +25,9 @@ const ranges = [
   { key: "total", label: "Todo" },
 ];
 
-export default function RightBarDashboard({ timelineData, timelineRange, setTimelineRange, isLoading, isMobile, isOpen, setOpen, onFocusAlert }: Props) {
+function RightBarDashboard({ timelineData, timelineRange, setTimelineRange, isLoading, isMobile, isOpen, setOpen, onFocusAlert }: Props) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const resolveMutation = useResolveAlert();
   const { data: allDevices } = useMonitorDevices();
 
@@ -120,21 +123,50 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
   const resolvingAlert = resolvingAlertId !== null ? timelineData.find((a: any) => a.id === resolvingAlertId) : undefined;
   const cmd = resolvingAlert?.metadata?.command;
 
-  const ALERT_CONFIG: Record<string, { border: string; bg: string; bar: string; textColor: string; label: string; Icon: any; iconColor: string }> = {
-    critica:            { border: '1px solid rgba(239,68,68,1)', bg: 'linear-gradient(135deg, rgba(239,68,68,0.20), rgba(239,68,68,0.06))', bar: 'linear-gradient(180deg, rgba(239,68,68,0.90), rgba(239,68,68,0.30))', textColor: '#fca5a5', label: 'Crítica', Icon: IconAlertTriangle, iconColor: '#ef4444' },
-    apertura:           { border: '1px solid rgba(239,68,68,0.15)', bg: 'linear-gradient(135deg, rgba(239,68,68,0.06), rgba(239,68,68,0.01))', bar: 'linear-gradient(180deg, rgba(239,68,68,0.60), rgba(239,68,68,0.15))', textColor: '#fca5a5', label: 'Apertura', Icon: IconDoor, iconColor: '#ef4444' },
-    presencia:          { border: '1px solid rgba(239,68,68,0.15)', bg: 'linear-gradient(135deg, rgba(239,68,68,0.06), rgba(239,68,68,0.01))', bar: 'linear-gradient(180deg, rgba(239,68,68,0.60), rgba(239,68,68,0.15))', textColor: '#fca5a5', label: 'Presencia', Icon: IconUser, iconColor: '#ef4444' },
-    atencion:           { border: '1px solid rgba(234,179,8,0.10)', bg: 'linear-gradient(135deg, rgba(234,179,8,0.05), rgba(234,179,8,0.01))', bar: 'linear-gradient(180deg, rgba(253,224,71,0.80), rgba(234,179,8,0.15))', textColor: '#fde047', label: 'Atención', Icon: IconAlertCircle, iconColor: '#eab308' },
-    desconexionGW:      { border: '1px solid rgba(249,115,22,0.15)', bg: 'linear-gradient(135deg, rgba(249,115,22,0.06), rgba(249,115,22,0.01))', bar: 'linear-gradient(180deg, rgba(249,115,22,0.60), rgba(249,115,22,0.15))', textColor: '#fdba74', label: 'GW Off', Icon: IconWifiOff, iconColor: '#f97316' },
-    desconexionGPS:     { border: '1px solid rgba(249,115,22,0.15)', bg: 'linear-gradient(135deg, rgba(249,115,22,0.06), rgba(249,115,22,0.01))', bar: 'linear-gradient(180deg, rgba(249,115,22,0.60), rgba(249,115,22,0.15))', textColor: '#fdba74', label: 'GPS Off', Icon: IconWifiOff, iconColor: '#f97316' },
-    desconexion220:     { border: '1px solid rgba(249,115,22,0.15)', bg: 'linear-gradient(135deg, rgba(249,115,22,0.06), rgba(249,115,22,0.01))', bar: 'linear-gradient(180deg, rgba(249,115,22,0.60), rgba(249,115,22,0.15))', textColor: '#fdba74', label: 'CA 220 Off', Icon: IconWifiOff, iconColor: '#f97316' },
-    desconexionbatGW:   { border: '1px solid rgba(249,115,22,0.15)', bg: 'linear-gradient(135deg, rgba(249,115,22,0.06), rgba(249,115,22,0.01))', bar: 'linear-gradient(180deg, rgba(249,115,22,0.60), rgba(249,115,22,0.15))', textColor: '#fdba74', label: 'Batería GW Off', Icon: IconWifiOff, iconColor: '#f97316' },
-    movimientos_anomalos: { border: '1px solid rgba(168,85,247,0.12)', bg: 'linear-gradient(135deg, rgba(168,85,247,0.06), rgba(168,85,247,0.01))', bar: 'linear-gradient(180deg, rgba(192,132,252,0.80), rgba(168,85,247,0.15))', textColor: '#d8b4fe', label: 'Mov. Anómalo', Icon: IconRadar, iconColor: '#a855f7' },
+  // Tonos por tipo de alerta. Bordes, fondo y texto se derivan del tema para que en
+  // claro la tarjeta tenga un tinte real (no blanco plano) y el texto mantenga contraste.
+  type AlertTone = { rgb: string; label: string; Icon: any; iconColor: string; textDark: string; textLight: string };
+  const ALERT_TONES: Record<string, AlertTone> = {
+    critica:              { rgb: '239,68,68',  label: 'Crítica',       Icon: IconAlertTriangle, iconColor: '#ef4444', textDark: '#fca5a5', textLight: '#b91c1c' },
+    apertura:             { rgb: '239,68,68',  label: 'Apertura',      Icon: IconDoor,          iconColor: '#ef4444', textDark: '#fca5a5', textLight: '#b91c1c' },
+    presencia:            { rgb: '239,68,68',  label: 'Presencia',     Icon: IconUser,          iconColor: '#ef4444', textDark: '#fca5a5', textLight: '#b91c1c' },
+    atencion:             { rgb: '234,179,8',  label: 'Atención',      Icon: IconAlertCircle,   iconColor: '#eab308', textDark: '#fde047', textLight: '#a16207' },
+    desconexionGW:        { rgb: '249,115,22', label: 'GW Off',        Icon: IconWifiOff,       iconColor: '#f97316', textDark: '#fdba74', textLight: '#c2410c' },
+    desconexionGPS:       { rgb: '249,115,22', label: 'GPS Off',       Icon: IconWifiOff,       iconColor: '#f97316', textDark: '#fdba74', textLight: '#c2410c' },
+    desconexion220:       { rgb: '249,115,22', label: 'CA 220 Off',    Icon: IconWifiOff,       iconColor: '#f97316', textDark: '#fdba74', textLight: '#c2410c' },
+    desconexionbatGW:     { rgb: '249,115,22', label: 'Batería GW Off', Icon: IconWifiOff,      iconColor: '#f97316', textDark: '#fdba74', textLight: '#c2410c' },
+    movimientos_anomalos: { rgb: '168,85,247', label: 'Mov. Anómalo',  Icon: IconRadar,         iconColor: '#a855f7', textDark: '#d8b4fe', textLight: '#7e22ce' },
   };
-  const getAlertCfg = (type: string) => ALERT_CONFIG[type] || { border: '1px solid rgba(255,255,255,0.08)', bg: 'linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))', bar: 'linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.03))', textColor: '#9ca3af', label: type, Icon: IconAlertCircle, iconColor: '#6b7280' };
+
+  const getAlertCfg = (type: string) => {
+    const t: AlertTone = ALERT_TONES[type] ?? {
+      rgb: '148,163,184', label: type, Icon: IconAlertCircle, iconColor: isDark ? '#6b7280' : '#64748b',
+      textDark: '#9ca3af', textLight: '#475569',
+    };
+    const tone = (alpha: number) => `rgba(${t.rgb},${alpha})`;
+    return {
+      label: t.label,
+      Icon: t.Icon,
+      iconColor: t.iconColor,
+      // En claro el borde y el fondo llevan más peso para que la alerta se lea como tarjeta tintada.
+      border: `1px solid ${tone(isDark ? 0.16 : 0.30)}`,
+      bg: isDark
+        ? `linear-gradient(135deg, ${tone(0.10)}, ${tone(0.02)})`
+        : `linear-gradient(135deg, ${tone(0.14)}, ${tone(0.05)})`,
+      bar: isDark
+        ? `linear-gradient(180deg, ${tone(0.85)}, ${tone(0.28)})`
+        : `linear-gradient(180deg, ${tone(0.80)}, ${tone(0.35)})`,
+      textColor: isDark ? t.textDark : t.textLight,
+      timeColor: isDark ? 'rgba(255,255,255,0.40)' : 'rgba(15,23,42,0.55)',
+      subColor: isDark ? 'rgba(255,255,255,0.38)' : 'rgba(15,23,42,0.60)',
+      chipBg: tone(isDark ? 0.16 : 0.15),
+      iconBg: `${t.iconColor}${isDark ? '18' : '14'}`,
+      iconBorder: `1px solid ${t.iconColor}${isDark ? '30' : '45'}`,
+    };
+  };
 
   const content = (
-    <div className="flex flex-col" style={{ height: '100%' }}>
+    <div className={`flex flex-col ${isDark ? "" : "bg-white/60"}`} style={{ height: '100%' }}>
       <div className="flex items-center gap-1 px-1 mb-2 shrink-0">
         {ranges.map(r => (
           <button key={r.key} onClick={() => setTimelineRange(r.key)}
@@ -156,16 +188,23 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
             {/* ── PINNED: Active critical alerts ── */}
             {criticalActive.length > 0 && (
               <div className="mb-2">
-                <p className="text-[8px] font-bold uppercase tracking-widest text-red-400/70 px-1 mb-1.5 flex items-center gap-1">
+                <p className={`text-[8px] font-bold uppercase tracking-widest px-1 mb-1.5 flex items-center gap-1 ${isDark ? "text-red-400/70" : "text-red-600"}`}>
                   <IconAlertTriangle size={10} />
                   Críticas activas
                 </p>
                 {criticalActive.map((alert: any) => {
                   const cfg = getAlertCfg(alert.type);
                   const Icon = cfg.Icon;
+                  const redText = isDark ? '#fca5a5' : '#b91c1c';
                   return (
                     <div key={`p-${alert.id}`} className="group relative py-2.5 px-3 rounded-lg transition-all duration-200 mb-1.5"
-                      style={{ border: '1px solid rgba(239,68,68,0.30)', background: 'linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05))', boxShadow: '0 0 12px rgba(239,68,68,0.08)' }}>
+                      style={{
+                        border: `1px solid rgba(239,68,68,${isDark ? 0.30 : 0.45})`,
+                        background: isDark
+                          ? 'linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05))'
+                          : 'linear-gradient(135deg, rgba(239,68,68,0.13), rgba(239,68,68,0.05))',
+                        boxShadow: isDark ? '0 0 12px rgba(239,68,68,0.08)' : '0 2px 10px rgba(239,68,68,0.12)',
+                      }}>
                       <div className="absolute left-0 top-2 bottom-2 w-1 rounded-full" style={{ background: 'linear-gradient(180deg, rgba(239,68,68,0.90), rgba(239,68,68,0.30))' }} />
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1 pl-3">
@@ -174,23 +213,23 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
                               <span className="absolute inset-0 rounded-full bg-red-500 animate-ping opacity-75" />
                               <span className="relative w-2 h-2 rounded-full bg-red-500 shadow-[0_0_6px_rgba(239,68,68,0.8)]" />
                             </span>
-                            <span className="text-[13px] font-bold truncate tracking-wide" style={{ color: '#fca5a5' }}>{alert.device_name}</span>
+                            <span className="text-[13px] font-bold truncate tracking-wide" style={{ color: redText }}>{alert.device_name}</span>
                             {alert.id === newestAlertId && <span className="text-[7px] font-bold uppercase tracking-[0.12em] text-brand-200 bg-brand-100/20 px-1.5 py-0.5 rounded-full border border-brand-100/20 shrink-0">Nuevo</span>}
                           </div>
                           <div className="flex items-center gap-2 mt-1.5">
                             <Icon size={12} color={cfg.iconColor} />
-                            <span className="text-[10px] font-mono" style={{ color: 'rgba(252,165,165,0.6)' }}>{format(new Date(alert.created_at), "dd/MM HH:mm")}</span>
-                            <span className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#fca5a5' }}>{cfg.label}</span>
+                            <span className="text-[10px] font-mono" style={{ color: isDark ? 'rgba(252,165,165,0.60)' : 'rgba(185,28,28,0.70)' }}>{format(new Date(alert.created_at), "dd/MM HH:mm")}</span>
+                            <span className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: redText }}>{cfg.label}</span>
                           </div>
-                          {alert.metadata?.reason && <p className="text-[10px] leading-tight truncate mt-1" style={{ color: 'rgba(252,165,165,0.5)' }}>{alert.metadata.reason}</p>}
+                          {alert.metadata?.reason && <p className="text-[10px] leading-tight truncate mt-1" style={{ color: isDark ? 'rgba(252,165,165,0.50)' : 'rgba(185,28,28,0.80)' }}>{alert.metadata.reason}</p>}
                         </div>
                         <div className="shrink-0 flex items-center gap-1">
                           <button onClick={(e) => { e.stopPropagation(); onFocusAlert(alert); }} title="Ver ubicación en el mapa"
-                            className="p-1 rounded-md text-red-300/60 hover:text-red-100 hover:bg-red-500/15 transition-colors"
+                            className={`p-1 rounded-md transition-colors ${isDark ? "text-red-300/60 hover:text-red-100 hover:bg-red-500/15" : "text-red-700/70 hover:text-red-800 hover:bg-red-500/10"}`}
                           ><IconMapPin size={13} /></button>
                           {alert.type === 'critica' && (
                             <button onClick={() => handleOpenResolve(alert.id)} disabled={resolveMutation.isPending}
-                              className="shrink-0 flex items-center gap-1 bg-red-500/15 hover:bg-red-500/25 active:bg-red-500/35 text-[8px] font-semibold text-red-400 px-1.5 py-0.5 rounded-lg transition-all duration-200 opacity-70 group-hover:opacity-100"
+                              className={`shrink-0 flex items-center gap-1 bg-red-500/15 hover:bg-red-500/25 active:bg-red-500/35 text-[8px] font-semibold px-1.5 py-0.5 rounded-lg transition-all duration-200 opacity-70 group-hover:opacity-100 ${isDark ? "text-red-400" : "text-red-700"}`}
                             ><IconCheck size={9} /> Resolver</button>
                           )}
                         </div>
@@ -212,7 +251,7 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
                   <div className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full" style={{ background: cfg.bar }} />
                   <div className="flex items-center gap-2.5 pl-2.5">
                     <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
-                      style={{ background: `${cfg.iconColor}18`, border: `1px solid ${cfg.iconColor}30` }}>
+                      style={{ background: cfg.iconBg, border: cfg.iconBorder }}>
                       <Icon size={13} color={cfg.iconColor} />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -223,22 +262,22 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
                         {alert.id === newestAlertId && <span className="text-[7px] font-bold uppercase tracking-[0.12em] text-brand-200 bg-brand-100/20 px-1.5 py-0.5 rounded-full border border-brand-100/20 shrink-0">Nuevo</span>}
                       </div>
                       <div className="flex items-center gap-2.5 mt-1">
-                        <span className="text-[10px] font-mono" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                        <span className="text-[10px] font-mono" style={{ color: cfg.timeColor }}>
                           {format(new Date(alert.created_at), "dd/MM HH:mm")}
                         </span>
                         <span className="text-[8px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full"
-                          style={{ backgroundColor: `${cfg.iconColor}20`, color: cfg.textColor }}>
+                          style={{ backgroundColor: cfg.chipBg, color: cfg.textColor }}>
                           {cfg.label}
                         </span>
                       </div>
                       {alert.metadata?.reason && (
-                        <p className="text-[9px] leading-tight truncate mt-1" style={{ color: 'rgba(255,255,255,0.35)' }}>{alert.metadata.reason}</p>
+                        <p className="text-[9px] leading-tight truncate mt-1" style={{ color: cfg.subColor }}>{alert.metadata.reason}</p>
                       )}
                       {alert.type === 'movimientos_anomalos' && alert.metadata && Object.keys(alert.metadata).length > 0 && (
                         <button
                           onClick={(e) => { e.stopPropagation(); setExpandedMetaAlertId(expandedMetaAlertId === alert.id ? null : alert.id); }}
                           className="mt-1.5 flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded transition-colors"
-                          style={{ color: '#d8b4fe', backgroundColor: 'rgba(168,85,247,0.12)' }}
+                          style={{ color: cfg.textColor, backgroundColor: cfg.chipBg }}
                         >
                           {expandedMetaAlertId === alert.id ? <IconChevronUp size={11} /> : <IconChevronDown size={11} />}
                           {expandedMetaAlertId === alert.id ? 'Ocultar detalle' : 'Ver detalle'}
@@ -248,7 +287,7 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
                     <button
                       onClick={(e) => { e.stopPropagation(); onFocusAlert(alert); }}
                       title="Ver ubicación en el mapa"
-                      className="shrink-0 p-1.5 rounded-md text-text-300/70 hover:text-text-100 hover:bg-white/10 transition-colors"
+                      className={`shrink-0 p-1.5 rounded-md transition-colors ${isDark ? "text-text-300/70 hover:text-text-100 hover:bg-white/10" : "text-text-300 hover:text-text-200 hover:bg-black/5"}`}
                     >
                       <IconMapPin size={14} />
                     </button>
@@ -265,7 +304,7 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
   // Modal principal: enviar comando o resolver
   const resolveModal = resolvingAlertId !== null && !showReasonInput && !showConfirmResolver && (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-bg-100 border border-border/50 rounded-xl shadow-2xl p-5 w-105 max-w-[90vw]">
+      <div className={`${isDark ? "bg-bg-100 border-border/50" : "bg-white border-slate-200 shadow-[0_20px_40px_rgba(15,23,42,0.12)]"} border rounded-xl p-5 w-105 max-w-[90vw]`}>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-bold text-text-100">Acción sobre alerta crítica</h3>
           <button onClick={() => setResolvingAlertId(null)} className="text-text-300 hover:text-text-100 outline-none"><IconX size={18} /></button>
@@ -417,7 +456,7 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
   const expandedAlert = expandedMetaAlertId != null ? timelineData.find((a: any) => a.id === expandedMetaAlertId) : null;
   const metaModal = expandedAlert && expandedAlert.metadata && Object.keys(expandedAlert.metadata).length > 0 && (
     <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setExpandedMetaAlertId(null)}>
-      <div className="bg-bg-100 border border-border/50 rounded-xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className={`${isDark ? "bg-bg-100 border-border/50" : "bg-white border-slate-200 shadow-[0_20px_40px_rgba(15,23,42,0.12)]"} border rounded-xl w-full max-w-md overflow-hidden`} onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-border/20">
           <div className="flex items-center gap-2">
             <IconRadar size={16} className="text-purple-400" />
@@ -488,3 +527,5 @@ export default function RightBarDashboard({ timelineData, timelineRange, setTime
     </>
   );
 }
+
+export default memo(RightBarDashboard);

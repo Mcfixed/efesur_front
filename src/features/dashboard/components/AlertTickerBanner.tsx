@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { IconAlertTriangle, IconAlertCircle, IconWifiOff, IconRadar } from "@tabler/icons-react";
+import { useTheme } from "@/context/ThemeContext";
 import type { DashboardData, Alert } from "../types/dashboard.types";
 
 interface Props {
@@ -15,6 +16,8 @@ const WINDOW_APERTURA = 30 * MIN_MS;
 const WINDOW_ATENCION = 5 * MIN_MS; // mismo criterio que el backend
 
 export default function AlertTickerBanner({ data }: Props) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   // "Reloj" del banner: no se lee durante el render (rompe la pureza). Se refresca
   // cada 30 s para que las alertas vencidas salgan solas sin esperar datos nuevos.
   const [now, setNow] = useState(() => Date.now());
@@ -49,11 +52,24 @@ export default function AlertTickerBanner({ data }: Props) {
   const duplicated = [...alertItems, ...alertItems, ...alertItems];
 
   return (
-    <div className="w-full overflow-hidden bg-bg-100/90 border-b border-border/20 relative" style={{ height: 30 }}>
+    <div
+      className={`w-full overflow-hidden border-b relative ${
+        isDark ? "bg-bg-100/90 border-border/20" : "bg-white/85 border-slate-200/80 shadow-[0_1px_0_rgba(148,163,184,0.18)]"
+      }`}
+      style={{ height: 30 }}
+    >
       <div className="absolute inset-0 flex items-center ticker-track">
         <div className="flex items-center gap-4 whitespace-nowrap ticker-animate shrink-0">
           {duplicated.map((item, i) => (
-            <span key={i} className={`flex items-center gap-1.5 text-[12px] font-medium shrink-0 ${item.bg} px-2 py-0.5 rounded`} style={{ color: item.color }}>
+            <span
+              key={i}
+              className={`flex items-center gap-1.5 text-[12px] font-medium shrink-0 ${item.bg} px-2 py-0.5 rounded`}
+              style={{
+                color: item.color,
+                background: isDark ? undefined : "rgba(255,255,255,0.72)",
+                border: isDark ? undefined : "1px solid rgba(148,163,184,0.2)",
+              }}
+            >
               {item.icon}
               <span className="font-semibold">{item.device_name}</span>
               <span style={{ opacity: 0.6 }}>·</span>

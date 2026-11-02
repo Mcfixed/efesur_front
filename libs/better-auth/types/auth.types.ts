@@ -1,6 +1,3 @@
-// ============================================
-// Tipos de Usuario
-// ============================================
 
 export interface BetterAuthUser {
   id: string;
@@ -12,10 +9,6 @@ export interface BetterAuthUser {
   updatedAt: Date;
   role?: string;
 }
-
-// ============================================
-// Tipos de Sesión
-// ============================================
 
 export interface Session {
   id: string;
@@ -30,10 +23,6 @@ export interface SessionData {
   session: Session | null;
   user: BetterAuthUser | null;
 }
-
-// ============================================
-// Tipos de Autenticación
-// ============================================
 
 export type AuthProvider = "google" | "github" | "facebook" | "twitter";
 
@@ -52,6 +41,8 @@ export interface AuthState {
   isLoading: boolean;
   isAuthenticated: boolean;
   error: string | null;
+  // true cuando NO se pudo validar la sesión (base de datos o red caída). La sesión no se
+  sessionError?: boolean;
 }
 
 export interface AuthActions {
@@ -62,13 +53,11 @@ export interface AuthActions {
   signUp: (credentials: SignUpCredentials) => Promise<void>;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
+  // Reintenta validar la sesión sin recargar la página. Devuelve true si sigue válida.
+  reintentarSesion?: () => Promise<boolean>;
 }
 
 export type AuthContextType = AuthState & AuthActions;
-
-// ============================================
-// Tipos de Configuración
-// ============================================
 
 export interface AuthConfig {
   baseUrl: string;

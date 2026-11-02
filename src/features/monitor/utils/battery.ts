@@ -49,9 +49,6 @@ export function batteryColor(mV: number | null | undefined): string {
 }
 
 // ─── Batería de la estación (plomo 12 V) ───
-// Los gateways y los lectores no tienen batería propia: su energía es el banco de 12 V de la
-// estación, que reporta el MPPT del lector (`Mppt.batteryVoltage_V`). La escala útil va de 11 a
-// 15 V, igual que en el panel del gateway.
 const BATERIA_12V_MIN = 11;
 const BATERIA_12V_MAX = 15;
 

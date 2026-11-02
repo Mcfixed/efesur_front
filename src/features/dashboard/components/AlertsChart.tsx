@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, memo } from "react";
 import { BarChartWidget } from "@/components/widgets";
 import { IconChevronDown, IconChevronUp, IconAlertOctagon, IconAlertCircle, IconAlertHexagon, IconClock } from "@tabler/icons-react";
 
@@ -7,7 +7,7 @@ interface Props {
   isLoading: boolean;
 }
 
-export default function AlertsChart({ historyData, isLoading }: Props) {
+function AlertsChart({ historyData, isLoading }: Props) {
   const [chartExpanded, setChartExpanded] = useState(false);
   const [chartAlertType, setChartAlertType] = useState<"critica" | "atencion" | "movimientos_anomalos" | "apertura" | "presencia">("critica");
   const [chartTimeRange, setChartTimeRange] = useState<"1h" | "24h" | "7d" | "30d" | "total">("24h");
@@ -105,3 +105,5 @@ export default function AlertsChart({ historyData, isLoading }: Props) {
     </div>
   );
 }
+
+export default memo(AlertsChart);

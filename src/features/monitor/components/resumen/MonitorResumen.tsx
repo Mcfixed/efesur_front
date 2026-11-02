@@ -1,60 +1,128 @@
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import { useMonitorSummary, useMonitorActiveSensors, useMonitorAlertsPerDay } from "../../hooks/useMonitor";
-import { ActiveSensorsChart, AlertsPerDayChart } from "./ResumenCharts";
-import { IconDeviceSdCard, IconSignal5g, IconAlertTriangle, IconAlertCircle, IconDoor, IconUser, IconMoodSearch, IconWifiOff, IconFileReport } from "@tabler/icons-react";
+import { IconFileReport } from "@tabler/icons-react";
+import {
+  useMonitorSummary,
+  useMonitorDevices,
+  useMonitorActiveSensors,
+  useMonitorAlertsByDate,
+} from "../../hooks/useMonitor";
+import { isFreshForDevice } from "../../utils/online";
+import { formatBattery, formatStationBattery } from "../../utils/battery";
+import type { MonitorDevice } from "../../types/monitor.types";
 import MonitorReportModal from "../tecnico/MonitorReportModal";
+import ResumenSystemCards, { type ResumenTipo } from "./ResumenSystemCards";
+import ResumenGatewayUptime from "./ResumenGatewayUptime";
+import ResumenSensorActivity, { type EstadoSensor, type SensorActividad } from "./ResumenSensorActivity";
 
-const cards = [
-  { key: "totalSensores", label: "Total Sensores", icon: IconDeviceSdCard },
-  { key: "cobertura", label: "Cobertura", icon: IconSignal5g },
-  { key: "criticas", label: "Críticas", icon: IconAlertTriangle },
-  { key: "atencion", label: "Atención", icon: IconAlertCircle },
-  { key: "apertura", label: "Apertura", icon: IconDoor },
-  { key: "presencia", label: "Presencia", icon: IconUser },
-  { key: "movimientos", label: "Movimientos", icon: IconMoodSearch },
-  { key: "desconexion", label: "Desconexión", icon: IconWifiOff },
-];
+const VACIO: ResumenTipo = { total: 0, activos: 0, conAlertas: 0 };
 
-function border(key: string, v: number | undefined): string {
-  if (v == null) return "border-border/30";
-  switch (key) {
-    case "cobertura": return v >= 100 ? "border-green-500/40" : "border-red-500/40";
-    case "criticas": return v > 0 ? "border-red-500/40" : "border-green-500/40";
-    case "atencion": return v > 0 ? "border-yellow-500/40" : "border-green-500/40";
-    case "apertura": return v > 0 ? "border-red-500/40" : "border-green-500/40";
-    case "presencia": return v > 0 ? "border-yellow-500/40" : "border-green-500/40";
-    case "movimientos": return v > 0 ? "border-orange-500/40" : "border-green-500/40";
-    case "desconexion": return v > 0 ? "border-red-500/40" : "border-green-500/40";
-    default: return "border-border/30";
+/** ¿El equipo está reportando? Mismo criterio que usa el panel técnico. */
+function estaReportando(d: MonitorDevice): boolean {
+  return d.is_active && !!d.last_seen && isFreshForDevice(new Date(d.last_seen).getTime(), d.type_device);
+}
+
+function hace(ts: number): string {
+  const min = Math.max(0, Math.round((Date.now() - ts) / 60000));
+  if (min < 60) return `hace ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 48) return `hace ${h} h`;
+  return `hace ${Math.round(h / 24)} d`;
+}
+
+/** Último dato del equipo: fecha + hace cuánto, o "nunca reportó" */
+function ultimoDato(d: MonitorDevice): string {
+  if (!d.last_seen) return "nunca reportó";
+  const ts = new Date(d.last_seen).getTime();
+  if (!Number.isFinite(ts)) return "nunca reportó";
+  return `${format(new Date(ts), "dd/MM HH:mm")} · ${hace(ts)}`;
+}
+
+/** Lectura principal del último dato: banco 12 V (lectores/gateways) o batería del sensor (mV) */
+function lecturaPrincipal(d: MonitorDevice): string | null {
+  if (d.battery_v != null) {
+    const bv = Number(d.battery_v);
+    if (Number.isFinite(bv)) return formatStationBattery(bv);
   }
+  const raw = d.last_value != null && `${d.last_value}` !== "" ? Number(d.last_value) : null;
+  if (raw != null && Number.isFinite(raw) && raw > 1000) return formatBattery(raw);
+  return null;
+}
+
+/** "V1PK6/11-13" → vía 1 · PK 6 · poste 11 (para ordenar el mapa por punto kilométrico) */
+function parsePk(name: string): { via: number | null; pk: number | null; poste: number | null } {
+  const m = /^\s*V\s*(\d+)\s*PK\s*(\d+)\s*\/\s*(\d+)?/i.exec(name);
+  if (!m) return { via: null, pk: null, poste: null };
+  return {
+    via: Number(m[1]),
+    pk: Number(m[2]),
+    poste: m[3] != null ? Number(m[3]) : null,
+  };
 }
 
 export default function MonitorResumen() {
+  const hoy = useMemo(() => format(new Date(), "yyyy-MM-dd"), []);
   const { data: summary, isLoading } = useMonitorSummary();
-  const { data: sensors } = useMonitorActiveSensors();
-  const { data: alertsPerDay } = useMonitorAlertsPerDay();
+  const { data: devices } = useMonitorDevices();
+  const { data: alertsHoy } = useMonitorAlertsByDate(hoy);
+  const { data: activeSensors } = useMonitorActiveSensors();
   const [reportOpen, setReportOpen] = useState(false);
 
-  const sensorChart = useMemo(() => {
-    if (!sensors?.length) return [];
-    return sensors.map(s => ({ dia: format(new Date(s.dia), "dd/MM"), activos: Number(s.activos) || 0 }));
-  }, [sensors]);
+  // Totales y equipos reportando por tipo (Gateway / Gps / Lector)
+  const porTipo = useMemo(() => {
+    const acc: Record<string, { total: number; activos: number }> = {
+      Gateway: { total: 0, activos: 0 },
+      Gps: { total: 0, activos: 0 },
+      Lector: { total: 0, activos: 0 },
+    };
+    for (const d of devices ?? []) {
+      const e = (acc[d.type_device] ??= { total: 0, activos: 0 });
+      e.total += 1;
+      if (estaReportando(d)) e.activos += 1;
+    }
+    return acc;
+  }, [devices]);
 
-  const alertChart = useMemo(() => {
-    if (!alertsPerDay?.length) return [];
-    return alertsPerDay.map(a => ({
-      dia: format(new Date(a.dia), "dd/MM"),
-      criticas: Number(a.criticas) || 0,
-      atencion: Number(a.atencion) || 0,
-      apertura: Number(a.apertura) || 0,
-      presencia: Number(a.presencia) || 0,
-      movimientos: Number(a.movimientos) || 0,
-      desconexion: Number(a.desconexion) || 0,
-    }));
-  }, [alertsPerDay]);
+  // Cantidad de equipos distintos con alertas hoy, por tipo
+  const conAlertasPorTipo = useMemo(() => {
+    const acc: Record<string, Set<string>> = {};
+    for (const a of alertsHoy ?? []) {
+      const key = a.device_id != null ? `id:${a.device_id}` : `name:${a.device_name}`;
+      (acc[a.type_device] ??= new Set()).add(key);
+    }
+    return {
+      Gateway: acc.Gateway?.size ?? 0,
+      Gps: acc.Gps?.size ?? 0,
+      Lector: acc.Lector?.size ?? 0,
+    };
+  }, [alertsHoy]);
 
-  if (isLoading) {
+  const cards = {
+    gateways: { ...(porTipo.Gateway ?? VACIO), conAlertas: conAlertasPorTipo.Gateway },
+    gps: { ...(porTipo.Gps ?? VACIO), conAlertas: conAlertasPorTipo.Gps },
+    lectores: { ...(porTipo.Lector ?? VACIO), conAlertas: conAlertasPorTipo.Lector },
+  };
+
+  // Mapa de actividad: SOLO sensores GPS, con estado de reporte (activo / sin reporte)
+  const sensores = useMemo<SensorActividad[]>(() => {
+    return (devices ?? [])
+      .filter(d => d.type_device === "Gps")
+      .map(d => {
+        const estado: EstadoSensor = estaReportando(d) ? "activo" : "inactivo";
+        return {
+          id: d.id,
+          name: d.name,
+          devEui: d.dev_eui,
+          tipo: d.type_device,
+          estado,
+          ...parsePk(d.name),
+          ultimo: ultimoDato(d),
+          bateria: lecturaPrincipal(d),
+        };
+      });
+  }, [devices]);
+
+  if (isLoading && !summary) {
     return (
       <div className="flex items-center justify-center h-full">
         <span className="text-[13px] text-brand-200 animate-pulse">Cargando resumen...</span>
@@ -63,63 +131,39 @@ export default function MonitorResumen() {
   }
 
   return (
-    <div className="p-2 h-full flex flex-col gap-2 overflow-hidden">
-      <div className="shrink-0 flex items-center justify-between">
-        <div>
-          <h1 className="text-base font-bold text-text-100 tracking-tight">Monitor</h1>
-          <p className="text-[10px] text-text-300">Resumen general del sistema</p>
+    <div className="p-2 h-full flex flex-col gap-1.5 overflow-hidden resumen-canvas">
+      <div className="shrink-0 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold tracking-tight text-text-100">Panel de Monitoreo</h1>
         </div>
-        <button onClick={() => setReportOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors shadow-sm">
+        <button
+          onClick={() => setReportOpen(true)}
+          className="flex items-center gap-1.5 px-3.5 py-1.5 text-[11px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-full transition-colors shadow-sm shadow-emerald-600/25 shrink-0"
+        >
           <IconFileReport size={14} /> Reporte
         </button>
       </div>
 
       {reportOpen && <MonitorReportModal onClose={() => setReportOpen(false)} />}
 
-      <div className="grid grid-cols-8 gap-1.5 shrink-0">
-        {cards.map(({ key, label, icon: Icon }) => {
-          const val = (summary as any)?.[key];
-          const isPct = key === "cobertura";
-          const borderColor = border(key, val);
-          const hasIssue = key !== "totalSensores" && key !== "cobertura" && (val as number) > 0;
-          const isLowCoverage = key === "cobertura" && (val as number) < 100;
-          return (
-            <div key={key} className={`relative flex items-start justify-between gap-3 border border-border-200/40 p-3 rounded-lg bg-bg-100 transition-colors ${borderColor}`}>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-text-200 uppercase tracking-wide truncate flex items-center gap-1">
-                  {label}
-                  <span className="text-[9px] font-semibold text-text-200 bg-bg-300/60 px-1 py-0.5 rounded shrink-0">HOY</span>
-                </p>
-                <div className="mt-1 flex items-baseline gap-1">
-                  <span className="text-3xl font-bold leading-none tracking-tight text-text-100">
-                    {isLoading
-                      ? <span className="animate-pulse text-text-300">--</span>
-                      : isPct
-                        ? <>{typeof val === "number" ? (
-                          <span className="inline-flex items-baseline gap-0.5">
-                            {Math.round(val)}<span className="text-sm font-normal text-text-300">%</span>
-                          </span>
-                        ) : "—"}</>
-                        : val ?? "—"}
-                  </span>
-                </div>
-                {!isLoading && (hasIssue || isLowCoverage) && (
-                  <span className={`w-1.5 h-1.5 rounded-full inline-block shrink-0 mt-1 ${key === "atencion" || key === "presencia" ? "bg-yellow-400" : "bg-red-400"}`}
-                    style={{ boxShadow: `0 0 4px ${key === "atencion" || key === "presencia" ? "rgba(250,204,21,0.5)" : "rgba(239,68,68,0.5)"}` }} />
-                )}
-              </div>
-              <div className="shrink-0 p-2.5 rounded-lg bg-bg-300" style={{ color: "#8ecae0" }}>
-                <Icon size={20} />
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <ResumenSystemCards
+        gateways={cards.gateways}
+        gps={cards.gps}
+        lectores={cards.lectores}
+        criticas={summary?.criticas ?? 0}
+        atencion={summary?.atencion ?? 0}
+      />
 
-      <div className="flex-1 grid grid-rows-2 gap-1.5 min-h-0">
-        <ActiveSensorsChart data={sensorChart} />
-        <AlertsPerDayChart data={alertChart} />
+      <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-12 gap-1.5">
+        <div className="min-h-0 xl:col-span-5 flex flex-col">
+          <ResumenGatewayUptime />
+        </div>
+
+        <div className="min-h-0 xl:col-span-7 flex flex-col gap-1.5">
+          <div className="flex-1 min-h-0 flex flex-col">
+            <ResumenSensorActivity sensores={sensores} activosPorDia={activeSensors ?? []} />
+          </div>
+        </div>
       </div>
     </div>
   );

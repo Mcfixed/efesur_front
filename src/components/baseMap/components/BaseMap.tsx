@@ -1,6 +1,7 @@
 import React, { useRef, useCallback, useMemo, useState } from "react";
 import ReactMapGL from "react-map-gl";
 import type { MapRef } from "react-map-gl";
+import type { LayerSpecification } from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import {
   IconMap,
@@ -28,6 +29,15 @@ import LayerSelector from "./LayerSelector";
 import { MAPBOX_TOKEN, DEFAULT_CENTER, MAP_ZOOM_LEVEL } from "../libs";
 import type { BaseMapProps, MapLayer, MapLayerConfig } from "../types";
 
+// ─── CAPAS PESADAS DEL ESTILO "SATÉLITE + NOMBRES" ───
+// Se pueden apagar por separado para medir el costo en FPS al mover el mapa.
+//   SHOW_GEO_LINES       → límites de regiones/provincias (GeoJSON propio: decenas de
+//                          miles de vértices dibujados por frame).
+//   SHOW_VECTOR_LABELS   → nombres de ciudades, cerros/ríos, calles, estaciones, escudos
+//                          de ruta (colisión de símbolos = costo de CPU por frame).
+const SHOW_GEO_LINES = false;
+const SHOW_VECTOR_LABELS = true;
+
 const BaseMap: React.FC<BaseMapProps> = ({
   children,
   initialCenter = DEFAULT_CENTER,
@@ -37,10 +47,6 @@ const BaseMap: React.FC<BaseMapProps> = ({
   onMapRef,
 }) => {
   const mapRef = useRef<MapRef>(null);
-  // Estilo inicial: satélite con nombres. Pintar la imagen satelital es liviano; el costo
-  // está en las capas vectoriales completas de `satellite-streets-v12` (trazado de calles,
-  // edificios y ~50 capas de etiquetas). Por eso se usa un estilo propio: la misma imagen
-  // más las capas de texto que aportan. Los demás estilos siguen en el selector.
   const [selectedLayer, setSelectedLayer] = useState<MapLayer>("smooth_labels");
 
   const mapLayers = useMemo<Record<MapLayer, MapLayerConfig>>(
@@ -83,12 +89,18 @@ const BaseMap: React.FC<BaseMapProps> = ({
           sprite: "mapbox://sprites/mapbox/streets-v12",
           sources: {
             imagen: { type: "raster", url: "mapbox://mapbox.satellite", tileSize: 512 },
-            mapbox: { type: "vector", url: "mapbox://mapbox.mapbox-streets-v8" },
+            ...(SHOW_VECTOR_LABELS
+              ? { mapbox: { type: "vector", url: "mapbox://mapbox.mapbox-streets-v8" } }
+              : {}),
             // Límites administrativos: geometría propia simplificada (fuente: geoBoundaries,
             // CC-BY 4.0, ver crédito en el HUD del mapa). El tileset de Mapbox sólo trae
             // fronteras de país, no regiones ni comunas.
-            regiones: { type: "geojson", data: "/geo/regiones.geojson" },
-            provincias: { type: "geojson", data: "/geo/provincias.geojson" },
+            ...(SHOW_GEO_LINES
+              ? {
+                  regiones: { type: "geojson", data: "/geo/regiones.geojson" },
+                  provincias: { type: "geojson", data: "/geo/provincias.geojson" },
+                }
+              : {}),
           },
           layers: [
             {
@@ -97,7 +109,7 @@ const BaseMap: React.FC<BaseMapProps> = ({
               source: "imagen",
               paint: { "raster-fade-duration": 0 },
             },
-            {
+            ...(SHOW_GEO_LINES ? ([{
               // Límites provinciales: tenues, para no competir con la imagen.
               // Se apagan en zoom de ciudad: a ese nivel no aportan y son la geometría
               // más pesada del mapa (decenas de miles de vértices por frame).
@@ -125,8 +137,8 @@ const BaseMap: React.FC<BaseMapProps> = ({
                 "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.5, 10, 1.4],
                 "line-opacity": 0.55,
               },
-            },
-            {
+            }] as LayerSpecification[]) : []),
+            ...(SHOW_VECTOR_LABELS ? ([{
               // Nombres de elementos naturales: cerros, volcanes, ríos, lagos, parques
               id: "nombres-naturales",
               type: "symbol",
@@ -254,7 +266,7 @@ const BaseMap: React.FC<BaseMapProps> = ({
                 "text-halo-color": "rgba(0,0,0,.8)",
                 "text-halo-width": 1.2,
               },
-            },
+            }] as LayerSpecification[]) : []),
           ],
         },
       },
@@ -376,7 +388,7 @@ const BaseMap: React.FC<BaseMapProps> = ({
       >
         {children}
       </ReactMapGL>
-      <div className="absolute right-1 top-1 h-[calc(100%-8px)] z-50 bg-bg-100/90 backdrop-blur-sm flex flex-col gap-1 p-1 rounded">
+      <div className="absolute right-1 top-1 h-[calc(100%-8px)] z-50 bg-bg-100/95 flex flex-col gap-1 p-1 rounded shadow-lg">
         <div className="flex flex-col p-0.5 gap-1  rounded py-1">
           <LayerSelector
             selectedLayer={selectedLayer}

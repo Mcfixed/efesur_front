@@ -45,7 +45,6 @@ const ALERT_LABELS: Record<string, string> = {
 };
 
 // Colores por tipo de alerta, alineados con la página:
-// atención=amarillo, crítica/apertura=rojo, movimientos=morado, desconexiones=naranja
 const ALERT_COLORS: Record<string, { text: string; border: string; bg: string; dot: string }> = {
   critica:              { text: "#fca5a5", border: "rgba(239,68,68,0.35)", bg: "rgba(239,68,68,0.08)", dot: "#ef4444" },
   atencion:             { text: "#fde047", border: "rgba(234,179,8,0.35)", bg: "rgba(234,179,8,0.08)", dot: "#eab308" },
@@ -75,6 +74,32 @@ function parseRx(t: any): any[] {
   }
   if (t?.rxinfo && typeof t.rxinfo === "object") return [t.rxinfo];
   return [];
+}
+
+// Mejor gateway de un registro: mayor SNR, desempate por RSSI.
+type RxEntry = { rssi?: number | string | null; snr?: number | string | null };
+
+function mejorGateway(rx: RxEntry[]): RxEntry | null {
+  let mejor: RxEntry | null = null;
+  let mejorSnr = -Infinity;
+  let mejorRssi = -Infinity;
+
+  for (const g of rx || []) {
+    if (!g || typeof g !== "object") continue;
+    const snr = g.snr != null && Number.isFinite(Number(g.snr)) ? Number(g.snr) : null;
+    const rssi = g.rssi != null && Number.isFinite(Number(g.rssi)) ? Number(g.rssi) : null;
+    // Entradas sin señal (p. ej. el txInfo de un txack) no son recepciones: se descartan
+    if (snr === null && rssi === null) continue;
+
+    const s = snr ?? -Infinity;
+    const r = rssi ?? -Infinity;
+    if (mejor === null || s > mejorSnr || (s === mejorSnr && r > mejorRssi)) {
+      mejor = g;
+      mejorSnr = s;
+      mejorRssi = r;
+    }
+  }
+  return mejor;
 }
 
 export default function MonitorSensorPanel({ device, onClose }: { device: any; onClose: () => void }) {
@@ -107,7 +132,8 @@ export default function MonitorSensorPanel({ device, onClose }: { device: any; o
   const latest = telemetry[0] || null;
   const obj = latest?.object || {};
   const rx = parseRx(latest);
-  const bestGw = rx?.[0] || null;
+  // Se muestra el mejor gateway del registro (antes se tomaba el primero del arreglo)
+  const bestGw = mejorGateway(rx);
 
   const current = {
     battery: voltageToPercent(obj.voltage_mV),
@@ -119,7 +145,6 @@ export default function MonitorSensorPanel({ device, onClose }: { device: any; o
   };
 
   // Modo de operación del sensor (producción, transporte, mantenimiento, etc.)
-  // viene calculado por el backend (última telemetría + gps_device)
   const opMode = device?.operating_mode;
   const modeMeta = opMode && opMode !== "sin datos" ? MODE_LABELS[opMode] : null;
 
@@ -153,10 +178,9 @@ export default function MonitorSensorPanel({ device, onClose }: { device: any; o
   }, [chartData]);
 
   // Color por gateway + colores fijos (paleta alineada con la página:
-  // amarillo atención, rojo crítica, morado movimientos, naranja desconexión, etc.)
   const gatewayColors = useMemo(() => {
     const map: Record<string, string> = {};
-    const palette = ["#fde047", "#ef4444", "#a855f7", "#f97316", "#2dd4bf", "#34d399", "#60a5fa", "#f472b6"];
+    const palette = ["#38bdf8", "#34d399", "#a855f7", "#fb923c", "#2dd4bf", "#60a5fa", "#f472b6", "#f87171"];
     let i = 0;
     seriesKeys.forEach(k => {
       const m = k.match(/^(?:rssi|snr)_(.+)$/);

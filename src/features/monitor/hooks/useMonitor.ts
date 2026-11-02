@@ -7,7 +7,6 @@ export const useMonitorSummary = () => useQuery({ queryKey: [...KEYS.all, "summa
 export const useMonitorActiveSensors = () => useQuery({ queryKey: [...KEYS.all, "active-sensors"], queryFn: () => monitorService.getActiveSensors(), refetchInterval: 60000 });
 export const useMonitorAlertsPerDay = () => useQuery({ queryKey: [...KEYS.all, "alerts-per-day"], queryFn: () => monitorService.getAlertsPerDay(), refetchInterval: 60000 });
 // Reporte de un día: es histórico, no se refresca solo. En la vista de cobertura se pide
-// el día en curso con refresco periódico (opts.refetchInterval).
 export const useMonitorDayReport = (dia: string | null, opts?: { enabled?: boolean; refetchInterval?: number }) => useQuery({
   queryKey: [...KEYS.all, "day-report", dia],
   queryFn: () => monitorService.getDayReport(dia!),
@@ -23,12 +22,22 @@ export const useMonitorDeviceTelemetryHistory = (deviceId: number | null, params
 export const useMonitorDeviceAlerts = (deviceId: number | null) => useQuery({ queryKey: [...KEYS.all, "alerts", deviceId], queryFn: () => monitorService.getDeviceAlerts(deviceId!), enabled: !!deviceId, refetchInterval: 30000 });
 export const useMonitorGatewayPositions = () => useQuery({ queryKey: [...KEYS.all, "gateways"], queryFn: () => monitorService.getGatewayPositions(), staleTime: 300000 });
 // Uptime de gateways (caídas del período): alimenta el mini gráfico de la tabla, por eso se refresca
-// solo, y solo cuando la pestaña de gateways está a la vista (opts.enabled).
 export const useMonitorGatewaysUptime = (dias = 7, opts?: { enabled?: boolean }) => useQuery({
   queryKey: [...KEYS.all, "gateways-uptime", dias],
   queryFn: () => monitorService.getGatewaysUptime(dias),
   enabled: opts?.enabled ?? true,
   refetchInterval: 60000,
+});
+// Recorrido del tracker (vista LillieGo): se refresca solo mientras esa vista está abierta
+export const useMonitorDeviceTrack = (deviceId: number | null, opts?: { dias?: number; enabled?: boolean }) => useQuery({
+  queryKey: [...KEYS.all, "track", deviceId, opts?.dias ?? 1],
+  queryFn: () => monitorService.getDeviceTrack(deviceId!, {
+    from: new Date(Date.now() - (opts?.dias ?? 1) * 24 * 3600 * 1000).toISOString(),
+  }),
+  enabled: (opts?.enabled ?? true) && !!deviceId,
+  refetchInterval: 10000,
+  refetchIntervalInBackground: false,
+  staleTime: 0,
 });
 export const useMonitorAlertTracking = (alertId: number | null) => useQuery({ queryKey: [...KEYS.all, "tracking", alertId], queryFn: () => monitorService.getAlertTracking(alertId!), enabled: !!alertId, refetchInterval: false });
 export const useMonitorLatestTelemetry = (limit?: number) => useQuery({ queryKey: [...KEYS.all, "latest", limit], queryFn: () => monitorService.getLatestTelemetry(limit), refetchInterval: 15000 });

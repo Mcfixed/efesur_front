@@ -14,6 +14,7 @@ import {
 } from "@/libs/better-auth";
 import { QueryProvider } from "@/libs/tanstack-query";
 import { ToastProvider } from "@/libs/sonner";
+import ConnectionBanner from "@/components/feedback/ConnectionBanner";
 import { LoginPage, RegisterPage, ForgotPasswordPage } from "@/template/auth";
 
 const { useConfigApp, useAuthConfig } = configServer();
@@ -26,6 +27,7 @@ createRoot(document.getElementById("root")!).render(
           <SessionCacheGuard />
           <ThemeProvider>
             <ToastProvider />
+            <ConnectionBanner />
             <Routes>
               <Route
                 path={useAuthConfig.AUTH_LOGIN_PATH}

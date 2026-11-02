@@ -27,7 +27,7 @@ interface Props {
 export default function MonitorGpsDetailPanel({
   deviceId, deviceName, latitude_current, longitude_current,
   telemetryData, isLoading, activeGatewayIds,
-  chartData, gatewayNames, onExportCSV, onExportPDF
+  chartData, onExportCSV, onExportPDF
 }: Props) {
   const { data: deviceAlerts } = useMonitorDeviceAlerts(deviceId);
   const { data: gatewayPositions } = useMonitorGatewayPositions();
@@ -44,9 +44,52 @@ export default function MonitorGpsDetailPanel({
     return map;
   }, [gatewayPositions]);
 
+  const signalKeys = useMemo(() => {
+    const keys = new Set<string>();
+    chartData.forEach(row => {
+      Object.keys(row).forEach(key => {
+        if (key.startsWith('snr_') || key.startsWith('rssi_')) keys.add(key);
+      });
+    });
+    return [...keys];
+  }, [chartData]);
+
+  const signalColorFor = (key: string) => {
+    const palette = ['#07b3d1', '#e64343', '#a855f7', '#3b82f6', '#34d399', '#f59e0b', '#f472b6', '#f97316'];
+    const index = signalKeys.findIndex(value => value === key);
+    return palette[Math.abs(index) % palette.length] || '#94a3b8';
+  };
+
+  const signalLabelFor = (key: string) => {
+    const raw = key.replace(/^snr_|^rssi_/, '');
+    const decoded = raw.replace(/_/g, ' ');
+    return decoded || 'Gateway';
+  };
+
   return (
-    <div className="flex-1 grid grid-cols-2 gap-2 min-h-0">
-      <div className="grid grid-rows-2 gap-2 min-h-0">
+    <div className="flex-1 grid grid-cols-[1.45fr_0.9fr] gap-2 min-h-0">
+      <div className="grid grid-rows-[1.2fr_1fr] gap-2 min-h-0">
+        <div className="bg-bg-100 border border-border/30 rounded-lg overflow-hidden flex flex-col min-h-0 shadow">
+          <div className="border-b border-border/30 shrink-0">
+            <div className="flex items-center justify-between px-3 py-2">
+              <p className="text-xs font-bold text-text-100 uppercase tracking-wider">Cobertura &darr; Gateways</p>
+              {activeGatewayIds.length > 0 && (
+                <span className="text-[10px] text-text-300">{activeGatewayIds.length} enlaces</span>
+              )}
+            </div>
+          </div>
+          <div className="flex-1 relative min-h-0">
+            <MonitorTelemetryMap
+              devicePosition={latitude_current != null && longitude_current != null
+                ? { lat: latitude_current, lng: longitude_current }
+                : null}
+              deviceName={deviceName}
+              gateways={gatewayPositions}
+              activeGatewayIds={activeGatewayIds.length > 0 ? activeGatewayIds : undefined}
+            />
+          </div>
+        </div>
+
         <div className="bg-bg-100 border border-border/30 rounded-lg overflow-hidden flex flex-col shadow min-h-0">
           <div className="border-b border-border/30 shrink-0">
             <div className="flex items-center justify-between px-3 py-2">
@@ -120,142 +163,9 @@ export default function MonitorGpsDetailPanel({
               <div className="flex justify-center py-4"><span className="text-[10px] text-brand-200 animate-pulse">Cargando...</span></div>}
           </div>
         </div>
-
-        <div className="flex flex-col gap-1.5 min-h-0">
-          {chartData.length > 1 ? (
-            <>
-              {[
-                {
-                  id: 'bat-temp',
-                  title: "Batería y Temperatura",
-                  lines: (
-                    <>
-                      <defs>
-                        <linearGradient id="gradVoltage" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#07b3d1" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#07b3d1" stopOpacity={0} />
-                        </linearGradient>
-                        <linearGradient id="gradTemp" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#e64343" stopOpacity={0.25} />
-                          <stop offset="95%" stopColor="#e64343" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <Area type="monotone" dataKey="voltage" stroke="#07b3d1" strokeWidth={2} fill="url(#gradVoltage)" dot={false} connectNulls activeDot={{ r: 3, stroke: '#07b3d1', strokeWidth: 2, fill: '#1a1d23' }} name="Batería (mV)" animationDuration={600} />
-                      <Area type="monotone" dataKey="temperature" stroke="#e64343" strokeWidth={2} fill="url(#gradTemp)" dot={false} connectNulls activeDot={{ r: 3, stroke: '#e64343', strokeWidth: 2, fill: '#1a1d23' }} name="Temperatura (°C)" animationDuration={600} />
-                    </>
-                  )
-                },
-                {
-                  id: 'snr',
-                  title: "SNR por Gateway",
-                  lines: (
-                    <>
-                      {gatewayNames.map((gwId, i) => {
-                        const palette = ['#07b3d1', '#e64343', '#a855f7', '#3b82f6', '#07b3d1', '#e64343', '#a855f7', '#3b82f6'];
-                        const color = palette[i % palette.length];
-                        const gradId = `gradSnr${i}`;
-                        return (
-                          <Area key={gwId} type="monotone" dataKey={`snr_${gwId}`} stroke={color} strokeWidth={2} fill={`url(#${gradId})`} dot={false} connectNulls activeDot={{ r: 3, stroke: color, strokeWidth: 2, fill: '#1a1d23' }} name={gwId} animationDuration={600} />
-                        );
-                      })}
-                      <defs>
-                        {gatewayNames.map((gwId, i) => {
-                          const palette = ['#07b3d1', '#e64343', '#a855f7', '#3b82f6', '#07b3d1', '#e64343', '#a855f7', '#3b82f6'];
-                          const color = palette[i % palette.length];
-                          return (
-                            <linearGradient key={gwId} id={`gradSnr${i}`} x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor={color} stopOpacity={0.25} />
-                              <stop offset="95%" stopColor={color} stopOpacity={0} />
-                            </linearGradient>
-                          );
-                        })}
-                      </defs>
-                    </>
-                  )
-                },
-                {
-                  id: 'rssi',
-                  title: "RSSI por Gateway",
-                  lines: (
-                    <>
-                      {gatewayNames.map((gwId, i) => {
-                        const palette = ['#07b3d1', '#e64343', '#a855f7', '#3b82f6', '#07b3d1', '#e64343', '#a855f7', '#3b82f6'];
-                        const color = palette[i % palette.length];
-                        const gradId = `gradRssi${i}`;
-                        return (
-                          <Area key={gwId} type="monotone" dataKey={`rssi_${gwId}`} stroke={color} strokeWidth={2} fill={`url(#${gradId})`} dot={false} connectNulls activeDot={{ r: 3, stroke: color, strokeWidth: 2, fill: '#1a1d23' }} name={gwId} animationDuration={600} />
-                        );
-                      })}
-                      <defs>
-                        {gatewayNames.map((gwId, i) => {
-                          const palette = ['#07b3d1', '#e64343', '#a855f7', '#3b82f6', '#07b3d1', '#e64343', '#a855f7', '#3b82f6'];
-                          const color = palette[i % palette.length];
-                          return (
-                            <linearGradient key={gwId} id={`gradRssi${i}`} x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor={color} stopOpacity={0.25} />
-                              <stop offset="95%" stopColor={color} stopOpacity={0} />
-                            </linearGradient>
-                          );
-                        })}
-                      </defs>
-                    </>
-                  )
-                },
-              ].map(chart => (
-                <div key={chart.id} className="flex-1 min-h-0 flex flex-col">
-                  <div className="bg-bg-100/80 border border-border/30 rounded-xl p-2.5 shadow-sm flex flex-col flex-1 min-h-0 backdrop-blur-sm">
-                      <p className="text-[11px] font-bold text-text-100 pl-2 mb-1 shrink-0 tracking-wider uppercase">{chart.title}</p>
-                    <div className="flex-1 min-h-0">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -10, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
-                          <XAxis dataKey="time" tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.3)' }} tickLine={false} axisLine={{ stroke: 'rgba(255,255,255,0.05)' }} interval="preserveStartEnd" minTickGap={30} />
-                          <YAxis tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.3)' }} tickLine={false} axisLine={false} width={32} />
-                          <Tooltip content={<MonitorChartTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.08)', strokeWidth: 1, strokeDasharray: '4 4' }} />
-                          <Legend wrapperStyle={{ fontSize: 9, color: 'rgba(255,255,255,0.5)' }} verticalAlign="top" iconType="circle" iconSize={7} />
-                          {chart.lines}
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center">
-              {isLoading
-                ? <span className="text-[11px] text-brand-200 animate-pulse">Cargando datos...</span>
-                : <p className="text-[13px]">Selecciona un rango mayor para ver gráficos</p>
-              }
-            </div>
-          )}
-        </div>
       </div>
 
-      <div className="grid grid-rows-2 gap-2 min-h-0">
-        <div className="bg-bg-100 border border-border/30 rounded-lg overflow-hidden flex flex-col min-h-0 shadow">
-          <div className="border-b border-border/30 shrink-0">
-            <div className="flex items-center justify-between px-3 py-2">
-              <p className="text-xs font-bold text-text-100 uppercase tracking-wider">
-                Cobertura &darr; Gateways
-                {activeGatewayIds.length > 0 && (
-                  <span className="font-normal normal-case ml-1">· {activeGatewayIds.length} enlaces</span>
-                )}
-              </p>
-            </div>
-          </div>
-          <div className="flex-1 relative min-h-0">
-            <MonitorTelemetryMap
-              devicePosition={latitude_current != null && longitude_current != null
-                ? { lat: latitude_current, lng: longitude_current }
-                : null}
-              deviceName={deviceName}
-              gateways={gatewayPositions}
-              activeGatewayIds={activeGatewayIds.length > 0 ? activeGatewayIds : undefined}
-            />
-          </div>
-        </div>
-
+      <div className="grid grid-rows-[0.9fr_1.1fr] gap-2 min-h-0">
         <div className="bg-bg-100 border border-border/30 rounded-lg overflow-hidden flex flex-col min-h-0 shadow">
           <div className="border-b border-border/30 shrink-0">
             <div className="flex items-center justify-between px-3 py-2">
@@ -294,7 +204,7 @@ export default function MonitorGpsDetailPanel({
                         {alert.status_system === 'active' && alert.type === 'critica' && (
                           <span className="text-[9px] text-red-400 bg-red-500/10 px-1.5 rounded">Activa</span>
                         )}
-                                                <span className="ml-auto text-[10px] font-medium text-text-200 bg-bg-300/40 px-1.5 py-0.5 rounded">{format(new Date(alert.created_at), "dd/MM HH:mm")}</span>
+                        <span className="ml-auto text-[10px] font-medium text-text-200 bg-bg-300/40 px-1.5 py-0.5 rounded">{format(new Date(alert.created_at), "dd/MM HH:mm")}</span>
                       </div>
                       {alert.metadata?.reason && <p className="text-[11px] leading-snug mt-1">{alert.metadata.reason}</p>}
                       {alert.user_reason && <p className="text-[10px] italic mt-1">"{alert.user_reason}"</p>}
@@ -316,6 +226,79 @@ export default function MonitorGpsDetailPanel({
                 </div>
               </div>
             )}
+          </div>
+        </div>
+
+        <div className="grid grid-rows-2 gap-2 min-h-0">
+          <div className="bg-bg-100/80 border border-border/30 rounded-xl p-2.5 shadow-sm flex flex-col min-h-0 backdrop-blur-sm">
+            <p className="text-[11px] font-bold text-text-100 pl-2 mb-1 shrink-0 tracking-wider uppercase">Batería y Temperatura</p>
+            <div className="flex-1 min-h-0">
+              {chartData.length > 1 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -10, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="gradVoltage" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#07b3d1" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#07b3d1" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="gradTemp" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#e64343" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#e64343" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
+                    <XAxis dataKey="time" tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.3)' }} tickLine={false} axisLine={{ stroke: 'rgba(255,255,255,0.05)' }} interval="preserveStartEnd" minTickGap={30} />
+                    <YAxis tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.3)' }} tickLine={false} axisLine={false} width={32} />
+                    <Tooltip content={<MonitorChartTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.08)', strokeWidth: 1, strokeDasharray: '4 4' }} />
+                    <Legend wrapperStyle={{ fontSize: 9, color: 'rgba(255,255,255,0.5)' }} verticalAlign="top" iconType="circle" iconSize={7} />
+                    <Area type="monotone" dataKey="voltage" stroke="#07b3d1" strokeWidth={2} fill="url(#gradVoltage)" dot={false} connectNulls activeDot={{ r: 3, stroke: '#07b3d1', strokeWidth: 2, fill: '#1a1d23' }} name="Batería (mV)" animationDuration={600} />
+                    <Area type="monotone" dataKey="temperature" stroke="#e64343" strokeWidth={2} fill="url(#gradTemp)" dot={false} connectNulls activeDot={{ r: 3, stroke: '#e64343', strokeWidth: 2, fill: '#1a1d23' }} name="Temperatura (°C)" animationDuration={600} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-[11px] text-text-300">
+                  {isLoading ? 'Cargando datos...' : 'Selecciona un rango mayor para ver el gráfico'}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-bg-100/80 border border-border/30 rounded-xl p-2.5 shadow-sm flex flex-col min-h-0 backdrop-blur-sm">
+            <p className="text-[11px] font-bold text-text-100 pl-2 mb-1 shrink-0 tracking-wider uppercase">SNR / RSSI por Gateway</p>
+            <div className="flex-1 min-h-0">
+              {signalKeys.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -10, bottom: 0 }}>
+                    <defs>
+                      {signalKeys.map((key) => {
+                        const gradientId = `gradSignal-${key.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                        return (
+                          <linearGradient key={gradientId} id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={signalColorFor(key)} stopOpacity={0.22} />
+                            <stop offset="95%" stopColor={signalColorFor(key)} stopOpacity={0} />
+                          </linearGradient>
+                        );
+                      })}
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
+                    <XAxis dataKey="time" tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.3)' }} tickLine={false} axisLine={{ stroke: 'rgba(255,255,255,0.05)' }} interval="preserveStartEnd" minTickGap={30} />
+                    <YAxis tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.3)' }} tickLine={false} axisLine={false} width={32} />
+                    <Tooltip content={<MonitorChartTooltip />} cursor={{ stroke: 'rgba(255,255,255,0.08)', strokeWidth: 1, strokeDasharray: '4 4' }} />
+                    <Legend wrapperStyle={{ fontSize: 9, color: 'rgba(255,255,255,0.5)' }} verticalAlign="top" iconType="circle" iconSize={7} />
+                    {signalKeys.map((key) => {
+                      const gradientId = `gradSignal-${key.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                      return (
+                        <Area key={key} type="monotone" dataKey={key} stroke={signalColorFor(key)} strokeWidth={2} fill={`url(#${gradientId})`} dot={false} connectNulls activeDot={{ r: 3, stroke: signalColorFor(key), strokeWidth: 2, fill: '#1a1d23' }} name={signalLabelFor(key)} animationDuration={600} />
+                      );
+                    })}
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-[11px] text-text-300">
+                  {isLoading ? 'Cargando datos...' : 'Sin series de señal disponibles'}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

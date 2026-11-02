@@ -1,4 +1,5 @@
 import BaseMap from "@/components/baseMap/components/BaseMap";
+import { useTheme } from "@/context/ThemeContext";
 import { useBreakpoint } from "@/hooks/useBreakpoints";
 import { useState, useRef, useEffect, useMemo } from "react";
 import type { MapRef } from "react-map-gl";
@@ -23,11 +24,18 @@ import MapErrorBoundary from "../components/MapErrorBoundary";
 import GatewayStatusBar from "../components/GatewayStatusBar";
 import CriticalAlertCounters from "../components/CriticalAlertCounters";
 
+// Umbral de zoom a partir del cual se dibujan todos los sensores (igual que MapLayers)
+const ZOOM_SENSORES = 13;
+
 export default function Dashboard() {
   const { isMobile } = useBreakpoint();
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const [isOpenRightBar, setOpenRightBar] = useState(false);
   const [showAllSensors, setShowAllSensors] = useState(false);
-  const [mapZoom, setMapZoom] = useState(5);
+  // Se guarda solo el booleano del umbral, no el zoom: así un paneo normal no cambia
+  // ningún estado y no re-renderiza el dashboard completo al soltar el mapa.
+  const [zoomShowsSensors, setZoomShowsSensors] = useState(false);
   const [mapPitch, setMapPitch] = useState(45);
   const [mapBearing, setMapBearing] = useState(-55);
   const mapRef = useRef<MapRef | null>(null);
@@ -39,6 +47,9 @@ export default function Dashboard() {
   const { data: gatewayData } = useGatewayStatus();
   const [timelineRange, setTimelineRange] = useState("24h");
   const { data: timelineData } = useAlertTimeline(timelineRange);
+  // Referencia estable: si se pasa `timelineData?.alerts || []` se crea un arreglo nuevo en
+  // cada render y el memo de RightBarDashboard no sirve de nada.
+  const timelineAlerts = useMemo(() => timelineData?.alerts ?? [], [timelineData]);
   // Gráfico "Alertas por Sensor": 30d fijo, independiente del timeline
   const { data: chartTimeline } = useAlertTimeline("30d");
   const historyData = useMemo(() => ({
@@ -155,10 +166,19 @@ export default function Dashboard() {
 
   // ─── TRACK MAP ZOOM ────────────────────────────────────────
   // 'moveend' (no 'move'): con 'move' hacíamos setState ~60 veces/seg y re-renderizaba todo.
+  // Además sólo se actualiza cuando el valor realmente cambia: React descarta los setState
+  // con el mismo valor, así que un paneo simple ya no cuesta un re-render del dashboard.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const onMoveEnd = () => { setMapZoom(map.getZoom()); setMapPitch(map.getPitch()); setMapBearing(map.getBearing()); };
+    const onMoveEnd = () => {
+      const showsSensors = map.getZoom() >= ZOOM_SENSORES;
+      setZoomShowsSensors(prev => (prev === showsSensors ? prev : showsSensors));
+      const pitch = Math.round(map.getPitch());
+      const bearing = Math.round(map.getBearing());
+      setMapPitch(prev => (prev === pitch ? prev : pitch));
+      setMapBearing(prev => (prev === bearing ? prev : bearing));
+    };
     map.on('moveend', onMoveEnd);
     return () => { map.off('moveend', onMoveEnd); };
   }, [mapLoaded]);
@@ -210,10 +230,6 @@ export default function Dashboard() {
 
   //const gateways = gatewayData?.gateways || [];
 
-  const hasCritical = (data?.alerts?.critical?.length ?? 0) > 0;
-  const hasMovements = (data?.alerts?.movimientos_anomalos?.length ?? 0) > 0;
-  const pulseClass = hasCritical ? 'map-alert-pulse-red' : hasMovements ? 'map-alert-pulse-purple' : null;
-
   const handleToggleShowAll = useCallback(() => {
     setShowAllSensors(s => !s);
   }, []);
@@ -224,7 +240,7 @@ export default function Dashboard() {
 
 
   return (
-    <div className="w-full h-full flex flex-col overflow-hidden">
+    <div className={`w-full h-full flex flex-col overflow-hidden ${isDark ? "bg-bg-100" : "bg-slate-50"}`}>
       <AlertTickerBanner data={data} />
 
       <button
@@ -236,8 +252,8 @@ export default function Dashboard() {
         {muted ? "🔇" : "🔊"}
       </button>
 
-      <div className={`flex-1 w-full min-h-0 ${isMobile ? "flex flex-row" : "grid grid-cols-12"} overflow-hidden`}>
-        <div className={`${!isMobile && "col-span-10"} h-full flex flex-col w-full relative min-h-0 overflow-hidden`}>
+      <div className={`flex-1 w-full min-h-0 ${isMobile ? "flex flex-row" : "grid grid-cols-12"} overflow-hidden ${isDark ? "" : "bg-gradient-to-br from-slate-50 via-white to-slate-100"}`}>
+        <div className={`${!isMobile && "col-span-10"} h-full flex flex-col w-full relative min-h-0 overflow-hidden ${isDark ? "" : "border-r border-slate-200/80"}`}>
           
           <MapErrorBoundary>
             <BaseMap 
@@ -247,23 +263,20 @@ export default function Dashboard() {
               initialPitch={45}
               initialBearing={-55}
             >
-              {pulseClass && (
-                <div
-                  className="absolute inset-0 z-10 pointer-events-none"
-                  style={{ animation: `${pulseClass} 2s ease-in-out infinite`, borderRadius: 'inherit', background: hasCritical ? 'radial-gradient(ellipse at center, rgba(239,68,68,0.25) 0%, transparent 70%)' : 'radial-gradient(ellipse at center, rgba(168,85,247,0.25) 0%, transparent 70%)' }}
-                />
-              )}
+              {/* Se quitó el overlay de pulso a pantalla completa: era una capa del tamaño del
+                  viewport mezclándose sobre el canvas WebGL en cada frame sin aportar nada
+                  visible sobre la imagen satelital. */}
               <MapOverlayInfo data={data} />
 
               {/* Indicadores de inclinación, rotación y FPS */}
-<div className="absolute bottom-2 left-2 z-20 bg-black/70 border border-white/20 rounded px-2 py-1 text-[10px] font-mono text-white/90 shadow-lg flex items-center gap-3">
+<div className={`absolute bottom-2 left-2 z-20 border rounded px-2 py-1 text-[10px] font-mono shadow-lg flex items-center gap-3 ${isDark ? "bg-black/70 border-white/20 text-white/90" : "bg-white/85 border-slate-200 text-slate-700"}`}>
   <div className="flex items-center gap-1">
-    <span className="text-white/50">Pitch</span>
-    <span className="font-bold text-cyan-300">{Math.round(mapPitch)}°</span>
+    <span className={isDark ? "text-white/50" : "text-slate-500"}>Pitch</span>
+    <span className={`font-bold ${isDark ? "text-cyan-300" : "text-cyan-700"}`}>{Math.round(mapPitch)}°</span>
   </div>
   <div className="flex items-center gap-1">
-    <span className="text-white/50">Bear</span>
-    <span className="font-bold text-amber-300">{Math.round(mapBearing)}°</span>
+    <span className={isDark ? "text-white/50" : "text-slate-500"}>Bear</span>
+    <span className={`font-bold ${isDark ? "text-amber-300" : "text-amber-700"}`}>{Math.round(mapBearing)}°</span>
   </div>
   
   <FpsIndicator mapLoaded={mapLoaded} />
@@ -278,7 +291,7 @@ export default function Dashboard() {
               {/* El buscador de sensores vive en MapLayers (es quien controla el popup) */}
               {/* Alertas críticas con su contador, arriba a la derecha del mapa */}
               {(data?.alerts?.critical?.length ?? 0) > 0 && (
-                <div className="absolute top-12 right-12 z-20 flex flex-col bg-red-950/85 border border-red-500/50 rounded-lg px-3 py-2 shadow-lg backdrop-blur-sm min-w-44 max-w-64 max-h-[55vh] overflow-y-auto">
+                <div className={`absolute top-12 right-12 z-20 flex flex-col rounded-lg px-3 py-2 shadow-lg min-w-44 max-w-64 max-h-[55vh] overflow-y-auto ${isDark ? "bg-red-950/90 border border-red-500/50" : "bg-red-50 border border-red-200 shadow-[0_12px_30px_rgba(239,68,68,0.12)]"}`}>
                   <div className="flex items-center gap-1.5 mb-1">
                     <svg width="16" height="16" viewBox="-9 -9 18 18" className="animate-pulse shrink-0">
                       <circle cx="0" cy="0" r="8" fill="#ef4444" />
@@ -289,7 +302,7 @@ export default function Dashboard() {
                   <CriticalAlertCounters alerts={data?.alerts?.critical || []} />
                 </div>
               )}
-              <MapLayers data={data} gateways={gateways} showAllSensors={showAllSensors} onToggleShowAll={handleToggleShowAll} mapZoom={mapZoom} focusRequest={mapFocus} />
+              <MapLayers data={data} gateways={gateways} showAllSensors={showAllSensors} onToggleShowAll={handleToggleShowAll} showSensorsFromZoom={zoomShowsSensors} focusRequest={mapFocus} />
             </BaseMap>
           </MapErrorBoundary>
 
@@ -297,7 +310,7 @@ export default function Dashboard() {
         </div>
 
         <RightBarDashboard 
-          timelineData={timelineData?.alerts || []}
+          timelineData={timelineAlerts}
           timelineRange={timelineRange}
           setTimelineRange={setTimelineRange}
           isLoading={isLoading}

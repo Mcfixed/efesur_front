@@ -23,11 +23,12 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const { data: sessionData, isPending } = useBetterAuthSession();
+  const { data: sessionData, isPending, error: sessionQueryError } = useBetterAuthSession();
   const [error, setError] = useState<string | null>(null);
+  // Se activa cuando no se pudo validar la sesión (base/red caída), no cuando no hay sesión.
+  const [falloSesion, setFalloSesion] = useState(false);
 
   // Estado local para reflejar el login inmediatamente mientras better-auth
-  // sincroniza su store reactivo (useBetterAuthSession) desde la cookie.
   const [localAuth, setLocalAuth] = useState<{
     user: BetterAuthUser | null;
     isAuthenticated: boolean;
@@ -39,7 +40,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
   );
 
   // Al montar (o tras un F5), si hay token en localStorage intentamos restaurar
-  // la sesión llamando a getSession() — customFetchImpl ya inyecta el header.
   useEffect(() => {
     const token = localStorage.getItem("auth_token");
     if (!token) return;
@@ -50,22 +50,41 @@ export function AuthProvider({ children }: AuthProviderProps) {
           user: result.data.user as BetterAuthUser,
           isAuthenticated: true,
         });
+        setFalloSesion(false);
       } else {
-        // Token inválido o expirado — limpiar
+        // Respuesta válida sin usuario: el token sí es inválido o expiró — limpiar
         localStorage.removeItem("auth_token");
       }
     }).catch(() => {
-      localStorage.removeItem("auth_token");
+      // No se pudo validar (base caída / red): se CONSERVA el token y se avisa para reintentar.
+      setFalloSesion(true);
     }).finally(() => {
       setIsRestoringSession(false);
     });
+  }, []);
+
+  // Reintenta validar la sesión sin recargar la página (usado cuando el backend no responde)
+  const reintentarSesion = useCallback(async () => {
+    try {
+      const result = await authClient.getSession();
+      if (result?.data?.user) {
+        setLocalAuth({
+          user: result.data.user as BetterAuthUser,
+          isAuthenticated: true,
+        });
+        setFalloSesion(false);
+        return true;
+      }
+    } catch {
+      /* el backend sigue sin responder */
+    }
+    return false;
   }, []);
 
   const signInWithEmail = useCallback(
     async (email: string, password: string) => {
       setError(null);
       // service_code se inyecta automáticamente en authClient (customFetchImpl)
-      // signIn.email() retorna { data, error } — nunca lanza excepción
       const result = await authClient.signIn.email({ email, password });
 
       if (result.error) {
@@ -75,14 +94,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       // Guardar token en localStorage para enviarlo como Authorization header
-      // (las cookies cross-origin en HTTP son bloqueadas por Chrome)
       const token = (result.data as { session?: { token?: string } } | null)?.session?.token;
       if (token) {
         localStorage.setItem("auth_token", token);
       }
 
       // Guardar user en estado local para que isAuthenticated sea true
-      // de inmediato, sin esperar que useBetterAuthSession sincronice la cookie.
       setLocalAuth({
         user: (result.data?.user as BetterAuthUser) ?? null,
         isAuthenticated: true,
@@ -130,7 +147,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const refreshSession = useCallback(async () => {}, []);
 
   // localAuth actúa como override inmediato tras el login;
-  // sessionData toma el control una vez que better-auth sincroniza la cookie.
   const effectiveUser = (sessionData?.user as BetterAuthUser | null) ?? localAuth?.user ?? null;
   const effectiveSession = sessionData?.session as Session | null;
   const isAuthenticated = !!effectiveSession || (localAuth?.isAuthenticated ?? false);
@@ -141,6 +157,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isLoading: isPending || isRestoringSession,
     isAuthenticated,
     error,
+    // Error al consultar la sesión sin usuario: casi siempre es la base caída, no un logout
+    sessionError: falloSesion || (!!sessionQueryError && !sessionData?.user),
+    reintentarSesion,
     signIn: {
       email: signInWithEmail,
       social: signInWithSocial,

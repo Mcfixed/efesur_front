@@ -1,5 +1,5 @@
 import { apiClient } from "@/apis";
-import type { MonitorSummary, MonitorSensorDay, MonitorAlertDay, MonitorCalendarDay, MonitorAlertDetail, MonitorDevice, SystemServicesStatus, MonitorDayReport, MonitorSatReport, MonitorGatewaysUptime } from "../types/monitor.types";
+import type { MonitorSummary, MonitorSensorDay, MonitorAlertDay, MonitorCalendarDay, MonitorAlertDetail, MonitorDevice, SystemServicesStatus, MonitorDayReport, MonitorSatReport, MonitorGatewaysUptime, MonitorDeviceTrack } from "../types/monitor.types";
 
 export const monitorService = {
   getSummary: async () => {
@@ -27,6 +27,11 @@ export const monitorService = {
   // Caídas del período por gateway (mini gráfico de uptime de la tabla del panel técnico)
   getGatewaysUptime: async (dias = 7) => {
     const r = await apiClient.get<{data: MonitorGatewaysUptime}>("/monitor/gateways/uptime", { dias });
+    return r.data.data;
+  },
+  // Recorrido de un tracker (LillieGo): puntos con fix GPS + gateways que recibieron cada punto
+  getDeviceTrack: async (deviceId: number, opts?: { from?: string; to?: string }) => {
+    const r = await apiClient.get<{data: MonitorDeviceTrack}>(`/monitor/devices/${deviceId}/track`, opts);
     return r.data.data;
   },
   getCalendar: async (year: number, month: number) => {

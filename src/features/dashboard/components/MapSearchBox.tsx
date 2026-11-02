@@ -89,7 +89,7 @@ export default function MapSearchBox({ data, gateways, onSelect }: Props) {
           onFocus={() => { if (results.length) setOpen(true); }}
           onKeyDown={handleKeyDown}
           placeholder="Buscar sensor o gateway..."
-          className="w-full bg-bg-100/90 backdrop-blur-sm border border-border/40 rounded-lg pl-8 pr-3 py-2 text-[12px] text-text-100 placeholder:text-text-300 outline-none focus:border-brand-100/50 focus:bg-bg-100 shadow-lg transition-colors"
+          className="w-full bg-bg-100/95 border border-border/40 rounded-lg pl-8 pr-3 py-2 text-[12px] text-text-100 placeholder:text-text-300 outline-none focus:border-brand-100/50 focus:bg-bg-100 shadow-lg transition-colors"
         />
       </div>
 

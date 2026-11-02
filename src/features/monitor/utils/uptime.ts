@@ -1,8 +1,4 @@
 // ─── Uptime de gateways ───
-// Los gateways no generan telemetría propia: su disponibilidad se deriva de las alertas de
-// desconexión, donde created_at → resolved_at es el período caído (una alerta abierta sigue
-// contando hasta ahora). Estas funciones las comparten el panel del gateway y la tabla del
-// panel técnico, para que los dos muestren exactamente el mismo número.
 
 export interface IntervaloCaida { start: number; end: number }
 export interface SegmentoUptime { start: number; end: number; online: boolean }

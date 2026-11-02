@@ -110,6 +110,7 @@ export function DeviceForm({ initialData, companies, lectors, gateways, onSubmit
           <option value="Gateway">Gateway LoRaWAN</option>
           <option value="SubEstacion">Subestación</option>
           <option value="Lector">Lector</option>
+          <option value="LillieGo">LillieGo (tracker GPS)</option>
         </select>
       </div>
 

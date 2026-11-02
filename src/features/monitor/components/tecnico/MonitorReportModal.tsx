@@ -1,11 +1,12 @@
 import { useState, useMemo, useEffect } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { useBetterSession } from "@/libs/better-auth";
 import { useMonitorDevices } from "../../hooks/useMonitor";
 import { monitorService } from "../../services/monitor.service";
 import { generarAnexoSat } from "../../utils/satExcel";
 import { matchesSearch } from "@/utils/text";
-import { IconX, IconSearch, IconFileReport, IconBattery, IconWifi, IconAlertTriangle, IconClipboardCheck } from "@tabler/icons-react";
+import { IconX, IconSearch, IconFileReport, IconBattery, IconWifi, IconAlertTriangle, IconClipboardCheck, IconCalendar, IconDevices } from "@tabler/icons-react";
 
 interface Props {
   onClose: () => void;
@@ -23,6 +24,15 @@ const REPORT_OPTIONS: { key: ReportType; label: string; desc: string; icon: any 
 
 export default function MonitorReportModal({ onClose }: Props) {
   const { data: allDevices } = useMonitorDevices();
+  const { user } = useBetterSession();
+  // El anexo SAT sólo lo generan los superadministradores (bloqueado también en el backend).
+  const rol = user?.role ?? 'visualizador';
+  const puedeVerSat = rol === 'superadmin';
+  const opciones = useMemo(
+    () => (puedeVerSat ? REPORT_OPTIONS : REPORT_OPTIONS.filter(o => o.key !== 'sat')),
+    [puedeVerSat]
+  );
+  // Tipo efectivo: si no puede ver el anexo SAT, nunca se genera ese reporte (sin effects ni parpadeo).
   const [fromDate, setFromDate] = useState(format(new Date(Date.now() - 30 * 86400000), "yyyy-MM-dd"));
   const [toDate, setToDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -30,12 +40,12 @@ export default function MonitorReportModal({ onClose }: Props) {
   const [, setReportData] = useState<any>(null);
   const [reportType, setReportType] = useState<ReportType>('general');
   const [searchTerm, setSearchTerm] = useState('');
+  const tipo: ReportType = reportType === 'sat' && !puedeVerSat ? 'general' : reportType;
 
   // Dispositivos visibles: todos los tipos en todos los reportes
   const visibleDevices = useMemo(() => (allDevices || []), [allDevices]);
 
   // ─── Buscador de dispositivos ───
-  // Filtra por nombre, EUI o tipo (ignora mayúsculas y tildes; varios términos = AND).
   const filteredDevices = useMemo(
     () => visibleDevices.filter(d => matchesSearch(searchTerm, d.name, d.dev_eui, d.type_device)),
     [visibleDevices, searchTerm]
@@ -92,14 +102,13 @@ export default function MonitorReportModal({ onClose }: Props) {
 
   const generatePDF = async () => {
     if (selectedIds.size === 0) return;
-    if (reportType === 'general') await generateGeneralPDF();
-    else if (reportType === 'battery') await generateBatteryPDF();
-    else if (reportType === 'connectivity') await generateConnectivityPDF();
-    else if (reportType === 'alerts') await generateAlertsPDF();
+    if (tipo === 'general') await generateGeneralPDF();
+    else if (tipo === 'battery') await generateBatteryPDF();
+    else if (tipo === 'connectivity') await generateConnectivityPDF();
+    else if (tipo === 'alerts') await generateAlertsPDF();
   };
 
   // Anexo SAT: arma el Excel de verificación de funcionamiento con los últimos 5 días.
-  // No usa selección de dispositivos: el documento cubre todos los sensores activos.
   const generateSatExcel = async () => {
     setLoading(true);
     try {
@@ -1088,18 +1097,19 @@ export default function MonitorReportModal({ onClose }: Props) {
           {/* Tipo de reporte */}
           <div>
             <p className="text-xs font-bold text-text-300 uppercase tracking-wider mb-3">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand-200 mr-1.5 align-middle"></span>
+              <IconFileReport size={12} className="inline-block mr-1.5 align-middle text-text-400" />
               Tipo de reporte
             </p>
-            <div className="grid grid-cols-6 gap-2">
-              {REPORT_OPTIONS.map(opt => (
+            <div className={`grid gap-2 ${opciones.length >= 6 ? 'grid-cols-6' : 'grid-cols-5'}`}>
+              {opciones.map(opt => (
                 <button key={opt.key} onClick={() => setReportType(opt.key)}
                   className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border-2 text-center transition-all ${
-                    reportType === opt.key
+                    tipo === opt.key
                       ? 'border-brand-100/50 bg-brand-100/10 text-text-200 shadow-sm'
                       : 'border-border/30 bg-bg-200/30 text-text-300 hover:border-border/60 hover:bg-bg-200/60 hover:text-text-200'
                   }`}>
-                  <opt.icon size={18} className={reportType === opt.key ? 'text-brand-200' : 'text-text-300'} />
+                  {/* El icono seleccionado va en el color de marca (brand-200 es azul en el tema oscuro) */}
+                  <opt.icon size={18} className={tipo === opt.key ? 'text-brand-100' : 'text-text-300'} />
                   <span className="text-[10px] font-bold leading-tight">{opt.label}</span>
                   <span className="text-[7px] opacity-60 leading-tight hidden sm:block">{opt.desc}</span>
                 </button>
@@ -1108,10 +1118,10 @@ export default function MonitorReportModal({ onClose }: Props) {
           </div>
 
           {/* Fechas (no aplica al anexo SAT: usa siempre los últimos 5 días) */}
-          {reportType !== 'sat' && (
+          {tipo !== 'sat' && (
           <div>
             <p className="text-xs font-bold text-text-300 uppercase tracking-wider mb-3">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 align-middle"></span>
+              <IconCalendar size={12} className="inline-block mr-1.5 align-middle text-text-400" />
               Período
             </p>
             <div className="flex gap-4">
@@ -1130,10 +1140,10 @@ export default function MonitorReportModal({ onClose }: Props) {
           )}
 
           {/* Anexo SAT: resumen de lo que entrega el documento */}
-          {reportType === 'sat' && (
+          {tipo === 'sat' && (
           <div className="bg-bg-200/40 border border-border/20 rounded-xl px-4 py-3.5 space-y-2">
             <p className="text-xs font-bold text-text-200 uppercase tracking-wider">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-brand-200 mr-1.5 align-middle"></span>
+              <IconClipboardCheck size={12} className="inline-block mr-1.5 align-middle text-text-400" />
               Documento verificación de funcionamiento
             </p>
             <p className="text-xs text-text-300 leading-relaxed">
@@ -1154,11 +1164,11 @@ export default function MonitorReportModal({ onClose }: Props) {
           )}
 
           {/* Dispositivos (no aplica al anexo SAT: cubre todos los sensores activos) */}
-          {reportType !== 'sat' && (
+          {tipo !== 'sat' && (
           <div>
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs font-bold text-text-300 uppercase tracking-wider">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-purple-500 mr-1.5 align-middle"></span>
+                <IconDevices size={12} className="inline-block mr-1.5 align-middle text-text-400" />
                 Dispositivos
               </p>
               <button onClick={toggleAll} disabled={filteredDevices.length === 0}
@@ -1248,13 +1258,13 @@ export default function MonitorReportModal({ onClose }: Props) {
             className="px-4 py-2.5 text-sm font-semibold text-text-300 hover:text-text-200 bg-bg-200/50 hover:bg-bg-200 rounded-lg transition-colors">
             Cancelar
           </button>
-          <button onClick={() => (reportType === 'sat' ? generateSatExcel() : generatePDF())}
-            disabled={loading || (reportType !== 'sat' && selectedIds.size === 0)}
+          <button onClick={() => (tipo === 'sat' ? generateSatExcel() : generatePDF())}
+            disabled={loading || (tipo !== 'sat' && selectedIds.size === 0)}
             className="flex items-center gap-2.5 px-5 py-2.5 text-sm font-bold text-white bg-brand-200 hover:bg-brand-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors shadow-sm">
-            {reportType === 'sat' ? <IconClipboardCheck size={18} /> : <IconFileReport size={18} />}
+            {tipo === 'sat' ? <IconClipboardCheck size={18} /> : <IconFileReport size={18} />}
             {loading
               ? 'Generando...'
-              : reportType === 'sat'
+              : tipo === 'sat'
                 ? 'Descargar Excel  ·  Anexo SAT'
                 : `Generar PDF  ·  ${selectedIds.size} dispositivo${selectedIds.size !== 1 ? 's' : ''}`}
           </button>

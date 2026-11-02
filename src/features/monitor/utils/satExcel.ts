@@ -4,10 +4,6 @@ import { voltageToPercent } from "./battery";
 import type { MonitorSatReport, MonitorSatSensor, MonitorSatGateway } from "../types/monitor.types";
 
 // ─── Anexo SAT: "Documento verificación funcionamiento" ───
-// Genera el Excel de respaldo para el protocolo SAT de monitoreo de catenarias.
-// Sin colores ni formatos condicionales: solo datos, anchos de columna y autofiltro,
-// para que sea auditable y simple de revisar (y de pegar en el informe SAT).
-// La clasificación se hace aquí (el backend entrega datos crudos de la ventana).
 
 /** Umbrales aplicados. Los del protocolo son fijos; los internos se acuerdan con el mandante. */
 export const SAT_CRITERIOS = {
@@ -31,8 +27,6 @@ const fechaHora = (ts?: string | null) => (ts ? format(new Date(ts), "yyyy-MM-dd
 const n0 = (v: number | null | undefined, dec = 0) => (v == null ? "" : Number(v.toFixed(dec)));
 
 // ─── Presentación ───
-// La versión community de SheetJS no escribe negrita, colores ni bordes, así que el orden visual
-// se logra con celdas combinadas, formato numérico real, anchos, altos de fila y grupos colapsables.
 type Celda = string | number | "" | XLSX.CellObject;
 type Fila = Celda[];
 
@@ -135,7 +129,6 @@ export function generarAnexoSat(data: MonitorSatReport) {
   const wb = XLSX.utils.book_new();
 
   // ─── 1) Control documental ───
-  // Las secciones se destacan combinando las dos columnas y dándoles más alto de fila.
   const control: (string | number)[][] = [];
   const bandas: number[] = [];
   const banda = (titulo: string) => { bandas.push(control.length); control.push([titulo, ""]); };

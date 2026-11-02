@@ -1,7 +1,10 @@
 import { IconDeviceSdCard, IconAntenna, IconAlertTriangle, IconAlertCircle, IconAlertHexagon, IconWifiOff } from "@tabler/icons-react";
+import { useTheme } from "@/context/ThemeContext";
 import type { DashboardData } from "../types/dashboard.types";
 
 export default function MapOverlayInfo({ data }: { data?: DashboardData }) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const alerts = [
     { count: data?.summary?.criticalAlertsCount || 0, icon: IconAlertTriangle, color: 'text-red-400', bg: 'bg-red-500' },
     { count: data?.summary?.atencionAlertsCount || 0, icon: IconAlertCircle, color: 'text-yellow-400', bg: 'bg-yellow-500' },
@@ -14,15 +17,16 @@ export default function MapOverlayInfo({ data }: { data?: DashboardData }) {
 
   return (
     <div
-      className={`absolute top-2 left-2 z-10 flex flex-col gap-1 backdrop-blur-sm rounded-lg px-2.5 py-2 shadow-lg min-w-36 ${
+      className={`absolute top-2 left-2 z-10 flex flex-col gap-1 rounded-lg px-2.5 py-2 min-w-36 $
         isUrgent
-          ? "bg-red-500/10 border border-red-500/30"
-          : "bg-bg-100/85 border border-border/30"
+          ? "bg-red-50 border border-red-500/40"
+          : isDark
+            ? "bg-bg-100/95 border border-border/30"
+            : "surface-card-3"
       }`}
       style={isUrgent ? {
-        boxShadow: '0 0 15px rgba(239,68,68,0.15), 0 0 30px rgba(239,68,68,0.05)',
-        animation: 'pulse-border 2s ease-in-out infinite'
-      } : undefined}
+        boxShadow: '0 0 15px rgba(239,68,68,0.15), 0 0 30px rgba(239,68,68,0.05)'
+      } : isDark ? undefined : { boxShadow: '0 8px 30px rgba(15, 23, 42, 0.08)' }}
     >
 
       {/* GPS + Gateways */}

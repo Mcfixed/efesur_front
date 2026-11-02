@@ -51,11 +51,16 @@
 @layer base {
   :root {
     /* Fondos (Backgrounds) */
-    --bg-100: #f2f2f2;
-    --bg-200: #e7e7e7;
+    --bg-100: #f5f7f8;
+    --bg-200: #eef3f6;
     --bg-300: #ffffff;
     --bg-400: #000000;
     --bg-450: #292929;
+
+    /* Superficies de tarjetas y paneles */
+    --surface-card-1: #f9fafb;
+    --surface-card-2: #f3f6f8;
+    --surface-card-3: #ffffff;
 
     /* Interacción */
     --bg-hover: #e2e8f0;
@@ -82,6 +87,9 @@
     --bg-300: #373a42;
     --bg-400: #dce0e4;
     --bg-450: #ffffff;
+    --surface-card-1: #171b20;
+    --surface-card-2: #1d232b;
+    --surface-card-3: #0f1419;
 
     /* Interacción */
 
@@ -156,6 +164,24 @@
   section:not([aria-label]) {
     @apply w-full min-w-screen min-h-150;
   }
+
+  .surface-card-1 {
+    background: var(--surface-card-1);
+    border: 1px solid var(--border-200);
+    box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
+  }
+
+  .surface-card-2 {
+    background: var(--surface-card-2);
+    border: 1px solid var(--border-200);
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
+  }
+
+  .surface-card-3 {
+    background: var(--surface-card-3);
+    border: 1px solid var(--border-200);
+    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.06);
+  }
 }
 
 body {
@@ -198,14 +224,6 @@ body {
 }
 
 /* Dashboard */
-@keyframes map-alert-pulse-red {
-  0%, 100% { opacity: 0; }
-  50% { opacity: 0.5; }
-}
-@keyframes map-alert-pulse-purple {
-  0%, 100% { opacity: 0; }
-  50% { opacity: 0.5; }
-}
 
 /* DASHBOARD/MAPLAYER  estilos*/
 
@@ -241,6 +259,9 @@ body {
 }
 .marker-pulse-gw {
   animation: markerPulseGw 2.2s ease-out infinite;
+  /* Promueve la capa: la animación la resuelve el compositor y no re-rasteriza
+     el marcador en cada frame del mapa. */
+  will-change: transform, opacity;
 }
 /* Badge de evento del gateway: respiración lenta y de baja amplitud.
    Con `animate-pulse` de Tailwind (opacidad 1 -> 0.5 cada 2 s) el badge parpadeaba
@@ -251,6 +272,7 @@ body {
 }
 .marker-badge-soft {
   animation: badgeBreathe 3.6s ease-in-out infinite;
+  will-change: transform, opacity;
 }
 /* alerttickerbanner */
 .ticker-track {
@@ -263,9 +285,108 @@ body {
 }
 .ticker-animate {
   animation: ticker-scroll 60s linear infinite;
+  will-change: transform;
 }
-/* mapoverlayinfo */
-@keyframes pulse-border {
-  0%, 100% { border-color: rgba(239,68,68,0.4); }
-  50% { border-color: rgba(239,68,68,0.8); }
+
+/* ─── Panel de Resumen (monitor) ───
+   Jerarquía de blancos para el tema claro: lienzo gris muy suave → tarjeta blanca con sombra
+   difusa → cabecera blanca con divisor tenue. En oscuro se mantienen los tokens del tema. */
+.resumen-canvas {
+  background: #f3f5f9;
+}
+.dark .resumen-canvas {
+  background: transparent;
+}
+
+.resumen-card {
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.04),
+    0 14px 28px -20px rgba(16, 24, 40, 0.28);
+}
+.dark .resumen-card {
+  /* Mismo negro que bg-bg-100: en oscuro la tarjeta se iguala al fondo de la página
+     y la separación la da el borde. */
+  background: var(--bg-100);
+  border-color: var(--border-100);
+  box-shadow: none;
+}
+
+.resumen-card-head {
+  background: #ffffff;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+.dark .resumen-card-head {
+  background: transparent;
+  border-bottom-color: var(--border-100);
+}
+
+/* Cabecera de tabla pegajosa (debe ser opaca) */
+.resumen-thead {
+  background: #ffffff;
+}
+.dark .resumen-thead {
+  background: var(--bg-100);
+}
+
+/* Filas: sin cebreado, sólo divisor tenue + hover */
+.resumen-row {
+  border-bottom: 1px solid rgba(15, 23, 42, 0.045);
+  transition: background-color 0.15s ease;
+}
+.resumen-row:last-child {
+  border-bottom: 0;
+}
+.resumen-row:hover {
+  background: rgba(15, 23, 42, 0.028);
+}
+.dark .resumen-row {
+  border-bottom-color: rgba(255, 255, 255, 0.055);
+}
+.dark .resumen-row:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+/* Chips de estado */
+.resumen-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.resumen-chip-ok {
+  background: #ecfdf5;
+  color: #047857;
+  box-shadow: inset 0 0 0 1px rgba(4, 120, 87, 0.14);
+}
+.dark .resumen-chip-ok {
+  background: rgba(16, 185, 129, 0.14);
+  color: #34d399;
+  box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.22);
+}
+.resumen-chip-bad {
+  background: #fff1f2;
+  color: #be123c;
+  box-shadow: inset 0 0 0 1px rgba(190, 18, 60, 0.14);
+}
+.dark .resumen-chip-bad {
+  background: rgba(244, 63, 94, 0.14);
+  color: #fb7185;
+  box-shadow: inset 0 0 0 1px rgba(244, 63, 94, 0.22);
+}
+.resumen-chip-warn {
+  background: #fffbeb;
+  color: #b45309;
+  box-shadow: inset 0 0 0 1px rgba(180, 83, 9, 0.16);
+}
+.dark .resumen-chip-warn {
+  background: rgba(245, 158, 11, 0.14);
+  color: #fbbf24;
+  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.22);
 }

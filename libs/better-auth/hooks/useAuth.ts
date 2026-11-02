@@ -16,13 +16,16 @@ export function useAuth() {
 
 
 export function useSession() {
-  const { session, user, isAuthenticated, isLoading } = useAuthContext();
+  const { session, user, isAuthenticated, isLoading, sessionError, reintentarSesion } =
+    useAuthContext();
 
   return {
     session,
     user,
     isAuthenticated,
     isLoading,
+    sessionError,
+    reintentarSesion,
   };
 }
 
