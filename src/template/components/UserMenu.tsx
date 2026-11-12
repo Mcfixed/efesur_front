@@ -7,8 +7,6 @@ import {
   ADMIN_MENU_ITEMS,
   LOGOUT_ITEM,
 } from "@/template/config";
-import LineGradientWhite from "@/components/ui/LineGradientWhite";
-
 export default function UserMenu() {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -37,8 +35,6 @@ export default function UserMenu() {
 
   return (
     <div className="relative" ref={menuRef}>
-      <LineGradientWhite top="" height="0.05rem" color="#a7acb6" />
-
       {/* Trigger */}
       <button
         onClick={() => setIsOpen(!isOpen)}

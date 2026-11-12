@@ -30,8 +30,8 @@ function colorCelda(s: SensorActividad): string {
 
 function estadoVisible(s: SensorActividad): { label: string; className: string } {
   return s.estado === "activo"
-    ? { label: "Reportando", className: "text-emerald-500" }
-    : { label: "Sin reporte", className: "text-slate-400" };
+    ? { label: "Reportando", className: "resumen-num-ok" }
+    : { label: "Sin reporte", className: "resumen-num-muted" };
 }
 
 interface Hover {
@@ -47,7 +47,7 @@ interface Hover {
  * Verde = reportando, plomo = sin reporte (no muestra alertas).
  * Al pasar el mouse se muestra el sensor y su último dato.
  */
-export default function ResumenSensorActivity({ sensores, activosPorDia = [] }: { sensores: SensorActividad[]; activosPorDia?: DiaActivos[] }) {
+export default function ResumenSensorActivity({ sensores, activosPorDia = [], onOpenDevice }: { sensores: SensorActividad[]; activosPorDia?: DiaActivos[]; onOpenDevice?: (id: number) => void }) {
   const [hover, setHover] = useState<Hover | null>(null);
   const [vista, setVista] = useState<VistaActividad>("ahora");
 
@@ -88,16 +88,16 @@ export default function ResumenSensorActivity({ sensores, activosPorDia = [] }: 
   return (
     <div className="rounded-lg resumen-card flex flex-1 flex-col min-h-0 overflow-hidden">
       <div className="shrink-0 flex items-center justify-between gap-2 px-3 py-2 resumen-card-head">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-text-200 truncate">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-200 truncate">
           Mapa de actividad de sensores
-          <span className="ml-1.5 text-text-400 normal-case tracking-normal font-medium">({sensores.length})</span>
+          <span className="ml-1.5 text-text-300 normal-case tracking-normal font-medium">({sensores.length})</span>
         </p>
         <div className="flex items-center gap-2.5 shrink-0">
           <span className="hidden sm:inline text-[12px] text-text-200 whitespace-nowrap">
-            <span className="font-bold text-emerald-500">{conteo.activos}</span> activos ·{" "}
-            <span className="font-bold text-slate-400">{conteo.sinReporte}</span> sin reporte
+            <span className="font-bold resumen-num-ok">{conteo.activos}</span> activos ·{" "}
+            <span className="font-bold resumen-num-muted">{conteo.sinReporte}</span> sin reporte
           </span>
-          <div className="flex items-center gap-0.5 rounded-lg border border-border/60 bg-bg-200 p-0.5">
+          <div className="flex items-center gap-0.5 rounded-lg resumen-seg p-0.5">
             {([
               ["ahora", "Ahora", "Grilla por PK con el estado de reporte de cada sensor"],
               ["mapa", "Mapa", "Mapa geográfico en vista cobertura, con sensores, gateways y popups"],
@@ -107,7 +107,7 @@ export default function ResumenSensorActivity({ sensores, activosPorDia = [] }: 
                 type="button"
                 onClick={() => setVista(v)}
                 title={hint}
-                className={`rounded-md px-2 py-0.5 text-[10px] font-semibold transition-colors ${vista === v ? "bg-bg-300 text-text-100 shadow-sm" : "text-text-300 hover:text-text-100"}`}
+                className={`rounded-md px-2 py-0.5 text-[11px] font-semibold transition-colors ${vista === v ? "resumen-seg-btn text-text-100" : "text-text-300 hover:text-text-100"}`}
               >
                 {label}
               </button>
@@ -135,12 +135,9 @@ export default function ResumenSensorActivity({ sensores, activosPorDia = [] }: 
             {grupos.map(g => (
               <div key={g.key} className="min-w-0">
                 <div className="flex items-baseline gap-1 mb-0.5">
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-text-200 whitespace-nowrap">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-text-200 whitespace-nowrap">
                     {g.pk == null ? "Sin PK" : `PK ${g.pk}`}
                   </span>
-                  {g.via != null && (
-                    <span className="text-[8px] font-semibold text-text-400 whitespace-nowrap">V{g.via}</span>
-                  )}
                 </div>
                 {/* Todos los sensores del PK en una sola línea: crecen hasta 14 px y se
                     achican si el tramo tiene muchos, sin desbordar la columna. */}
@@ -149,7 +146,8 @@ export default function ResumenSensorActivity({ sensores, activosPorDia = [] }: 
                     <div
                       key={s.id}
                       title={`${s.name} · ${s.ultimo}`}
-                      className={`flex-1 min-w-0 max-w-3.5 aspect-square rounded-xs cursor-help ${colorCelda(s)}`}
+                      className={`flex-1 min-w-0 max-w-3.5 aspect-square rounded-xs ${onOpenDevice ? "cursor-pointer" : "cursor-help"} ${colorCelda(s)}`}
+                      onClick={onOpenDevice ? () => { setHover(null); onOpenDevice(s.id); } : undefined}
                       onMouseEnter={e => {
                         const r = e.currentTarget.getBoundingClientRect();
                         const abajo = r.top < 110;
@@ -178,15 +176,15 @@ export default function ResumenSensorActivity({ sensores, activosPorDia = [] }: 
             top: hover.abajo ? hover.y + 8 : hover.y - 8,
           }}
         >
-          <div className="rounded-lg border border-border/60 bg-bg-100 shadow-2xl px-2.5 py-2 min-w-52 max-w-64">
+          <div className="rounded-lg border border-border bg-bg-200 shadow-2xl px-2.5 py-2 min-w-52 max-w-64">
             <div className="flex items-center gap-1.5">
               <span className={`w-2 h-2 rounded-sm shrink-0 ${colorCelda(hover.s)}`} />
-              <p className="text-[11px] font-bold text-text-100 truncate">{hover.s.name}</p>
+              <p className="text-[12px] font-bold text-text-100 truncate">{hover.s.name}</p>
             </div>
-            <p className="text-[9px] font-mono text-text-300 truncate mt-0.5">
+            <p className="text-[10px] font-mono text-text-300 truncate mt-0.5">
               {hover.s.devEui} · {hover.s.tipo === "SubEstacion" ? "SubEst." : hover.s.tipo}
             </p>
-            <div className="mt-1.5 pt-1.5 border-t border-border/30 space-y-0.5 text-[10px]">
+            <div className="mt-1.5 pt-1.5 border-t border-border/60 space-y-1 text-[11px]">
               <div className="flex items-center justify-between gap-3">
                 <span className="text-text-300">Estado</span>
                 <span className={`font-semibold ${estadoVisible(hover.s).className}`}>

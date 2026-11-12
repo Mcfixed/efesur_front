@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { useMonitorDevices } from "../../hooks/useMonitor";
 import { useMonitorDeviceTelemetry, useMonitorLatestTelemetry } from "../../hooks/useMonitor";
@@ -17,7 +17,7 @@ const RANGES = [
 // Tipos que tienen pestaña propia en la lista (Gateway, Gps, Lector). El resto (LillieGo) se
 const TABS_CON_TABLA = ["Gateway", "Gps", "Lector"];
 
-export default function MonitorTelemetryView() {
+export default function MonitorTelemetryView({ focusDeviceId }: { focusDeviceId?: number | null }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [range, setRange] = useState("24h");
   const [deviceTab, setDeviceTab] = useState("Gateway");
@@ -60,6 +60,19 @@ export default function MonitorTelemetryView() {
   const chartRows = useMemo(() => chartSampleData?.telemetry ?? [], [chartSampleData]);
 
   useEffect(() => { setTelemetryOffset(0); }, [selectedDevice?.id, range]);
+
+  // Salto desde el resumen: selecciona el dispositivo recibido una sola vez por id.
+  const focusAplicado = useRef<number | null>(null);
+  useEffect(() => {
+    if (focusDeviceId == null || focusAplicado.current === focusDeviceId) return;
+    if (!allDevices?.length) return;
+    const d = allDevices.find((x) => x.id === focusDeviceId);
+    if (!d) return;
+    focusAplicado.current = focusDeviceId;
+    setSearchTerm("");
+    setDeviceTab(d.type_device);
+    setSelectedDeviceSnapshot(d);
+  }, [focusDeviceId, allDevices]);
 
   const gatewayNameMap = useMemo(() => {
     const map = new Map<string, string>();

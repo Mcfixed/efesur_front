@@ -40,6 +40,9 @@ export default function Dashboard() {
   const [mapBearing, setMapBearing] = useState(-55);
   const mapRef = useRef<MapRef | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  // Se incrementa en cada (re)montaje del mapa: al cambiar de capa BaseMap lo remonta
+  // (key={selectedLayer}) y hay que volver a enganchar listeners y rehacer el autozoom.
+  const [mapNonce, setMapNonce] = useState(0);
   const lastCriticalIds = useRef<string | null>(null);
 
 
@@ -181,7 +184,7 @@ export default function Dashboard() {
     };
     map.on('moveend', onMoveEnd);
     return () => { map.off('moveend', onMoveEnd); };
-  }, [mapLoaded]);
+  }, [mapLoaded, mapNonce]);
 
   // ─── AUTO ZOOM ─────────────────────────────────────────────
   // Lógica simple: si hay críticas → zoom a críticas, si no → zoom a todos
@@ -226,7 +229,7 @@ export default function Dashboard() {
         { padding: hasCritical ? 10 : 60, maxZoom: 25, duration: 1000, pitch: 45, bearing: -55 }
       );
     }
-  }, [data, mapLoaded, gatewayData]);
+  }, [data, mapLoaded, gatewayData, mapNonce]);
 
   //const gateways = gatewayData?.gateways || [];
 
@@ -240,7 +243,7 @@ export default function Dashboard() {
 
 
   return (
-    <div className={`w-full h-full flex flex-col overflow-hidden ${isDark ? "bg-bg-100" : "bg-slate-50"}`}>
+    <div className={`w-full h-full flex flex-col overflow-hidden ${isDark ? "bg-bg-100" : "bg-bg-200"}`}>
       <AlertTickerBanner data={data} />
 
       <button
@@ -252,12 +255,17 @@ export default function Dashboard() {
         {muted ? "🔇" : "🔊"}
       </button>
 
-      <div className={`flex-1 w-full min-h-0 ${isMobile ? "flex flex-row" : "grid grid-cols-12"} overflow-hidden ${isDark ? "" : "bg-gradient-to-br from-slate-50 via-white to-slate-100"}`}>
-        <div className={`${!isMobile && "col-span-10"} h-full flex flex-col w-full relative min-h-0 overflow-hidden ${isDark ? "" : "border-r border-slate-200/80"}`}>
+      <div className={`flex-1 w-full min-h-0 ${isMobile ? "flex flex-row" : "grid grid-cols-12"} overflow-hidden ${isDark ? "" : "bg-gradient-to-br from-bg-100 via-bg-200 to-bg-100"}`}>
+        <div className={`${!isMobile && "col-span-10"} h-full flex flex-col w-full relative min-h-0 overflow-hidden ${isDark ? "" : "border-r border-border/70"}`}>
           
           <MapErrorBoundary>
             <BaseMap 
-              onMapRef={(map) => { mapRef.current = map; setMapLoaded(!!map); }} 
+              onMapRef={(map) => {
+                mapRef.current = map;
+                setMapLoaded(!!map);
+                // Mapa nuevo → se invalida el fingerprint para que el autozoom se repita
+                if (map) { lastCriticalIds.current = null; setMapNonce(n => n + 1); }
+              }} 
               initialCenter={{ longitude: -71.0, latitude: -33.0 }} 
               initialZoom={5}
               initialPitch={45}

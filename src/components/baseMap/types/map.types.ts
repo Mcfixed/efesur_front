@@ -1,7 +1,7 @@
 import type { MapRef } from "react-map-gl";
 import type { StyleSpecification } from "mapbox-gl";
 
-export type MapLayer = "street" | "dark" | "satellite" | "smooth" | "smooth_labels";
+export type MapLayer = "street" | "dark" | "satellite" | "smooth" | "smooth_labels" | "light";
 
 export interface MapLayerConfig {
   name: string;

@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { Link } from "react-router";
-import { IconMail, IconLock } from "@tabler/icons-react";
+import { IconMail, IconLock, IconEye, IconEyeOff } from "@tabler/icons-react";
 import { useLoginForm } from "../hooks";
 import { configServer } from "@/config/ConfigServer";
 import { Input, Label, Button, Checkbox, Alert } from "@/components/ui";
@@ -8,6 +9,7 @@ export function LoginForm() {
   const { formData, isLoading, error, handleChange, handleSubmit, clearError } =
     useLoginForm();
   const { useAuthConfig } = configServer();
+  const [verPassword, setVerPassword] = useState(false);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -37,13 +39,24 @@ export function LoginForm() {
         <Input
           id="password"
           name="password"
-          type="password"
+          type={verPassword ? "text" : "password"}
           autoComplete="current-password"
           required
           value={formData.password}
           onChange={handleChange}
           leftIcon={<IconLock className="h-5 w-5" />}
           placeholder="••••••••"
+          rightAction={
+            <button
+              type="button"
+              onClick={() => setVerPassword(v => !v)}
+              aria-label={verPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+              title={verPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+              className="p-1.5 rounded-md text-text-300 hover:text-text-100 hover:bg-bg-200 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-100"
+            >
+              {verPassword ? <IconEyeOff size={18} stroke={1.7} /> : <IconEye size={18} stroke={1.7} />}
+            </button>
+          }
         />
       </div>
 

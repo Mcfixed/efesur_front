@@ -5,6 +5,9 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: ReactNode;
   leftIcon?: ReactNode;
   rightIcon?: ReactNode;
+  /** Contenido interactivo a la derecha (ej: botón mostrar contraseña). A diferencia de
+      rightIcon, sí recibe clics. */
+  rightAction?: ReactNode;
   error?: boolean;
   fullWidth?: boolean;
 }
@@ -16,6 +19,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
       label,
       leftIcon,
       rightIcon,
+      rightAction,
       error = false,
       fullWidth = true,
       type = "text",
@@ -32,13 +36,12 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
 
     const widthStyles = fullWidth ? "w-full" : "";
 
-    const paddingStyles = leftIcon
-      ? "pl-10 pr-3"
-      : rightIcon
-        ? "pl-3 pr-10"
-        : "px-3";
+    const paddingStyles = [
+      leftIcon ? "pl-10" : "pl-3",
+      rightAction ? "pr-11" : rightIcon ? "pr-10" : "pr-3",
+    ].join(" ");
 
-    const field = leftIcon || rightIcon ? (
+    const field = leftIcon || rightIcon || rightAction ? (
       <div className={`relative ${fullWidth ? "w-full" : ""}`}>
         {leftIcon && (
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -54,6 +57,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         {rightIcon && (
           <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
             <span className="h-5 w-5 text-text-100">{rightIcon}</span>
+          </div>
+        )}
+        {rightAction && (
+          <div className="absolute inset-y-0 right-0 pr-1 flex items-center">
+            {rightAction}
           </div>
         )}
       </div>

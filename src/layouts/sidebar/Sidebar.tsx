@@ -5,7 +5,6 @@ import type { CompanyConfig, AppConfig } from "@/config/ConfigServer";
 import { Link, NavLink } from "react-router";
 import { useEffect, useState } from "react";
 import { useBreakpoint } from "@/hooks/useBreakpoints";
-import LineGradientWhite from "@/components/ui/LineGradientWhite";
 import { useBetterSession } from "@/libs/better-auth";
 
 function Sidebar({
@@ -44,17 +43,18 @@ function Sidebar({
         onMouseLeave={() => setIsHovered(false)}
       >
         <button
-          className="absolute top-3 -right-10 text-text-300 hover:text-text-100 outline outline-transparent p-0.5 bg-linear-to-b from-bg-100 to-bg-300 border-t border-t-white/20 shadow-lg shadow-bg-100 rounded-full"
+          className="absolute top-3 -right-3.5 z-20 grid place-items-center w-7 h-7 rounded-full bg-bg-300 border border-border text-text-300 hover:text-text-100 shadow-[0_2px_6px_rgba(15,23,42,0.14)] transition-colors duration-150"
           onClick={() => setCollapsed(!isCollapsed)}
+          title={isCollapsed ? "Expandir menú" : "Colapsar menú"}
         >
           {isCollapsed ? (
-            <IconChevronRight size={20} />
+            <IconChevronRight size={16} />
           ) : (
-            <IconChevronLeft size={20} />
+            <IconChevronLeft size={16} />
           )}
         </button>
         <div className="w-full h-full p-1">
-          <div className="bg-bg-100 ">
+          <div className="h-full flex flex-col">
             <TopSidebar
               isCollapsed={isCollapsed}
               useCompany={useCompany}
@@ -95,11 +95,11 @@ function Sidebar({
 const BottomSidebar = ({ isCollapsed }: { isCollapsed: boolean }) => {
   return (
     <div
-      className={`border-t border-border bg-bg-200 flex items-center p-3 ${
+      className={`border-t border-border flex items-center p-3 ${
         isCollapsed ? "justify-center" : "justify-start"
       } `}
     >
-      <span className={`text-xs text-text-200 text-center`}>
+      <span className={`text-[11px] font-medium text-text-300 text-center`}>
         © {new Date().getFullYear()} v2.5.3
       </span>
     </div>
@@ -117,37 +117,43 @@ const MenuNavigation = ({
   const role = user?.role || 'visualizador';
   const visibleItems = _useConfigApp.NAVIGATION_APP.filter(item => !item.roles || item.roles.includes(role));
   return (
-    <div
-      className={` ${_isCollapsed ? "mt-4  p-1 " : "mt-4 p-1 mx-1 bg-bg-100 rounded-lg"} `}
-    >
-      <div className="p-1">
-        <h4 className="text-text-300 text-xs tracking-wider ">MENU</h4>
-      </div>
+    <div className={`mt-3 flex flex-col gap-0.5 ${_isCollapsed ? "px-1" : "px-1.5"}`}>
+      {!_isCollapsed && (
+        <h4 className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-300">
+          Menú
+        </h4>
+      )}
       {visibleItems.map((item) => {
         const Icon = item.icon;
         return (
-          <div className="relative" key={item.id}>
-            <div className="absolute w-3 h-3 bg-blue-500 -right-1 top-1/2 -translate-y-1/2 rounded-full blur-xs"></div>
-            <div className="absolute w-3 h-3 bg-blue-600 right-0 top-1/2 -translate-y-1/2 rounded-full "></div>
-            <LineGradientWhite color="#fffaf0a4" />
-            <NavLink
-              to={item.link}
-              className={({ isActive }: { isActive: boolean }) => `
-               relative flex  items-center text-text-200  py-1 px-2 rounded-xl hover:bg-bg-200 transition-all duration-300
-              ${_isCollapsed ? "justify-center" : "justify-start"}
-              ${isActive ? "bg-linear-to-r backdrop-blur from-bg-300 hover:bg-bg-200" : "text-text-100 bg-bg-100"}
+          <NavLink
+            key={item.id}
+            to={item.link}
+            title={_isCollapsed ? item.name : undefined}
+            target={item.target ? "_blank" : "_self"}
+            rel="noreferrer"
+            className={({ isActive }) => `
+              group relative flex items-center gap-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors duration-150
+              ${_isCollapsed ? "justify-center px-0" : "px-2.5"}
+              ${isActive
+                ? "sidebar-item-active text-text-100"
+                : "text-text-200 hover:bg-bg-200 hover:text-text-100"}
             `}
-              target={item.target ? "_blank" : "_self"}
-              rel="noreferrer"
-            >
-              <span>
-                <Icon size={22} stroke={2} />
-              </span>
-              {!_isCollapsed && (
-                <span className="ml-2 truncate">{item.name}</span>
-              )}
-            </NavLink>
-          </div>
+          >
+            {({ isActive }) => (
+              <>
+                {isActive && (
+                  <span className="sidebar-item-bar absolute left-0 top-1/2 -translate-y-1/2 h-4 w-[3px] rounded-full" />
+                )}
+                <Icon
+                  size={20}
+                  stroke={isActive ? 2 : 1.8}
+                  className={`shrink-0 ${isActive ? "sidebar-item-icon-active" : "text-text-200"}`}
+                />
+                {!_isCollapsed && <span className="truncate">{item.name}</span>}
+              </>
+            )}
+          </NavLink>
         );
       })}
     </div>
@@ -168,29 +174,23 @@ const TopSidebar = ({
   return (
     <div
       className={`
-          w-full h-18 border-b border-border flex items-center overflow-hidden
-          ${isCollapsed ? "px-2 py-2" : "px-5 py-2"}
+          w-full h-18 border-b border-border flex items-center gap-2 overflow-hidden
+          ${isCollapsed ? "justify-center px-2" : "px-3"}
           `}
     >
-      <div
-        className={` h-full flex items-center justify-center
-        ${isCollapsed ? "w-full" : "px-5 py-2"}
-        `}
-      >
-        <Link to="/">
-          <img
-            src={
-              theme === "dark"
-                ? useCompany.LOGO_COMPANY_WHITE
-                : useCompany.LOGO_COMPANY_BLACK
-            }
-            alt={useCompany.NAME_COMPANY}
-            className="h-8 object-cover "
-          />
-        </Link>
-      </div>
+      <Link to="/" className="shrink-0 grid place-items-center">
+        <img
+          src={
+            theme === "dark"
+              ? useCompany.LOGO_COMPANY_WHITE
+              : useCompany.LOGO_COMPANY_BLACK
+          }
+          alt={useCompany.NAME_COMPANY}
+          className="h-8 w-auto object-contain"
+        />
+      </Link>
       {!isCollapsed && (
-        <span className="ml-2 truncate text-xs font-medium">
+        <span className="truncate text-xs font-semibold tracking-wide text-text-200">
           {useConfigApp.NAME_APP}
         </span>
       )}

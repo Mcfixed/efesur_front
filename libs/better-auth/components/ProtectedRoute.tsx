@@ -87,7 +87,15 @@ export function PublicOnlyRoute({
 }: PublicOnlyRouteProps) {
   const { isAuthenticated, isLoading } = useBetterSession();
 
-  if (isLoading) {
+  // La pantalla de espera va SOLO en la primera comprobación de sesión. Al volver a la
+  // pestaña, better-auth revalida la sesión y `isLoading` se pone en true otra vez; si se
+  // volviera a mostrar el loader, el formulario se desmontaría y se perdería lo escrito.
+  const [primeraCarga, setPrimeraCarga] = useState(true);
+  useEffect(() => {
+    if (!isLoading) setPrimeraCarga(false);
+  }, [isLoading]);
+
+  if (isLoading && primeraCarga) {
     return (
       <div className="bg-bg-100 text-text-100 h-screen w-screen flex items-center justify-center">
         Cargando...

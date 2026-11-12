@@ -27,7 +27,7 @@ function Template() {
               setIsOpenSidebar={setOpenSidebar}
             />
           </div>
-          <div className="flex-1 flex flex-col z-0 rounded-2xl rounded-ss-none overflow-hidden bg-bg-200 ">
+          <div className="flex-1 flex flex-col z-0 rounded-2xl rounded-ss-none overflow-hidden bg-bg-200 canvas-recessed">
             <main className="flex-1 overflow-hidden w-full">
               <Outlet />
             </main>

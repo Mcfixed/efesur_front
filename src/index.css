@@ -50,38 +50,40 @@
 
 @layer base {
   :root {
-    /* Fondos (Backgrounds) */
-    --bg-100: #f5f7f8;
-    --bg-200: #eef3f6;
+    /* Fondos: jerarquía real del tema claro para que nada se vea plano.
+       elevado (#ffffff) > superficie (#f3f6fb) > lienzo hundido (#e6ebf3) */
+    --bg-100: #f3f6fb;
+    --bg-200: #e6ebf3;
     --bg-300: #ffffff;
     --bg-400: #000000;
     --bg-450: #292929;
 
     /* Superficies de tarjetas y paneles */
-    --surface-card-1: #f9fafb;
-    --surface-card-2: #f3f6f8;
+    --surface-card-1: #ffffff;
+    --surface-card-2: #f7f9fd;
     --surface-card-3: #ffffff;
 
     /* Interacción */
-    --bg-hover: #e2e8f0;
+    --bg-hover: #dce4ef;
 
     /* Colores de Marca y Acción */
     --brand-100: #e02c2c;
     --brand-200: #ff4b4b;
 
     /* Textos */
-    --text-100: #1f2937;
+    --text-100: #16202e;
     --text-200: #0a2955;
-    --text-300: #9ca3af;
+    --text-300: #6b7c93;
     --text-400: #f2f2f2;
 
     /* Bordes y Separadores */
-    --border-100: #dedfdf;
+    --border-100: #d5dde8;
     --border-200: #e2e8f0;
   }
 
   .dark {
-    /* Fondos (Backgrounds) */
+    /* Fondos (Backgrounds): se conservan los valores originales del tema.
+       Sólo se corrigieron los textos y los bordes (ver más abajo). */
     --bg-100: #131414;
     --bg-200: #1f2127;
     --bg-300: #373a42;
@@ -92,16 +94,18 @@
     --surface-card-3: #0f1419;
 
     /* Interacción */
+    --bg-hover: #2a2f38;
 
     /* Colores de Marca y Acción */
     --brand-100: #e51616;
     --brand-200: #006aff;
 
-    /* Textos */
-    --text-100: #f9fafb;
-    --text-200: #9ca3af;
-    --text-300: #6b7280;
-    --text-400: #1f2937;
+    /* Textos: pensados para leerse con luz ambiente delante.
+       text-100 ~17:1 · text-200 ~11:1 · text-300 ~5.8:1 · text-400 ~4:1 (sólo deshabilitado) */
+    --text-100: #eef2f7;
+    --text-200: #c0c8d4;
+    --text-300: #8a94a3;
+    --text-400: #6b7686;
 
     /* Bordes y Separadores */
     --border-100: #2a2c37;
@@ -168,19 +172,26 @@
   .surface-card-1 {
     background: var(--surface-card-1);
     border: 1px solid var(--border-200);
-    box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
+    box-shadow:
+      0 1px 2px rgba(15, 23, 42, 0.05),
+      0 6px 14px -10px rgba(15, 23, 42, 0.2);
   }
 
   .surface-card-2 {
     background: var(--surface-card-2);
     border: 1px solid var(--border-200);
-    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
+    box-shadow:
+      0 1px 2px rgba(15, 23, 42, 0.05),
+      0 10px 22px -14px rgba(15, 23, 42, 0.24);
   }
 
   .surface-card-3 {
     background: var(--surface-card-3);
     border: 1px solid var(--border-200);
-    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.06);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 2px 4px rgba(15, 23, 42, 0.05),
+      0 16px 32px -20px rgba(15, 23, 42, 0.34);
   }
 }
 
@@ -259,13 +270,9 @@ body {
 }
 .marker-pulse-gw {
   animation: markerPulseGw 2.2s ease-out infinite;
-  /* Promueve la capa: la animación la resuelve el compositor y no re-rasteriza
-     el marcador en cada frame del mapa. */
   will-change: transform, opacity;
 }
-/* Badge de evento del gateway: respiración lenta y de baja amplitud.
-   Con `animate-pulse` de Tailwind (opacidad 1 -> 0.5 cada 2 s) el badge parpadeaba
-   y llamaba demasiado la atención sobre el mapa. */
+
 @keyframes badgeBreathe {
   0%, 100% { transform: scale(1); opacity: 1; }
   50%      { transform: scale(1.04); opacity: 0.88; }
@@ -295,6 +302,7 @@ body {
   background: #f3f5f9;
 }
 .dark .resumen-canvas {
+  /* Sin fondo propio: hereda el lienzo de la página (--bg-200, #1f2127), igual que antes. */
   background: transparent;
 }
 
@@ -306,11 +314,13 @@ body {
     0 14px 28px -20px rgba(16, 24, 40, 0.28);
 }
 .dark .resumen-card {
-  /* Mismo negro que bg-bg-100: en oscuro la tarjeta se iguala al fondo de la página
-     y la separación la da el borde. */
+  /* Fondo original de la tarjeta (igual que bg-bg-100). El canto lo define el borde al 8 %
+     y un filo superior apenas iluminado. */
   background: var(--bg-100);
-  border-color: var(--border-100);
-  box-shadow: none;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 10px 22px -20px #000;
 }
 
 .resumen-card-head {
@@ -319,7 +329,7 @@ body {
 }
 .dark .resumen-card-head {
   background: transparent;
-  border-bottom-color: var(--border-100);
+  border-bottom-color: rgba(255, 255, 255, 0.08);
 }
 
 /* Cabecera de tabla pegajosa (debe ser opaca) */
@@ -328,6 +338,7 @@ body {
 }
 .dark .resumen-thead {
   background: var(--bg-100);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.08);
 }
 
 /* Filas: sin cebreado, sólo divisor tenue + hover */
@@ -342,10 +353,10 @@ body {
   background: rgba(15, 23, 42, 0.028);
 }
 .dark .resumen-row {
-  border-bottom-color: rgba(255, 255, 255, 0.055);
+  border-bottom-color: rgba(255, 255, 255, 0.09);
 }
 .dark .resumen-row:hover {
-  background: rgba(255, 255, 255, 0.035);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 /* Chips de estado */
@@ -366,9 +377,9 @@ body {
   box-shadow: inset 0 0 0 1px rgba(4, 120, 87, 0.14);
 }
 .dark .resumen-chip-ok {
-  background: rgba(16, 185, 129, 0.14);
-  color: #34d399;
-  box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.22);
+  background: rgba(16, 185, 129, 0.2);
+  color: #6ee7b7;
+  box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.32);
 }
 .resumen-chip-bad {
   background: #fff1f2;
@@ -376,9 +387,9 @@ body {
   box-shadow: inset 0 0 0 1px rgba(190, 18, 60, 0.14);
 }
 .dark .resumen-chip-bad {
-  background: rgba(244, 63, 94, 0.14);
-  color: #fb7185;
-  box-shadow: inset 0 0 0 1px rgba(244, 63, 94, 0.22);
+  background: rgba(244, 63, 94, 0.2);
+  color: #fda4af;
+  box-shadow: inset 0 0 0 1px rgba(244, 63, 94, 0.32);
 }
 .resumen-chip-warn {
   background: #fffbeb;
@@ -386,7 +397,111 @@ body {
   box-shadow: inset 0 0 0 1px rgba(180, 83, 9, 0.16);
 }
 .dark .resumen-chip-warn {
-  background: rgba(245, 158, 11, 0.14);
-  color: #fbbf24;
-  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.22);
+  background: rgba(245, 158, 11, 0.2);
+  color: #fcd34d;
+  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.32);
+}
+
+/* Control segmentado (Ahora / Mapa): pista hundida, botón activo en relieve */
+.resumen-seg {
+  background: #eef1f6;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+.dark .resumen-seg {
+  background: rgba(0, 0, 0, 0.35);
+  border-color: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+.resumen-seg-btn {
+  background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 1px 1px rgba(15, 23, 42, 0.1);
+}
+.dark .resumen-seg-btn {
+  background: var(--bg-300);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Lienzo del contenido: hundido bajo la barra superior (el marco se lee en relieve) */
+.canvas-recessed {
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  box-shadow: inset 0 2px 8px rgba(15, 23, 42, 0.07);
+}
+.dark .canvas-recessed {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* ─── Sidebar: ítem de menú activo ─*/
+.sidebar-item-active {
+  background: rgba(15, 23, 42, 0.13);
+}
+.dark .sidebar-item-active {
+  background: rgba(255, 255, 255, 0.10);
+}
+.sidebar-item-bar {
+  background: var(--text-200);
+}
+.sidebar-item-icon-active {
+  color: var(--text-100);
+}
+
+/* Icono de las tarjetas de estado: azul de la marca en claro, celeste en oscuro */
+.resumen-icon {
+  color: #1f718e;
+}
+.dark .resumen-icon {
+  color: #8ecae0;
+}
+
+/* Conteos del panel: verde y plomo con contraste en ambos temas */
+.resumen-num-ok {
+  color: #047857;
+}
+.dark .resumen-num-ok {
+  color: #34d399;
+}
+.resumen-num-muted {
+  color: #64748b;
+}
+.dark .resumen-num-muted {
+  color: #94a3b8;
+}
+/* Scroll de la tabla de gateways (resumen): plomo oscuro y muy delgado.
+   OJO: si se declara scrollbar-width, Chrome 121+ IGNORA los ::-webkit-scrollbar
+   y usa su grosor propio (~8px). Por eso esa parte va solo para Firefox. */
+.resumen-scroll::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+}
+.resumen-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.resumen-scroll::-webkit-scrollbar-thumb {
+  background: #373a42;
+  border-radius: 999px;
+}
+.resumen-scroll::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+.dark .resumen-scroll::-webkit-scrollbar-thumb {
+  background: #373a42;
+}
+.dark .resumen-scroll::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+@supports (-moz-appearance: none) {
+  .resumen-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: #64748b transparent;
+  }
+  .dark .resumen-scroll {
+    scrollbar-color: #4b5563 transparent;
+  }
 }

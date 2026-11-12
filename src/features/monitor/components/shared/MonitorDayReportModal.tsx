@@ -16,7 +16,7 @@ type Filtro = "todos" | "ok" | "sin";
 
 // ─── Colores por umbral (mismos criterios que el mapa de calor y el panel de sensores) ───
 function rssiClass(rssi: number | null): string {
-  if (rssi == null) return "text-gray-600";
+  if (rssi == null) return "text-gray-400";
   if (rssi >= -100) return "text-green-400";
   if (rssi >= -110) return "text-teal-400";
   if (rssi >= -118) return "text-sky-400";
@@ -24,14 +24,14 @@ function rssiClass(rssi: number | null): string {
   return "text-red-400";
 }
 function snrClass(snr: number | null): string {
-  if (snr == null) return "text-gray-600";
+  if (snr == null) return "text-gray-400";
   if (snr >= 10) return "text-green-400";
   if (snr >= 5) return "text-yellow-400";
   return "text-red-400";
 }
 function batClass(mv: number | null): string {
   const pct = voltageToPercent(mv);
-  if (pct == null) return "text-gray-600";
+  if (pct == null) return "text-gray-400";
   if (pct >= 50) return "text-green-400";
   if (pct >= 20) return "text-orange-400";
   return "text-red-400";
@@ -148,7 +148,7 @@ export default function MonitorDayReportModal({ dia, onClose }: Props) {
           </span>
           <div className="min-w-0">
             <h2 className="text-sm font-bold text-gray-100">Reporte de sensores del día</h2>
-            <p className="text-[11px] text-gray-400">
+            <p className="text-[11px] text-gray-300">
               {format(new Date(`${dia}T12:00:00`), "dd/MM/yyyy")} · una fila por sensor activo (último registro del día)
             </p>
           </div>
@@ -170,7 +170,7 @@ export default function MonitorDayReportModal({ dia, onClose }: Props) {
           <div className="flex gap-1 rounded-lg bg-white/5 p-0.5">
             {filtros.map(f => (
               <button key={f.key} onClick={() => setFiltro(f.key)}
-                className={`rounded-md px-2.5 py-1 text-[11px] font-bold transition-all ${filtro === f.key ? "bg-white/15 text-gray-100" : "text-gray-400 hover:text-gray-100"}`}>
+                className={`rounded-md px-2.5 py-1 text-[11px] font-bold transition-all ${filtro === f.key ? "bg-white/15 text-white" : "text-gray-300 hover:text-white"}`}>
                 {f.label} <span className="tabular-nums opacity-70">{f.n}</span>
               </button>
             ))}
@@ -180,17 +180,17 @@ export default function MonitorDayReportModal({ dia, onClose }: Props) {
           <div className="relative">
             <input value={busqueda} onChange={e => setBusqueda(e.target.value)}
               placeholder="Buscar sensor o EUI..."
-              className="w-52 rounded-lg border border-white/10 bg-white/5 py-1.5 pl-8 pr-7 text-[12px] text-gray-100 outline-none transition-colors placeholder:text-gray-500 focus:border-teal-400/50 focus:ring-1 focus:ring-teal-400/20" />
-            <IconSearch size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
+              className="w-52 rounded-lg border border-white/10 bg-white/5 py-1.5 pl-8 pr-7 text-[12px] text-gray-100 outline-none transition-colors placeholder:text-gray-400 focus:border-teal-400/50 focus:ring-1 focus:ring-teal-400/20" />
+            <IconSearch size={13} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
             {busqueda && (
               <button onClick={() => setBusqueda("")} title="Limpiar búsqueda"
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 transition-colors hover:text-gray-200">
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 transition-colors hover:text-gray-100">
                 <IconX size={13} />
               </button>
             )}
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <span className="text-[10px] text-gray-500">{filas.length} filas (lo que ves)</span>
+            <span className="text-[10px] text-gray-400">{filas.length} filas (lo que ves)</span>
             <button onClick={exportPdf} disabled={!filas.length} title="Vista previa en PDF (imprimir → Guardar como PDF)"
               className="flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-[12px] font-semibold text-gray-200 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40">
               <IconFileTypePdf size={14} /> PDF
@@ -206,7 +206,7 @@ export default function MonitorDayReportModal({ dia, onClose }: Props) {
         <div className="min-h-0 flex-1 overflow-y-auto">
           {isLoading && (
             <div className="flex h-full items-center justify-center gap-2 text-[13px] text-gray-400">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-500 border-t-transparent" />
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />
               Cargando reporte...
             </div>
           )}
@@ -217,14 +217,14 @@ export default function MonitorDayReportModal({ dia, onClose }: Props) {
             </div>
           )}
           {!isLoading && !isError && filas.length === 0 && (
-            <div className="flex h-full items-center justify-center text-[13px] text-gray-500">
+            <div className="flex h-full items-center justify-center text-[13px] text-gray-400">
               {busqueda.trim() ? "Sin coincidencias para la búsqueda" : "Sin sensores para este filtro"}
             </div>
           )}
           {!isLoading && !isError && filas.length > 0 && (
             <table className="w-full border-collapse text-[12px]">
               <thead className="sticky top-0 z-10 bg-[#14161a]">
-                <tr className="text-[10px] uppercase tracking-wider text-gray-500">
+                <tr className="text-[10px] uppercase tracking-wider text-gray-400">
                   <th className="px-4 py-2 text-left font-semibold">Sensor</th>
                   <th className="px-3 py-2 text-left font-semibold">Estado</th>
                   <th className="px-3 py-2 text-left font-semibold">Batería</th>
@@ -239,9 +239,9 @@ export default function MonitorDayReportModal({ dia, onClose }: Props) {
                   const sinDatos = !s.ultimo_ts;
                   return (
                     <tr key={s.id} className={`border-b border-white/5 ${sinDatos ? "bg-white/2" : "hover:bg-white/5"}`}>
-                      <td className={`px-4 py-1.5 ${sinDatos ? "text-gray-500" : "text-gray-100"}`}>
+                      <td className={`px-4 py-1.5 ${sinDatos ? "text-gray-400" : "text-gray-100"}`}>
                         <span className="block truncate">{s.name}</span>
-                        <span className="block font-mono text-[10px] text-gray-600">{s.dev_eui}</span>
+                        <span className="block font-mono text-[10px] text-gray-400">{s.dev_eui}</span>
                       </td>
                       <td className="px-3 py-1.5">
                         {sinDatos ? (
@@ -251,18 +251,18 @@ export default function MonitorDayReportModal({ dia, onClose }: Props) {
                         )}
                       </td>
                       <td className={`px-3 py-1.5 font-mono ${batClass(s.bat_mv)}`}>{fmtBat(s.bat_mv)}</td>
-                      <td className={`px-3 py-1.5 ${sinDatos ? "text-gray-600" : "text-gray-300"}`}>
-                        {s.gw_name ?? (s.gw_eui ? <span className="text-gray-500">(no registrado) {String(s.gw_eui).slice(-6)}</span> : "—")}
+                      <td className={`px-3 py-1.5 ${sinDatos ? "text-gray-400" : "text-gray-200"}`}>
+                        {s.gw_name ?? (s.gw_eui ? <span className="text-gray-400">(no registrado) {String(s.gw_eui).slice(-6)}</span> : "—")}
                       </td>
                       <td className={`px-3 py-1.5 text-right font-mono tabular-nums ${snrClass(s.snr)}`}>{s.snr != null ? s.snr.toFixed(2) : "—"}</td>
                       <td className={`px-3 py-1.5 text-right font-mono tabular-nums ${rssiClass(s.rssi)}`}>{s.rssi != null ? s.rssi.toFixed(0) : "—"}</td>
                       <td className="px-4 py-1.5">
                         {sinDatos ? (
-                          <span className="text-gray-500">
+                          <span className="text-gray-400">
                             sin datos{s.last_seen_global ? ` · últ. ${fmtFecha(s.last_seen_global)}` : " · nunca reportó"}
                           </span>
                         ) : (
-                          <span className="font-mono text-gray-300">{fmtFecha(s.ultimo_ts, true)}</span>
+                          <span className="font-mono text-gray-200">{fmtFecha(s.ultimo_ts, true)}</span>
                         )}
                       </td>
                     </tr>
@@ -271,13 +271,6 @@ export default function MonitorDayReportModal({ dia, onClose }: Props) {
               </tbody>
             </table>
           )}
-        </div>
-
-        {/* Pie */}
-        <div className="shrink-0 border-t border-white/10 px-4 py-2 text-[10px] text-gray-500">
-          Las dos exportaciones incluyen solo las filas visibles (filtro aplicado). El Excel lleva la columna{" "}
-          <span className="text-gray-300">Estado</span> (OK / SIN DATOS) con autofiltro, porque SheetJS community no escribe colores de celda;
-          el PDF sí imprime los sin datos en rojo.
         </div>
       </div>
     </div>

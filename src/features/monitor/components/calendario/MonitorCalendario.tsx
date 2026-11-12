@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useMonitorCalendar, useMonitorAlertsByDate } from "../../hooks/useMonitor";
 import { monitorService } from "../../services/monitor.service";
+import { useTheme } from "@/context/ThemeContext";
 import {
   IconChevronLeft, IconChevronRight,
   IconAlertTriangle, IconAlertCircle, IconMoodSearch, IconWifiOff,
@@ -10,16 +11,16 @@ import {
 } from "@tabler/icons-react";
 import MonitorTrackingModal from "../shared/MonitorTrackingModal";
 
-const TYPE_LABELS: Record<string, { label: string; color: string; icon: any }> = {
-  critica:            { label: "Crítica",       color: "text-red-400 bg-red-500/10", icon: IconAlertTriangle },
-  atencion:           { label: "Atención",       color: "text-yellow-400 bg-yellow-500/10", icon: IconAlertCircle },
-  apertura:           { label: "Apertura",       color: "text-red-400 bg-red-500/10", icon: IconAlertTriangle },
-  presencia:          { label: "Presencia",      color: "text-yellow-400 bg-yellow-500/10", icon: IconAlertCircle },
-  movimientos_anomalos: { label: "Mov. Anómalo", color: "text-orange-400 bg-orange-500/10", icon: IconMoodSearch },
-  desconexionGW:      { label: "Desconexión GW", color: "text-red-400 bg-red-500/10", icon: IconWifiOff },
-  desconexionGPS:     { label: "Desconexión GPS", color: "text-red-400 bg-red-500/10", icon: IconWifiOff },
-  desconexion220:     { label: "Desconexión CA 220", color: "text-orange-400 bg-orange-500/10", icon: IconWifiOff },
-  desconexionbatGW:   { label: "Desconexión Batería GW", color: "text-orange-400 bg-orange-500/10", icon: IconWifiOff },
+const TYPE_LABELS: Record<string, { label: string; light: string; dark: string; icon: any }> = {
+  critica:            { label: "Crítica",       light: "text-red-700 bg-red-50 ring-1 ring-red-200",           dark: "text-red-400 bg-red-500/10", icon: IconAlertTriangle },
+  atencion:           { label: "Atención",       light: "text-amber-700 bg-amber-50 ring-1 ring-amber-200",     dark: "text-yellow-400 bg-yellow-500/10", icon: IconAlertCircle },
+  apertura:           { label: "Apertura",       light: "text-red-700 bg-red-50 ring-1 ring-red-200",           dark: "text-red-400 bg-red-500/10", icon: IconAlertTriangle },
+  presencia:          { label: "Presencia",      light: "text-amber-700 bg-amber-50 ring-1 ring-amber-200",     dark: "text-yellow-400 bg-yellow-500/10", icon: IconAlertCircle },
+  movimientos_anomalos: { label: "Mov. Anómalo", light: "text-orange-700 bg-orange-50 ring-1 ring-orange-200",  dark: "text-orange-400 bg-orange-500/10", icon: IconMoodSearch },
+  desconexionGW:      { label: "Desconexión GW", light: "text-red-700 bg-red-50 ring-1 ring-red-200",           dark: "text-red-400 bg-red-500/10", icon: IconWifiOff },
+  desconexionGPS:     { label: "Desconexión GPS", light: "text-red-700 bg-red-50 ring-1 ring-red-200",          dark: "text-red-400 bg-red-500/10", icon: IconWifiOff },
+  desconexion220:     { label: "Desconexión CA 220", light: "text-orange-700 bg-orange-50 ring-1 ring-orange-200", dark: "text-orange-400 bg-orange-500/10", icon: IconWifiOff },
+  desconexionbatGW:   { label: "Desconexión Batería GW", light: "text-orange-700 bg-orange-50 ring-1 ring-orange-200", dark: "text-orange-400 bg-orange-500/10", icon: IconWifiOff },
 };
 
 async function exportPDF(day: string, dayAlerts: any[]) {
@@ -166,6 +167,8 @@ async function exportPDF(day: string, dayAlerts: any[]) {
 }
 
 export default function MonitorCalendario() {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   const today = useMemo(() => new Date(), []);
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
@@ -187,34 +190,59 @@ export default function MonitorCalendario() {
   const prevMonth = () => { if (month === 1) { setYear(y => y - 1); setMonth(12); } else { setMonth(m => m - 1); } setSelectedDate(null); };
   const nextMonth = () => { if (month === 12) { setYear(y => y + 1); setMonth(1); } else { setMonth(m => m + 1); } setSelectedDate(null); };
 
+  /** Estilos por severidad del día. En claro hacen falta fondos sólidos y texto oscuro:
+      los tintes translúcidos sobre blanco se veían lavados y los números no se leían.
+      En oscuro cada celda necesita borde y fondo propio: sin ellos sólo se veía el número. */
+  type Severidad = "none" | "critical" | "warning";
+  const SEV: Record<Severidad, { cell: string; bar: string; num: string; badge: string }> = {
+    critical: {
+      cell: isDark ? "bg-red-500/[0.16] border-red-500/45" : "bg-red-50 border-red-200",
+      bar: "bg-red-500",
+      num: isDark ? "text-red-200" : "text-red-700",
+      badge: isDark ? "bg-red-500/30 text-red-100" : "bg-red-600 text-white",
+    },
+    warning: {
+      cell: isDark ? "bg-amber-500/[0.16] border-amber-500/45" : "bg-amber-50 border-amber-200",
+      bar: "bg-amber-500",
+      num: isDark ? "text-amber-200" : "text-amber-700",
+      badge: isDark ? "bg-amber-500/30 text-amber-100" : "bg-amber-500 text-white",
+    },
+    none: {
+      cell: isDark ? "bg-bg-200/35 border-border/60" : "bg-bg-300 border-border",
+      bar: "",
+      num: "text-text-100",
+      badge: isDark ? "bg-bg-300 text-text-100" : "bg-bg-200 text-text-200",
+    },
+  };
+
   return (
     <div className="flex-1 flex gap-3 min-h-0">
       {/* ─── CALENDAR ─── */}
-      <div className={`rounded-xl bg-bg-100 border border-border/30 shadow overflow-hidden flex flex-col min-h-0 ${selectedDate ? "w-[55%]" : "w-full"}`}>
+      <div className={`rounded-xl border overflow-hidden flex flex-col min-h-0 ${isDark ? "bg-bg-100 border-border/30 shadow" : "bg-bg-300 border-border shadow-[0_1px_2px_rgba(15,23,42,0.06),0_20px_40px_-26px_rgba(15,23,42,0.45)]"} ${selectedDate ? "w-[55%]" : "w-full"}`}>
         {/* Header */}
-        <div className="shrink-0 px-4 py-3 border-b border-border/20 flex items-center justify-between gap-2">
+        <div className={`shrink-0 px-4 py-3 border-b flex items-center justify-between gap-2 ${isDark ? "border-border/20" : "border-border bg-bg-100"}`}>
           <div className="flex items-center gap-2">
-            <button onClick={prevMonth} className="p-1.5 rounded-lg bg-bg-200/40 hover:bg-bg-200/70 text-text-200 hover:text-text-100 transition-colors border border-border/20">
+            <button onClick={prevMonth} className={`p-1.5 rounded-lg border transition-colors text-text-200 hover:text-text-100 ${isDark ? "bg-bg-200/40 hover:bg-bg-200/70 border-border/20" : "bg-bg-300 border-border hover:bg-bg-300/70 shadow-[0_1px_2px_rgba(15,23,42,0.08)]"}`}>
               <IconChevronLeft size={18} />
             </button>
-            <button onClick={nextMonth} className="p-1.5 rounded-lg bg-bg-200/40 hover:bg-bg-200/70 text-text-200 hover:text-text-100 transition-colors border border-border/20">
+            <button onClick={nextMonth} className={`p-1.5 rounded-lg border transition-colors text-text-200 hover:text-text-100 ${isDark ? "bg-bg-200/40 hover:bg-bg-200/70 border-border/20" : "bg-bg-300 border-border hover:bg-bg-300/70 shadow-[0_1px_2px_rgba(15,23,42,0.08)]"}`}>
               <IconChevronRight size={18} />
             </button>
           </div>
           <div className="text-center">
             <h3 className="text-base font-extrabold text-text-100 capitalize tracking-tight">{format(new Date(year, month - 1), "MMMM yyyy", { locale: es })}</h3>
-            <p className="text-[10px] text-text-300 mt-0.5">
+            <p className="text-[11px] font-medium text-text-200 mt-0.5">
               {daysInMonth} días · {calendar?.reduce((s, d) => s + (d.total || 0), 0) || 0} alertas
             </p>
           </div>
           <button onClick={() => { setYear(today.getFullYear()); setMonth(today.getMonth() + 1); setSelectedDate(null); }}
-            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-colors border ${year === today.getFullYear() && month === today.getMonth() + 1 ? "bg-brand-100/15 text-brand-100 border-brand-100/30" : "bg-bg-200/40 text-text-200 hover:bg-bg-200/70 border-border/20"}`}>
+            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-colors border ${year === today.getFullYear() && month === today.getMonth() + 1 ? "bg-brand-100 text-white border-brand-100 shadow-[0_4px_10px_-4px_rgba(224,44,44,0.6)]" : isDark ? "bg-bg-200/40 text-text-200 hover:bg-bg-200/70 border-border/20" : "bg-bg-300 text-text-100 hover:bg-bg-200 border-border shadow-[0_1px_2px_rgba(15,23,42,0.08)]"}`}>
             Hoy
           </button>
         </div>
 
         {/* Day names */}
-        <div className="shrink-0 grid grid-cols-7 px-2 py-1.5 text-[10px] font-bold text-text-300 uppercase tracking-wider text-center border-b border-border/10">
+        <div className={`shrink-0 grid grid-cols-7 px-2 py-1.5 text-[10px] font-bold text-text-200 uppercase tracking-wider text-center border-b ${isDark ? "border-border/10" : "border-border bg-bg-100/70"}`}>
           {["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"].map(d => (
             <span key={d} className="py-0.5">{d}</span>
           ))}
@@ -239,31 +267,38 @@ export default function MonitorCalendario() {
                 else if (dayData!.atencion > 0 || dayData!.movimientos > 0) severity = "warning";
               }
 
-              const severityStyle: Record<"critical" | "warning", { background: string; borderLeft: string }> = {
-                critical: { background: "rgba(239,68,68,0.25)", borderLeft: "3px solid rgb(239,68,68)" },
-                warning:  { background: "rgba(234,179,8,0.25)", borderLeft: "3px solid rgb(234,179,8)" },
-              };
+              const s = SEV[severity];
+              const filas: { k: string; v: number; dot: string; glow: string; text: string }[] = hasAlerts
+                ? [
+                    { k: "Crítica", v: dayData!.criticas, dot: "bg-red-500", glow: isDark ? "shadow-[0_0_4px_rgba(248,113,113,0.6)]" : "", text: isDark ? "text-red-300" : "text-red-700" },
+                    { k: "Apertura", v: dayData!.apertura, dot: "bg-red-500", glow: "", text: isDark ? "text-red-300" : "text-red-700" },
+                    { k: "Presencia", v: dayData!.presencia, dot: "bg-rose-500", glow: "", text: isDark ? "text-rose-300" : "text-rose-700" },
+                    { k: "Atención", v: dayData!.atencion, dot: "bg-amber-500", glow: "", text: isDark ? "text-amber-300" : "text-amber-700" },
+                    { k: "Mov.", v: dayData!.movimientos, dot: "bg-orange-500", glow: "", text: isDark ? "text-orange-300" : "text-orange-700" },
+                    { k: "Descon.", v: dayData!.desconexion, dot: "bg-amber-600", glow: "", text: isDark ? "text-amber-300" : "text-amber-800" },
+                  ].filter(f => f.v > 0)
+                : [];
 
               return (
                 <button key={day} onClick={() => setSelectedDate(isS ? null : dayStr)}
-                  style={severity !== "none" ? { ...severityStyle[severity], borderRadius: 10 } : undefined}
-                  className={`relative rounded-lg p-1.5 text-left transition-all min-h-[64px] border group ${isS ? "ring-2 ring-brand-100/60 border-brand-100/40 shadow-lg shadow-brand-100/5" : isT && severity === "none" ? "ring-1 ring-brand-200/30 border-brand-200/20" : severity === "none" ? "border-transparent hover:border-border/30 hover:bg-bg-200/50 hover:shadow-sm" : "border-transparent hover:border-border/30 hover:shadow-sm"}`}>
+                  className={`relative overflow-hidden rounded-xl p-1.5 text-left transition-all min-h-[72px] border group ${s.cell} ${isS ? "ring-2 ring-brand-100 border-brand-100/60 shadow-[0_8px_18px_-8px_rgba(224,44,44,0.55)]" : isT ? "ring-2 ring-brand-200/60" : ""} ${isDark ? "hover:border-border-200 hover:bg-bg-300/70" : "hover:-translate-y-px hover:border-border hover:shadow-[0_6px_14px_-6px_rgba(15,23,42,0.28)]"}`}>
+                  {severity !== "none" && <span className={`absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full ${s.bar}`} />}
                   <div className="flex items-start justify-between gap-1">
-                    <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded-md text-[11px] font-bold ${isT ? "bg-brand-100/20 text-brand-100" : severity === "critical" ? "bg-red-500/15 text-red-400" : severity === "warning" ? "bg-yellow-500/15 text-yellow-400" : "text-text-200"}`}>{day}</span>
+                    <span className={`inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-md text-[13px] font-bold tabular-nums leading-none ${isT ? "bg-brand-100 text-white shadow-[0_2px_6px_-2px_rgba(224,44,44,0.7)]" : s.num}`}>{day}</span>
                     {hasAlerts && (
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${severity === "critical" ? "bg-red-500/20 text-red-300" : severity === "warning" ? "bg-yellow-500/20 text-yellow-300" : "bg-bg-200/60 text-text-300"}`}>
+                      <span className={`text-[9px] font-bold tabular-nums px-1.5 py-0.5 rounded-full ${s.badge}`}>
                         {dayData!.total}
                       </span>
                     )}
                   </div>
-                  {hasAlerts && (
+                  {hasAlerts && filas.length > 0 && (
                     <div className="mt-1 space-y-[2px]">
-                      {dayData!.criticas > 0 && <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0 shadow-[0_0_4px_rgba(248,113,113,0.6)]" /><span className="text-[9px] text-red-300 font-medium truncate">Crítica {dayData!.criticas}</span></div>}
-                      {dayData!.apertura > 0 && <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" /><span className="text-[9px] text-red-300 font-medium truncate">Apertura {dayData!.apertura}</span></div>}
-                      {dayData!.presencia > 0 && <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" /><span className="text-[9px] text-rose-300 font-medium truncate">Presencia {dayData!.presencia}</span></div>}
-                      {dayData!.atencion > 0 && <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0" /><span className="text-[9px] text-yellow-300 font-medium truncate">Atención {dayData!.atencion}</span></div>}
-                      {dayData!.movimientos > 0 && <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" /><span className="text-[9px] text-orange-300 font-medium truncate">Mov. {dayData!.movimientos}</span></div>}
-                      {dayData!.desconexion > 0 && <div className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" /><span className="text-[9px] text-amber-300 font-medium truncate">Descon. {dayData!.desconexion}</span></div>}
+                      {filas.map(f => (
+                        <div key={f.k} className="flex items-center gap-1">
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${f.dot} ${f.glow}`} />
+                          <span className={`text-[9.5px] font-semibold truncate ${f.text}`}>{f.k} {f.v}</span>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </button>
@@ -275,8 +310,8 @@ export default function MonitorCalendario() {
 
       {/* ─── SIDE PANEL ─── */}
       {selectedDate && (
-        <div className="w-[45%] rounded-xl bg-bg-100 border border-border/30 shadow overflow-hidden flex flex-col min-h-0 animate-fade-in-up">
-          <div className="shrink-0 px-4 py-3 border-b border-border/20 flex items-center justify-between bg-bg-200/30">
+        <div className={`w-[45%] rounded-xl border overflow-hidden flex flex-col min-h-0 animate-fade-in-up ${isDark ? "bg-bg-100 border-border/30 shadow" : "bg-bg-300 border-border shadow-[0_1px_2px_rgba(15,23,42,0.06),0_20px_40px_-26px_rgba(15,23,42,0.45)]"}`}>
+          <div className={`shrink-0 px-4 py-3 border-b flex items-center justify-between ${isDark ? "border-border/20 bg-bg-200/30" : "border-border bg-bg-100"}`}>
             <div>
               <h3 className="text-sm font-bold text-text-100">
                 Alertas del {format(new Date(selectedDate), "d 'de' MMMM", { locale: es })}
@@ -308,7 +343,7 @@ export default function MonitorCalendario() {
             ) : (
               <table className="w-full text-xs">
                 <thead className="sticky top-0 z-10">
-                  <tr className="bg-bg-200 text-text-300 uppercase tracking-wider text-[9px]">
+                  <tr className={`uppercase tracking-wider text-[9px] ${isDark ? "bg-bg-200 text-text-300" : "bg-bg-100 text-text-200"}`}>
                     <th className="text-left py-2 px-2 font-medium w-[28px]"> </th>
                     <th className="text-left py-2 px-2 font-medium">Dispositivo</th>
                     <th className="text-left py-2 px-2 font-medium">Tipo</th>
@@ -319,29 +354,30 @@ export default function MonitorCalendario() {
                 </thead>
                 <tbody>
                   {alerts.map((a: any, i: number) => {
-                    const conf = TYPE_LABELS[a.type] || { label: a.type, color: "text-text-300 bg-bg-200/60", icon: IconAlertCircle };
+                    const conf = TYPE_LABELS[a.type] || { label: a.type, light: "text-text-200 bg-bg-200 ring-1 ring-border", dark: "text-text-300 bg-bg-200/60", icon: IconAlertCircle };
+                    const confCls = isDark ? conf.dark : conf.light;
                     const Icon = conf.icon;
                     return (
-                      <tr key={a.id} className={`${i % 2 === 0 ? "bg-bg-100" : "bg-bg-200/30"} hover:bg-bg-200/60 transition-colors border-b border-border/20`}>
+                      <tr key={a.id} className={`${i % 2 === 0 ? "" : isDark ? "bg-bg-200/30" : "bg-bg-100/60"} ${isDark ? "hover:bg-bg-200/60" : "hover:bg-bg-200/70"} transition-colors border-b ${isDark ? "border-border/20" : "border-border/60"}`}>
                         <td className="py-1.5 px-2">
-                          <div className={`w-5 h-5 rounded flex items-center justify-center ${conf.color}`}>
+                          <div className={`w-5 h-5 rounded flex items-center justify-center ${confCls}`}>
                             <Icon size={10} />
                           </div>
                         </td>
                         <td className="py-1.5 px-2 font-semibold text-text-100 truncate max-w-[130px]">{a.device_name}</td>
-                        <td className="py-1.5 px-2 text-text-300 text-[10px]">{a.type_device}</td>
+                        <td className="py-1.5 px-2 text-text-200 text-[10px]">{a.type_device}</td>
                         <td className="py-1.5 px-2">
-                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${conf.color}`}>{conf.label}</span>
+                          <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${confCls}`}>{conf.label}</span>
                         </td>
-                        <td className="py-1.5 px-2 text-text-300 font-mono text-[10px]">{format(new Date(a.created_at), "HH:mm")}</td>
+                        <td className="py-1.5 px-2 text-text-200 font-mono text-[10px]">{format(new Date(a.created_at), "HH:mm")}</td>
                         <td className="py-1.5 px-2 text-right">
                           {a.type === "critica" ? (
                             <button onClick={() => setTrackingAlertId(a.id)}
-                              className="text-[10px] font-semibold text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 px-2 py-0.5 rounded transition-colors">
+                              className={`text-[10px] font-semibold px-2 py-0.5 rounded transition-colors ${isDark ? "text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20" : "text-red-700 hover:text-white bg-red-50 hover:bg-red-600 ring-1 ring-red-200"}`}>
                               Trackeo
                             </button>
                           ) : (
-                            <span className="text-[10px] text-text-400">—</span>
+                            <span className="text-[10px] text-text-300">—</span>
                           )}
                         </td>
                       </tr>

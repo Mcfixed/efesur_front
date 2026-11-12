@@ -4,7 +4,6 @@ import { NotificationDropdown } from "@/template/notifications";
 import { UserMenu } from "@/template/components";
 import { useBreakpoint } from "@/hooks/useBreakpoints";
 import { IconCategory2 } from "@tabler/icons-react";
-import LineGradientWhite from "@/components/ui/LineGradientWhite";
 
 function Header({
   useConfigApp,
@@ -18,8 +17,6 @@ function Header({
   const { isMobile } = useBreakpoint();
   return (
     <header className="h-10 text-text-100 w-full z-100 flex items-center relative">
-      <LineGradientWhite top="-0.07rem" height="1.5rem" color={"#6b7280"} />
-
       <div className="relative w-full rounded-lg  flex items-center justify-between shadow bg-linear-to-l from-bg-300 via-bg-100 to-bg-200 ">
         <div className="px-10 flex gap-1">
           <h4 className="font-bold text-text-200">

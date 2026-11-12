@@ -59,35 +59,27 @@ export function buildUptimePorGateway(uptimeData?: MonitorGatewaysUptime): Map<n
 
 export function MonitorUptimeStrip({ s }: { s: UptimeGateway }) {
   const resumen = `Uptime ${s.uptime}% · ${s.caidas} caída${s.caidas !== 1 ? "s" : ""} · ${fmtDuracion(s.offlineMs)} caído en total`;
-  // Un grupo de bloques por día (el alto del gráfico y el de la regla se alinean solos)
+  // Un grupo de bloques por día (cada bloque = 2 h). El grupo se separa 4px del siguiente,
+  // así se distingue el día sin necesidad de fechas debajo.
   const dias = Array.from({ length: UPTIME_DIAS }, (_, i) =>
     s.buckets.slice(i * UPTIME_BLOQUES_POR_DIA, (i + 1) * UPTIME_BLOQUES_POR_DIA));
   return (
-    <div className="grid grid-cols-[auto_auto] gap-x-2 items-center">
-      <div className="shrink-0 flex" style={{ width: UPTIME_ANCHO_PX, gap: UPTIME_SEP_DIA_PX }} title={resumen}>
+    <div className="flex items-center gap-2" title={`${resumen} · cada grupo de bloques es un día`}>
+      <div className="shrink-0 flex" style={{ width: UPTIME_ANCHO_PX, gap: UPTIME_SEP_DIA_PX }}>
         {dias.map((bloques, i) => (
           <div key={i} className="flex" style={{ width: UPTIME_DIA_PX, gap: UPTIME_HUECO_PX }}>
             {bloques.map(b => (
               <div key={b.start}
                 title={`${format(new Date(b.start), "dd/MM HH:mm")} – ${format(new Date(b.end), "HH:mm")} · ${b.offlineMs > 0 ? `caído ${fmtDuracion(b.offlineMs)}` : "sin caídas"}`}
-                className={`h-3 ${uptimeBloqueClass(b.offlineMs, b.end - b.start)}`}
+                className={`h-3 rounded-full ${uptimeBloqueClass(b.offlineMs, b.end - b.start)}`}
                 style={{ width: UPTIME_BLOQUE_PX }} />
             ))}
           </div>
         ))}
       </div>
-      <span className={`text-[10px] font-semibold tabular-nums ${uptimeTextClass(s.uptime)}`}>{s.uptime}%</span>
-      {/* Regla de días: cada celda mide exactamente lo mismo que su grupo de bloques */}
-      <div className="shrink-0 flex mt-0.5" style={{ width: UPTIME_ANCHO_PX, gap: UPTIME_SEP_DIA_PX }}>
-        {dias.map((bloques, i) => (
-          <div key={i} className="text-center text-[8px] leading-none text-text-400 border-t border-border/40 pt-0.5"
-            style={{ width: UPTIME_DIA_PX }}>
-            {bloques.length
-              ? format(new Date((bloques[0].start + bloques[bloques.length - 1].end) / 2), "dd/MM")
-              : ""}
-          </div>
-        ))}
-      </div>
+      <span className={`text-[11px] font-semibold tabular-nums ${uptimeTextClass(s.uptime)}`} title={resumen}>
+        {s.uptime}%
+      </span>
     </div>
   );
 }

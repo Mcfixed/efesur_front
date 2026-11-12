@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -177,6 +177,18 @@ export default function MonitorTelemetryMap({ devicePosition, deviceName, gatewa
   const sensorMarkersRef = useRef<L.Marker[]>([]);
   const heatCirclesRef = useRef<L.Circle[]>([]);
 
+  // La telemetría se refresca cada pocos segundos y cambia la identidad de los arrays:
+  // estas firmas evitan destruir y recrear cientos de marcadores cuando el contenido es el mismo.
+  const sensorsKey = useMemo(
+    () => (sensors || []).map((s: any) => `${s.id}:${s.rssi ?? ""}:${s.snr ?? ""}:${s.ts ?? ""}`).join("|"),
+    [sensors],
+  );
+  const gatewaysKey = useMemo(
+    () => (gateways || []).map((g: any) => `${g.dev_eui}:${g.latitude_current}:${g.longitude_current}`).join("|"),
+    [gateways],
+  );
+  const gatewayIdsKey = useMemo(() => (activeGatewayIds || []).join(","), [activeGatewayIds]);
+
   useEffect(() => {
     const styleTag = document.createElement("style");
     styleTag.textContent = mapStyles;
@@ -325,7 +337,7 @@ export default function MonitorTelemetryMap({ devicePosition, deviceName, gatewa
       heatCirclesRef.current.forEach(c => map.removeLayer(c)); heatCirclesRef.current = [];
       sensorMarkersRef.current.forEach(m => map.removeLayer(m)); sensorMarkersRef.current = [];
     };
-  }, [devicePosition?.lat, devicePosition?.lng, gateways, activeGatewayIds, sensors]);
+  }, [devicePosition?.lat, devicePosition?.lng, gatewaysKey, gatewayIdsKey, sensorsKey]);
 
   return <div ref={mapRef} className="telemetry-map-shell w-full h-full rounded" style={{ minHeight: "150px" }} />;
 }

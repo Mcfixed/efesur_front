@@ -15,15 +15,19 @@ export default function MapOverlayInfo({ data }: { data?: DashboardData }) {
   const hasCritical = (data?.summary?.criticalAlertsCount || 0) > 0;
   const isUrgent = hasCritical || (data?.summary?.desconexionGWCount || 0) > 0;
 
+  // En oscuro el recuadro debe seguir siendo oscuro incluso en estado urgente:
+  // antes se aplicaba bg-red-50 (casi blanco) en ambos temas.
+  const cardCls = isUrgent
+    ? isDark
+      ? "bg-red-950/85 border border-red-500/50"
+      : "bg-red-50 border border-red-500/40"
+    : isDark
+      ? "bg-bg-100/95 border border-border/30"
+      : "bg-bg-300 border border-border";
+
   return (
     <div
-      className={`absolute top-2 left-2 z-10 flex flex-col gap-1 rounded-lg px-2.5 py-2 min-w-36 $
-        isUrgent
-          ? "bg-red-50 border border-red-500/40"
-          : isDark
-            ? "bg-bg-100/95 border border-border/30"
-            : "surface-card-3"
-      }`}
+      className={`absolute top-2 left-2 z-10 flex flex-col gap-1 rounded-lg px-2.5 py-2 min-w-36 ${cardCls}`}
       style={isUrgent ? {
         boxShadow: '0 0 15px rgba(239,68,68,0.15), 0 0 30px rgba(239,68,68,0.05)'
       } : isDark ? undefined : { boxShadow: '0 8px 30px rgba(15, 23, 42, 0.08)' }}

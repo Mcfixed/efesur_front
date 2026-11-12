@@ -65,11 +65,6 @@ export default function MonitorBatteryPopup({ children, variant = 'litio' }: { c
                 );
               })}
             </div>
-            <p className="text-[10px] text-white/50 mt-2 border-t border-white/10 pt-2 leading-snug">
-              {esEstacion
-                ? 'Gateways y lectores no tienen batería propia: es el banco de 12 V de la estación, que reporta el MPPT del lector asignado. Bajo 11.8 V se muestra en rojo.'
-                : 'El dispositivo puede funcionar con menos de 3.50V, pero 3.50V es la base segura recomendada.'}
-            </p>
           </div>
         </div>
       )}

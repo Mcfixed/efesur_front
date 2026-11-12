@@ -17,10 +17,13 @@ export function useLoginForm(): UseLoginFormReturn {
   const location = useLocation();
   const { signIn, isLoading: authLoading, error: authError } = useBetterAuth();
 
-  const [formData, setFormData] = useState<LoginFormData>({
-    email: "",
-    password: "",
-    rememberMe: false,
+  /** El correo se conserva en sessionStorage: si el formulario se vuelve a montar
+      (revalidación de sesión, volver a la pestaña) el usuario no lo pierde.
+      La contraseña nunca se persiste. */
+  const [formData, setFormData] = useState<LoginFormData>(() => {
+    let email = "";
+    try { email = sessionStorage.getItem("login_email") ?? ""; } catch { /* modo privado */ }
+    return { email, password: "", rememberMe: false };
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +32,9 @@ export function useLoginForm(): UseLoginFormReturn {
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
+    if (name === "email") {
+      try { sessionStorage.setItem("login_email", value); } catch { /* ignorar */ }
+    }
     setFormData((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,

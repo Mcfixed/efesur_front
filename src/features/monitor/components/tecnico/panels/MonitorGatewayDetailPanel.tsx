@@ -1,12 +1,12 @@
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { format } from "date-fns";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useMonitorDevices, useMonitorLatestTelemetry, useMonitorDeviceAlerts, useMonitorGatewayPositions } from "../../../hooks/useMonitor";
-import { IconAntennaBars3, IconWifi } from "@tabler/icons-react";
 import MonitorTelemetryMap from "../MonitorTelemetryMap";
-import MonitorLectorDashboard from "./MonitorLectorDashboard";
-import { cleanVoltage, cleanCurrent, cleanPower, cleanState, cleanTemp } from "../../../utils/mppt";
-import { intervalosCaida, segmentosUptime, statsUptime, bucketsUptime, fmtDuracion, uptimeTextClass, uptimeDotClass } from "../../../utils/uptime";
+import MonitorLectorDashboard, { relTime } from "./MonitorLectorDashboard";
+import { IconArrowsMaximize } from "@tabler/icons-react";
+import { intervalosCaida, segmentosUptime, statsUptime, fmtDuracion, uptimeTextClass, uptimeDotClass } from "../../../utils/uptime";
 
 interface Props {
   deviceId: number;
@@ -16,40 +16,43 @@ interface Props {
   lastTs?: string | null;
   range?: string;
   onRangeChange?: (range: string) => void;
+  onBack?: () => void;
 }
 
-// Tooltip del minigráfico: activo / inactivo / caídas / uptime del bucket
-interface BucketTooltipProps {
+// Tooltip del gráfico de estado: 1 = conectado, 0 = desconectado (+ duración del tramo)
+interface EstadoTooltipProps {
   active?: boolean;
-  payload?: Array<{ payload: { titulo: string; activo: number; inactivo: number; caidas: number } }>;
+  payload?: Array<{ payload: { t: number; v: number; dur?: number; fin?: number } }>;
 }
 
-const ConectividadTooltip = ({ active, payload }: BucketTooltipProps) => {
+const EstadoTooltip = ({ active, payload }: EstadoTooltipProps) => {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
-  const total = d.activo + d.inactivo;
-  const pct = total > 0 ? Math.round((d.activo / total) * 100) : 100;
+  const up = d.v === 1;
+  const dur = d.dur ?? 0;
   return (
-    <div className="bg-[#1a1d23]/90 backdrop-blur-md border border-white/10 rounded-lg px-3 py-2 shadow-2xl text-[11px] min-w-40">
-      <p className="text-white/60 text-[10px] mb-1.5 border-b border-white/5 pb-1 font-medium tracking-wide">{d.titulo}</p>
-      <p className="flex items-center gap-2 leading-5">
-        <span className="w-2 h-2 rounded-full shrink-0 bg-green-400" />
-        <span className="text-white/50 font-medium">Activo:</span>
-        <span className="text-green-400 font-bold ml-auto">{fmtDuracion(d.activo)}</span>
+    <div className="bg-[#1a1d23]/90 backdrop-blur-md border border-white/10 rounded-lg px-3 py-2 shadow-2xl text-[11px] min-w-44">
+      <p className="text-white/60 text-[10px] mb-1.5 border-b border-white/5 pb-1 font-medium tracking-wide">
+        {format(new Date(d.t), "dd/MM/yyyy HH:mm:ss")}
       </p>
       <p className="flex items-center gap-2 leading-5">
-        <span className="w-2 h-2 rounded-full shrink-0 bg-red-400" />
-        <span className="text-white/50 font-medium">Inactivo:</span>
-        <span className="text-red-400 font-bold ml-auto">{fmtDuracion(d.inactivo)}</span>
+        <span className={`w-2 h-2 rounded-full shrink-0 ${up ? 'bg-green-400' : 'bg-red-400'}`} />
+        <span className={up ? 'text-green-400 font-bold' : 'text-red-400 font-bold'}>
+          {up ? 'Conectado' : 'Desconectado'}
+        </span>
       </p>
-      <p className="flex items-center gap-2 leading-5 mt-1 pt-1 border-t border-white/5">
-        <span className="text-white/50 font-medium">Caídas:</span>
-        <span className="text-white font-bold ml-auto">{d.caidas}</span>
-      </p>
-      <p className="flex items-center gap-2 leading-5">
-        <span className="text-white/50 font-medium">Uptime:</span>
-        <span className={`font-bold ml-auto ${pct >= 95 ? 'text-green-400' : pct >= 80 ? 'text-yellow-400' : 'text-red-400'}`}>{pct}%</span>
-      </p>
+      {dur > 0 && (
+        <p className="flex items-center gap-2 leading-5 mt-1 pt-1 border-t border-white/5">
+          <span className="text-white/50 font-medium">Duración:</span>
+          <span className={`font-bold ml-auto ${up ? 'text-green-400' : 'text-red-400'}`}>{fmtDuracion(dur)}</span>
+        </p>
+      )}
+      {!up && d.fin != null && d.fin > d.t && (
+        <p className="flex items-center gap-2 leading-5">
+          <span className="text-white/50 font-medium">Reconectó:</span>
+          <span className="text-white/80 font-bold ml-auto">{format(new Date(d.fin), "dd/MM HH:mm:ss")}</span>
+        </p>
+      )}
     </div>
   );
 };
@@ -57,7 +60,7 @@ const ConectividadTooltip = ({ active, payload }: BucketTooltipProps) => {
 // ═══════════════════════════════════════════
 // COMPONENTE PRINCIPAL
 // ═══════════════════════════════════════════
-export default function MonitorGatewayDetailPanel({ deviceId, deviceName, deviceEui, lastSeen, range = '7d' }: Props) {
+export default function MonitorGatewayDetailPanel({ deviceId, deviceName, deviceEui, lastSeen, range = '7d', onRangeChange, onBack }: Props) {
   const { data: deviceAlerts } = useMonitorDeviceAlerts(deviceId);
   const { data: allDevices } = useMonitorDevices();
   const { data: gatewayPositions } = useMonitorGatewayPositions();
@@ -69,12 +72,6 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
     const gw = allDevices.find((d: any) => d.id === deviceId);
     return gw?.id_device_father || null;
   }, [allDevices, deviceId]);
-
-  const lectorAsignadoName = useMemo(() => {
-    if (!lectorDeviceId || !allDevices) return null;
-    const l = allDevices.find((d: any) => d.id === lectorDeviceId);
-    return l?.name || null;
-  }, [lectorDeviceId, allDevices]);
 
   const { data: lectorAlerts } = useMonitorDeviceAlerts(lectorDeviceId);
 
@@ -189,92 +186,17 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
   const uptimeText = uptimeTextClass(uptimePct);
   const uptimeDot = uptimeDotClass(uptimePct);
 
-  // Datos del minigráfico: bloques por hora (24H) o por día (7D/30D) con tiempo activo/inactivo
-  const conectividadChart = useMemo(() => {
-    const now = Date.now();
-    const rangeStart = timelineData[0]?.start ?? now;
-    const porHora = rangeHours > 0 && rangeHours <= 24;
-    const count = porHora ? 24 : rangeHours > 0 && rangeHours <= 168 ? 7 : 30;
-    const dias = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-    return bucketsUptime(timelineData, rangeStart, now, count).map(b => {
-      const d = new Date(b.start);
-      return {
-        ...b,
-        label: porHora ? format(d, "HH:mm") : count === 7 ? dias[d.getDay()] : format(d, "dd/MM"),
-        titulo: porHora ? format(d, "dd/MM HH:mm") : format(d, "dd/MM/yyyy"),
-        activo: b.onlineMs,
-        inactivo: b.offlineMs,
-      };
-    });
-  }, [timelineData, rangeHours]);
-
-  const gatewayRecords = useMemo(() => {
-    const telemetry = Array.isArray(latestTelemetry) ? latestTelemetry : (latestTelemetry as any)?.telemetry || [];
-    if (!telemetry.length) return [];
-    const euiLower = deviceEui?.toLowerCase() || '';
-    const nameLower = deviceName?.toLowerCase() || '';
-    const short6 = euiLower.slice(-6);
-    return (telemetry as any[]).filter((t: any) =>
-      Array.isArray(t.rxinfo) && t.rxinfo.some((gw: any) => {
-        const id = (gw.gatewayId || '').toLowerCase();
-        return id === euiLower || id === nameLower || id.endsWith(short6) || (short6 && id.includes(short6));
-      })
-    ).slice(0, 20);
-  }, [latestTelemetry, deviceEui, deviceName]);
-
-  const solarChartData = useMemo(() => {
-    const telemetry = Array.isArray(latestTelemetry) ? latestTelemetry : (latestTelemetry as any)?.telemetry || [];
-    if (!telemetry.length) return [];
-    const euiLower = deviceEui?.toLowerCase() || '';
-    const nameLower = deviceName?.toLowerCase() || '';
-    const short6 = euiLower.slice(-6);
-    const records = (telemetry as any[]).filter((t: any) =>
-      Array.isArray(t.rxinfo) && t.rxinfo.some((gw: any) => {
-        const id = (gw.gatewayId || '').toLowerCase();
-        return id === euiLower || id === nameLower || id.endsWith(short6) || (short6 && id.includes(short6));
-      })
-    ).reverse();
-    return records.map((r: any) => ({
-      time: format(new Date(r.ts), "HH:mm"),
-      volt: r.object?.voltage_mV ? +(r.object.voltage_mV / 1000).toFixed(2) : null,
-      temp: r.object?.temperature_C ?? null,
+  // Serie binaria del gráfico: 1 = conectado, 0 = desconectado.
+  // Un punto por el inicio de cada segmento + el cierre del último; con type="stepAfter"
+  // el trazo se mantiene plano y baja en vertical justo al empezar la caída.
+  const conectividadEstado = useMemo(() => {
+    const pts = timelineData.map(s => ({
+      t: s.start, v: s.online ? 1 : 0, dur: s.end - s.start, fin: s.end,
     }));
-  }, [latestTelemetry, deviceEui, deviceName]);
-
-  // ── Lector asignado (vía id_device_father) ──
-  const lectorData = useMemo(() => {
-    if (!allDevices || !latestTelemetry) return null;
-    const telemetry = Array.isArray(latestTelemetry) ? latestTelemetry : (latestTelemetry as any)?.telemetry || [];
-    // Find this gateway device
-    const gwDevice = allDevices.find((d: any) => d.id === deviceId);
-    if (!gwDevice?.id_device_father) return null;
-    // Find the lector device
-    const lector = allDevices.find((d: any) => d.id === gwDevice.id_device_father);
-    if (!lector) return null;
-    // Filter telemetry for this lector
-    const tel = telemetry.filter((t: any) =>
-      t.dev_eui?.toLowerCase() === lector.dev_eui.toLowerCase() || t.device_id === lector.id
-    );
-    if (!tel.length) return null;
-    const lastT = tel.find((t: any) => t.object?.Mppt) || tel[0];
-    const obj = lastT?.object || {};
-    const mppt = obj.Mppt || {};
-    const security = obj.Security || {};
-    const blueSmart = obj.BlueSmartIP67 || {};
-    return {
-      lectorName: lector.name,
-      lectorEui: lector.dev_eui,
-      vBat: cleanVoltage(mppt.batteryVoltage_V) ?? cleanVoltage(blueSmart.voltaje_V) ?? null,
-      pPan: cleanPower(mppt.panelPower_W) ?? null,
-      iBat: cleanCurrent(mppt.batteryCurrent_A) ?? null,
-      temp: cleanTemp(mppt.internalTemp_C) ?? cleanTemp(obj.Environment?.temperatura_C) ?? null,
-      sensores: security,
-      charger220: blueSmart,
-      loadState: cleanState(mppt.loadState) ?? null,
-      batPct: mppt.batteryVoltage_V != null && mppt.batteryVoltage_V < 500 ? Math.max(0, Math.min(100, ((mppt.batteryVoltage_V - 11) / (15 - 11)) * 100)) : null,
-      lastTs: lastT?.ts || null,
-    };
-  }, [allDevices, latestTelemetry, deviceId]);
+    const last = timelineData[timelineData.length - 1];
+    if (last) pts.push({ t: last.end, v: last.online ? 1 : 0, dur: 0, fin: last.end });
+    return pts;
+  }, [timelineData]);
 
   // Merge gateway alerts + lector alerts
   const mergedAlerts = useMemo(() => {
@@ -285,229 +207,124 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
     return all;
   }, [deviceAlerts, lectorAlerts]);
 
-  const [activeTab, setActiveTab] = useState<"resumen" | "mapa" | "lector_asignado">("resumen");
-  const tabs = [
-    { key: "resumen" as const, label: "Resumen" },
-    { key: "mapa" as const, label: "Cobertura" },
-    { key: "lector_asignado" as const, label: "Lector asignado" },
-  ];
+  // Alertas dentro del rango seleccionado (una sola vez) y severidad máxima para dar color al contador
+  const alertsEnRango = useMemo(
+    () => mergedAlerts.filter((a: any) => rangeHours === 0 || new Date(a.created_at).getTime() >= (Date.now() - rangeHours * 3600000)),
+    [mergedAlerts, rangeHours],
+  );
+  const alertsCriticas = alertsEnRango.filter((a: any) => a.type === 'critica' || a.type === 'apertura').length;
+  const alertCountColor = alertsEnRango.length === 0
+    ? '#94a3b8'
+    : alertsCriticas > 0 ? '#ef4444' : '#eab308';
+
+  const [panTab, setPanTab] = useState<"mapa" | "alertas" | "sensores">("mapa");
+  const [mapOpen, setMapOpen] = useState(false);
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 gap-1.5">
-      <div className="flex gap-1 bg-bg-100 border-b border-border shrink-0 self-start w-full">
-        {tabs.map(t => (
-          <button key={t.key} onClick={() => setActiveTab(t.key)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === t.key ? 'border-brand-100 text-brand-100' : 'border-transparent text-text-200 hover:text-text-100'}`}>{t.label}</button>
-        ))}
-      </div>
-
-      {activeTab === "resumen" && (
-        <div className="flex-1 grid grid-rows-[3fr_2fr] gap-1.5 min-h-0">
-          <div className="grid grid-cols-3 gap-1.5 min-h-0">
-            <div className="bg-bg-100 border border-border/30 rounded-lg overflow-hidden flex flex-col shadow min-h-0">
-              <div className="border-b border-border/30 shrink-0 px-3 py-1.5">
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-bold text-text-100 uppercase tracking-wider flex items-center gap-1.5">
-                    <IconAntennaBars3 size={14} className="text-blue-400" /> Últimos registros
-                  </p>
-                  <span className="text-xs font-bold text-text-100">{gatewayRecords.length}</span>
+    <MonitorLectorDashboard
+      lectorDeviceId={lectorDeviceId}
+      gatewayLastSeen={lastSeen}
+      gatewayName={deviceName}
+      onBack={onBack}
+    >
+      {/* B · CONECTIVIDAD */}
+      <div className="flex-[0.85] min-w-0 min-h-0 flex flex-col bg-bg-200/25 rounded-lg overflow-hidden">
+          <div className="border-b border-border/30 shrink-0">
+            <div className="flex items-center justify-between gap-2 px-3 py-1.5">
+              <p className="text-[11px] font-bold text-text-100 uppercase tracking-wider flex items-center gap-2 shrink-0">
+                <span className={`w-2 h-2 rounded-full ${uptimeDot}`} /> Conectividad
+              </p>
+              <div className="flex items-center gap-2 ml-auto min-w-0">
+                <span className={`text-[13px] font-bold ${uptimeText}`}>{uptimePct}%</span>
+                <div className="flex gap-1">
+                  {RANGES.filter(r => r.key !== 'total').map(r => (
+                    <button key={r.key} onClick={() => onRangeChange?.(r.key)}
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${range === r.key ? "bg-[#00a3e8]/20 text-[#00a3e8]" : "bg-bg-200/50 text-text-300 hover:text-text-200"}`}>{r.label}</button>
+                  ))}
                 </div>
-              </div>
-              <div className="flex-1 overflow-y-auto min-h-0">
-                {gatewayRecords.length > 0 ? (
-                  <table className="w-full text-xs">
-                    <thead className="sticky top-0 z-10">
-                      <tr className="bg-bg-200 text-text-300 uppercase tracking-wider text-[9px]">
-                        <th className="text-left py-2 px-2 font-medium">Dispositivo</th>
-                        <th className="text-left py-2 px-2 font-medium">Hora</th>
-                        <th className="text-center py-2 px-2 font-medium">GW</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {gatewayRecords.map((r: any, i: number) => (
-                        <tr key={r.id} className={`${i % 2 === 0 ? "bg-bg-100" : "bg-bg-200/30"} hover:bg-bg-200/60 transition-colors border-b border-border/20`}>
-                          <td className="py-1.5 px-2 text-text-100 truncate max-w-28 font-medium">{r.device_name || r.dev_eui}</td>
-                          <td className="py-1.5 px-2 text-text-300 font-mono text-[10px] whitespace-nowrap">{format(new Date(r.ts), "HH:mm:ss")}</td>
-                          <td className="py-1.5 px-2 text-center text-text-300 text-[10px]">{Array.isArray(r.rxinfo) ? r.rxinfo.length : '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : <div className="flex items-center justify-center h-full"><p className="text-[11px] text-text-300">Sin registros</p></div>}
-              </div>
-            </div>
-            <div className="bg-bg-100 border border-border/30 rounded-lg overflow-hidden flex flex-col shadow min-h-0">
-              <div className="border-b border-border/30 shrink-0 px-3 py-1.5">
-                <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${lastSeen && Date.now() - new Date(lastSeen).getTime() < 300000 ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
-                  <span className="text-[10px] font-bold text-text-100 uppercase tracking-wider">Estado del Sistema</span>
-                  <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border ${lectorDeviceId ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-red-500/10 text-red-400 border-red-500/30'}`}>
-                    {lectorDeviceId ? 'Lector asignado' : 'Sin lector asignado'}
-                  </span>
-                </div>
-              </div>
-              <div className="flex-1 p-2 flex items-center justify-center min-h-0">
-                <svg width="100%" height="100%" viewBox="0 0 260 180" preserveAspectRatio="xMidYMid meet" style={{ maxHeight: '100%' }}>
-                  <style>{`@keyframes gwFlow{to{stroke-dashoffset:-16}}`}</style>
-
-                  {/* Gateway UG65 */}
-                  <g transform="translate(80, 6)">
-                    <rect x="0" y="0" width="100" height="36" rx="6" fill="none" stroke={lastSeen && Date.now() - new Date(lastSeen).getTime() < 300000 ? '#22c55e' : '#ef4444'} strokeWidth="1.5" />
-                    <line x1="50" y1="0" x2="50" y2="-8" stroke="#888" strokeWidth="1.5" />
-                    <line x1="46" y1="-4" x2="54" y2="-4" stroke="#888" strokeWidth="1" />
-                    <circle cx="12" cy="10" r="3" fill={lastSeen && Date.now() - new Date(lastSeen).getTime() < 300000 ? '#22c55e' : '#ef4444'} />
-                    <text x="50" y="15" textAnchor="middle" fill="#e0e0e0" fontSize="9" fontWeight="bold">UG65</text>
-                    <text x="50" y="27" textAnchor="middle" fill="#888" fontSize="6">GATEWAY</text>
-                    <text x="80" y="46" textAnchor="middle" fill={lastSeen && Date.now() - new Date(lastSeen).getTime() < 300000 ? '#22c55e' : '#ef4444'} fontSize="7" fontWeight="bold">
-                      {lastSeen && Date.now() - new Date(lastSeen).getTime() < 300000 ? '● ONLINE' : '● OFFLINE'}
-                    </text>
-                  </g>
-
-                  {/* Battery card — lector (gris si no hay lector) */}
-                  <g transform="translate(12, 68)" opacity={lectorDeviceId ? 1 : 0.35}>
-                    <rect x="0" y="0" width="110" height="44" rx="5" fill="none" stroke="#555" strokeWidth="0.8" opacity="0.5" />
-                    <text x="55" y="10" textAnchor="middle" fill="#888" fontSize="6" fontWeight="bold">BATERÍA {lectorData ? `· ${lectorAsignadoName || lectorData.lectorName}` : ''}</text>
-                    {/* Battery icon */}
-                    <rect x="8" y="16" width="20" height="12" rx="2" fill="none" stroke={lectorData?.vBat != null ? (lectorData.vBat >= 12.5 ? '#22c55e' : lectorData.vBat >= 11.8 ? '#f97316' : '#ef4444') : '#555'} strokeWidth="1" />
-                    <rect x="28" y="19" width="3" height="6" rx="0.5" fill={lectorData?.vBat != null ? (lectorData.vBat >= 12.5 ? '#22c55e' : lectorData.vBat >= 11.8 ? '#f97316' : '#ef4444') : '#555'} />
-                    <rect x="10" y="18" width={lectorData?.batPct != null ? `${Math.min(lectorData.batPct, 100) * 0.16}` : 0} height="8" rx="1" fill={lectorData?.vBat != null ? (lectorData.vBat >= 12.5 ? '#22c55e' : lectorData.vBat >= 11.8 ? '#f97316' : '#ef4444') : '#555'} opacity="0.35" />
-                    <text x="46" y="24" textAnchor="middle" fill="#e0e0e0" fontSize="8" fontFamily="monospace" fontWeight="bold">
-                      {lectorData?.batPct != null ? `${Math.round(lectorData.batPct)}%` : '—'}
-                    </text>
-                    <text x="46" y="36" textAnchor="middle" fill="#aaa" fontSize="6" fontFamily="monospace">
-                      {lectorData?.vBat != null ? `${lectorData.vBat.toFixed(2)}V` : 'Sin datos'}
-                    </text>
-                  </g>
-
-                  {/* Power source + temp card — lector (gris si no hay lector) */}
-                  <g transform="translate(138, 68)" opacity={lectorDeviceId ? 1 : 0.35}>
-                    <rect x="0" y="0" width="110" height="44" rx="5" fill="none" stroke="#555" strokeWidth="0.8" opacity="0.5" />
-                    <text x="55" y="10" textAnchor="middle" fill="#888" fontSize="6" fontWeight="bold">ALIMENTACIÓN</text>
-                    {/* Charger 220V indicator */}
-                    <circle cx="20" cy="22" r="4" fill={lectorData?.charger220?.estado ? '#22c55e' : '#3b82f6'} opacity={lectorData?.charger220?.estado ? 0.8 : 0.5} />
-                    <text x="20" y="22" textAnchor="middle" fill="#fff" fontSize="5" fontWeight="bold">~</text>
-                    <text x="32" y="25" textAnchor="middle" fill={lectorData?.charger220?.estado ? '#22c55e' : '#aaa'} fontSize="6">
-                      {lectorData?.charger220?.estado || 'CA 220V'}
-                    </text>
-                    {/* Temperature */}
-                    <text x="55" y="37" textAnchor="middle" fill="#aaa" fontSize="6">
-                      Temp:{lectorData?.temp != null
-                        ? ` ${lectorData.temp.toFixed(1)}°C`
-                        : solarChartData.length > 0 && solarChartData[solarChartData.length - 1].temp != null
-                          ? ` ${solarChartData[solarChartData.length - 1].temp.toFixed(1)}°C`
-                          : ' —'}
-                    </text>
-                  </g>
-
-                  {/* Sensors card — lector + gateway (gris si no hay lector) */}
-                  <g transform="translate(12, 120)" opacity={lectorDeviceId ? 1 : 0.35}>
-                    <rect x="0" y="0" width="236" height="28" rx="5" fill="none" stroke="#555" strokeWidth="0.8" opacity="0.5" />
-                    <text x="118" y="10" textAnchor="middle" fill="#888" fontSize="6" fontWeight="bold">SENSORES</text>
-                    {/* Door sensor */}
-                    <rect x="14" y="14" width="8" height="10" rx="1" fill="none" stroke={lectorData?.sensores?.doorState === 1 ? '#ef4444' : '#22c55e'} strokeWidth="0.8" />
-                    <circle cx="18" cy="19" r="1.5" fill={lectorData?.sensores?.doorState === 1 ? '#ef4444' : '#22c55e'} />
-                    <text x="26" y="22" fill="#aaa" fontSize="6">Puerta: {lectorData?.sensores?.doorState === 1 ? 'OPEN' : lectorData?.sensores?.doorState === 0 ? 'CLOSED' : '—'}</text>
-                    {/* Proximity sensor */}
-                    <circle cx="100" cy="19" r="4" fill="none" stroke={lectorData?.sensores?.pirState === 1 ? '#eab308' : '#6b7280'} strokeWidth="0.8" />
-                    <circle cx="100" cy="19" r="1.5" fill={lectorData?.sensores?.pirState === 1 ? '#eab308' : '#6b7280'} />
-                    <text x="108" y="22" fill="#aaa" fontSize="6">Prox: {lectorData?.sensores?.pirState === 1 ? 'DET' : lectorData?.sensores?.pirState === 0 ? 'CLEAR' : '—'}</text>
-                    {/* Uptime */}
-                    <text x="190" y="22" fill="#888" fontSize="6">{uptimePct}% uptime</text>
-                  </g>
-                </svg>
-              </div>
-            </div>
-            <div className="bg-bg-100 border border-border/30 rounded-lg overflow-hidden flex flex-col shadow min-h-0">
-              <div className="border-b border-border/30 shrink-0 px-3 py-1.5">
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-bold text-text-100 uppercase tracking-wider flex items-center gap-1.5">
-                    <IconWifi size={14} className="text-emerald-400" /> Conectados
-                  </p>
-                  <span className="text-lg font-bold text-text-100">{connectedDevicesCount}</span>
-                </div>
-              </div>
-              <div className="flex-1 overflow-y-auto p-2 min-h-0">
-                {connectedDevicesData.length > 0 ? (
-                  <div className="space-y-1">
-                    {connectedDevicesData.map((d: any) => (
-                      <div key={d.id} className="flex items-center gap-2 text-[10px] bg-bg-300/20 rounded px-2 py-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
-                        <span className="text-text-200 truncate flex-1">{d.name}</span>
-                        <span className="text-text-300 font-mono text-[9px]">{d.type_device}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : <div className="flex items-center justify-center h-full"><p className="text-[11px] text-text-300">Sin dispositivos</p></div>}
               </div>
             </div>
           </div>
-
-          <div className="grid grid-cols-[40%_60%] gap-1.5 min-h-0">
-            <div className="bg-bg-100 border border-border/30 rounded-lg overflow-hidden flex flex-col min-h-0 shadow">
-              <div className="border-b border-border/30 shrink-0">
-                <div className="flex items-center justify-between px-3 py-2">
-                  <p className="text-xs font-bold text-text-100 uppercase tracking-wider flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${uptimeDot}`} /> Conectividad
-                  </p>
-                  <span className={`text-sm font-bold ${uptimeText}`}>{uptimePct}%</span>
-                </div>
-              </div>
               <div className="flex-1 p-2.5 flex flex-col min-h-0">
-                <div className="flex h-5 rounded-md overflow-hidden mb-1.5 shrink-0">
-                  {timelineData.map((seg, i) => {
-                    const total = timelineData.reduce((s, seg) => s + (seg.end - seg.start), 0);
-                    const pct = total > 0 ? ((seg.end - seg.start) / total) * 100 : 0;
-                    return <div key={i} className={`${seg.online ? 'bg-green-400/60' : 'bg-red-400/60'} transition-all cursor-pointer`}
-                      style={{ width: `${pct}%` }}
-                      title={`${seg.online ? '🟢 Online' : '🔴 Offline'}\n${format(new Date(seg.start), "dd/MM/yyyy HH:mm:ss")} → ${format(new Date(seg.end), "dd/MM/yyyy HH:mm:ss")}\nDuración: ${Math.round((seg.end - seg.start) / 60000)} min`} />;
-                  })}
-                </div>
-                <div className="flex justify-between text-[10px] text-text-200 font-medium">{(() => {
-                  if (rangeHours <= 24) return [0,6,12,18,24].map(h => { const d = new Date(Date.now() - (24 - h) * 3600000); return <span key={h}>{format(d, "HH:mm")}</span>; });
-                  if (rangeHours <= 168) { const days = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb']; return [6,5,4,3,2,1,0].map(i => { const d = new Date(Date.now() - i * 86400000); return <span key={i}>{days[d.getDay()]}</span>; }); }
-                  if (rangeHours <= 720) { const m = []; for (let i = 0; i <= 30; i += 5) { const d = new Date(Date.now() - (30 - i) * 86400000); m.push(<span key={i}>{format(d, "dd/MM")}</span>); } return m; }
-                  const m: any[] = [0]; for (let i = 10; i <= 60; i += 10) { const d = new Date(Date.now() - i * 86400000); m.push(<span key={i}>{format(d, "dd/MM")}</span>); } return m;
-                })()}</div>
-                <div className="flex items-center gap-3 mt-1.5 text-[11px] shrink-0">
-                  <span><span className="w-2 h-2 rounded-full bg-green-400 inline-block mr-1" /><span className="font-semibold text-green-400">{fmtDuracion(conectividadStats.onlineMs)}</span> <span className="text-text-200">activo</span></span>
-                  <span><span className="w-2 h-2 rounded-full bg-red-400 inline-block mr-1" /><span className="font-semibold text-red-400">{fmtDuracion(conectividadStats.offlineMs)}</span> <span className="text-text-200">inactivo</span></span>
-                  {conectividadStats.caidas > 0 && (
-                    <span className="text-text-300 ml-auto">{conectividadStats.caidas} {conectividadStats.caidas === 1 ? 'caída' : 'caídas'}</span>
-                  )}
-                </div>
-
-                {/* Minigráfico activo/inactivo por hora (24H) o por día (7D/30D) */}
-                <div className="flex-1 min-h-17.5 mt-1.5">
-                  {conectividadChart.length > 0 ? (
+                {/* Estado de conexión en el tiempo: 1 conectado · 0 desconectado */}
+                <div className="flex-1 min-h-17.5">
+                  {conectividadEstado.length > 1 ? (
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={conectividadChart} margin={{ top: 2, right: 2, left: -20, bottom: 0 }} barCategoryGap="15%">
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
-                        <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} tickLine={false} axisLine={{ stroke: 'rgba(255,255,255,0.05)' }} interval="preserveStartEnd" minTickGap={16} />
-                        <YAxis tick={{ fontSize: 9, fill: 'rgba(255,255,255,0.3)' }} tickLine={false} axisLine={false} width={34} tickFormatter={(v: number) => `${v}h`} />
-                        <Tooltip content={<ConectividadTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
-                        <Bar dataKey="activo" name="Activo" stackId="c" fill="#4ade80" fillOpacity={0.5} />
-                        <Bar dataKey="inactivo" name="Inactivo" stackId="c" fill="#f87171" fillOpacity={0.85} />
-                      </BarChart>
+                      <LineChart data={conectividadEstado} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.1)" vertical={false} />
+                        <XAxis dataKey="t" type="number" scale="time" domain={['dataMin', 'dataMax']} minTickGap={40}
+                          tick={{ fontSize: 9, fill: '#94a3b8' }} tickLine={false} axisLine={{ stroke: 'rgba(148,163,184,0.25)' }}
+                          tickFormatter={(ts: number) => format(new Date(ts), rangeHours > 0 && rangeHours <= 24 ? "HH:mm" : rangeHours > 0 && rangeHours <= 168 ? "dd/MM HH'h'" : "dd/MM")} />
+                        <YAxis hide domain={[-0.12, 1.12]} />
+                        <Tooltip content={<EstadoTooltip />} cursor={{ stroke: 'rgba(148,163,184,0.4)' }} />
+                        <Line type="stepAfter" dataKey="v" stroke="#4ade80" strokeWidth={1.8} isAnimationActive={false} activeDot={{ r: 3, fill: '#4ade80' }}
+                          dot={(p: any) => (p?.payload?.v === 0
+                            ? <circle key={`caida-${p.index}`} cx={p.cx} cy={p.cy} r={2.6} fill="#ef4444" stroke="none" />
+                            : <g key={`ok-${p.index}`} />)} />
+                      </LineChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="flex items-center justify-center h-full"><p className="text-[10px] text-text-400">Sin datos en el período</p></div>
+                    <div className="flex items-center justify-center h-full"><p className="text-[10px] text-text-300">Sin datos en el período</p></div>
                   )}
                 </div>
-              </div>
-            </div>
-            <div className="bg-bg-100 border border-border/30 rounded-lg overflow-hidden flex flex-col min-h-0 shadow">
-              <div className="border-b border-border/30 shrink-0">
-                <div className="flex items-center justify-between px-3 py-2">
-                  <p className="text-xs font-bold text-text-100 uppercase tracking-wider flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" /> Alertas
-                  </p>
-                  <span className="text-sm font-bold text-text-100">{mergedAlerts.filter((a: any) => rangeHours === 0 || new Date(a.created_at).getTime() >= (Date.now() - rangeHours * 3600000)).length || 0}</span>
+                <div className="shrink-0 flex items-center gap-3 mt-1 text-[10px] text-text-300">
+                  <span><span className="w-2 h-2 rounded-full inline-block mr-1" style={{ background: '#4ade80' }} />conectado</span>
+                  <span><span className="w-2 h-2 rounded-full inline-block mr-1" style={{ background: '#ef4444' }} />caído</span>
+                  <span className="ml-auto tabular-nums">
+                    {fmtDuracion(conectividadStats.onlineMs)} / {fmtDuracion(conectividadStats.offlineMs)}
+                  </span>
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-1.5 space-y-1 min-h-0">
-                {mergedAlerts.length > 0 ? (
-                  mergedAlerts.filter((a: any) => rangeHours === 0 || new Date(a.created_at).getTime() >= (Date.now() - rangeHours * 3600000))
-                    .map((alert: any) => {
+      </div>
+
+      {/* C · MAPA / ALERTAS / SENSORES */}
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col bg-bg-200/25 rounded-lg overflow-hidden">
+        <div className="border-b border-border/30 shrink-0 flex items-center gap-1 px-2 py-1">
+          <div className="flex gap-1 min-w-0">
+            {([["mapa", "Mapa"], ["alertas", "Alertas"], ["sensores", "Sensores"]] as const).map(([k, label]) => (
+              <button key={k} onClick={() => setPanTab(k)}
+                className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${panTab === k ? "bg-[#00a3e8]/20 text-[#00a3e8]" : "bg-bg-200/50 text-text-300 hover:text-text-200"}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <span className="ml-auto text-[10px] font-bold pr-1 tabular-nums truncate" style={{ color: panTab === "alertas" ? alertCountColor : '#9ca3af' }}>
+            {panTab === "alertas"
+              ? (alertsEnRango.length === 0
+                  ? 'sin alertas'
+                  : alertsCriticas > 0
+                    ? `${alertsEnRango.length} · ${alertsCriticas} crítica${alertsCriticas === 1 ? '' : 's'}`
+                    : `${alertsEnRango.length} alerta${alertsEnRango.length === 1 ? '' : 's'}`)
+              : panTab === "sensores"
+                ? `${connectedDevicesCount} conectados`
+                : ''}
+          </span>
+        </div>
+
+        {panTab === "mapa" && (
+          <div className="relative flex-1 min-h-0">
+            {gatewayPosition ? (
+              <>
+                {/* Con el mapa ampliado abierto no se monta el inline: dos instancias de Leaflet con
+                    cientos de marcadores a la vez es lo que hacía que se sintiera lento. */}
+                {!mapOpen && <MonitorTelemetryMap devicePosition={gatewayPosition} deviceName={deviceName} sensors={sensorsData} zoom={13} />}
+                <button onClick={() => setMapOpen(true)} title="Ampliar mapa" aria-label="Ampliar mapa"
+                  className="absolute top-1.5 left-1.5 z-500 inline-flex items-center justify-center w-6 h-6 rounded bg-bg-100/90 border border-border/50 text-text-200 hover:text-text-100 hover:bg-bg-100 shadow-sm transition-colors">
+                  <IconArrowsMaximize size={13} stroke={2} />
+                </button>
+                <div className="absolute bottom-1.5 left-1.5 z-500 px-1.5 py-0.5 rounded bg-black/65 text-white text-[10px] font-semibold pointer-events-none">
+                  {sensorsData.length} sensores
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-center h-full"><p className="text-[12px] text-text-300">Sin ubicación del gateway</p></div>
+            )}
+          </div>
+        )}
+        {panTab === "alertas" && (
+          <div className="flex-1 overflow-y-auto p-1.5 space-y-1 min-h-0">
+                {alertsEnRango.length > 0 ? (
+                  alertsEnRango.map((alert: any) => {
                       const alertTypeMap: Record<string, { bg: string; border: string; dot: string; text: string; label: string }> = {
                         critica: { bg: 'bg-red-500/8', border: 'border-red-500/40', dot: 'bg-red-500', text: 'text-red-300', label: 'Crítica' },
                         atencion: { bg: 'bg-yellow-500/8', border: 'border-yellow-500/40', dot: 'bg-yellow-500', text: 'text-yellow-300', label: 'Atención' },
@@ -523,71 +340,86 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
                       return <div key={alert.id} className={`flex items-start gap-1.5 text-[11px] leading-tight rounded px-1.5 py-1 border-s-2 ${c.border} ${c.bg} ${isResolved ? 'opacity-50' : ''}`}>
                         <span className={`w-2 h-2 rounded-full ${c.dot} ${isResolved ? '' : 'animate-pulse'} shrink-0 mt-0.5`} />
                         <div className="flex-1 min-w-0">
-                          <span className={`text-[9px] font-semibold uppercase ${c.text}`}>{c.label}</span>
+                          <span className={`text-[10px] font-semibold uppercase ${c.text}`}>{c.label}</span>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <span className="text-[10px] font-medium text-text-100 bg-bg-300/40 px-1.5 py-0.5 rounded">{format(new Date(alert.created_at), "dd/MM HH:mm")}</span>
                             {alert.type === 'desconexionGW' && <><span className="text-[9px] text-text-300">→</span>
                               <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${alert.resolved_at ? 'text-green-300 bg-green-500/10' : 'text-red-300 bg-red-500/10'}`}>{alert.resolved_at ? format(new Date(alert.resolved_at), "dd/MM HH:mm") : 'Activo'}</span></>}
                           </div>
                           {alert.metadata?.reason && <p className="text-[10px] leading-tight mt-0.5 text-text-300">{alert.metadata.reason}</p>}
-                          {alert.device_name && alert.type !== 'desconexionGW' && <p className="text-[9px] text-text-400 mt-0.5">{alert.device_name}</p>}
+                          {alert.device_name && alert.type !== 'desconexionGW' && <p className="text-[10px] text-text-300 mt-0.5">{alert.device_name}</p>}
                         </div>
                       </div>;
                     })
                 ) : (
                   <div className="flex items-center justify-center h-full flex-col">
                     <p className="text-[13px] text-text-300">Sin alertas</p>
-                    <p className="text-[10px] mt-1 text-text-400">No hay eventos registrados</p>
+                    <p className="text-[10px] mt-1 text-text-300">No hay eventos registrados</p>
                   </div>
                 )}
               </div>
-            </div>
+        )}
+
+        {panTab === "sensores" && (
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {sensorsData.length > 0 ? sensorsData.map((s: any) => {
+              const rssi = s.rssi, snr = s.snr;
+              const color = rssi != null
+                ? (rssi < -120 ? '#f87171' : rssi < -118 ? '#facc15' : '#4ade80')
+                : snr != null ? (snr >= 10 ? '#4ade80' : snr >= 5 ? '#facc15' : '#f87171') : '#9ca3af';
+              return (
+                <div key={s.id} className="flex items-center gap-2 px-2 py-1 border-b border-border/15">
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: color }} />
+                  <span className="text-[10px] text-text-200 truncate flex-1">{s.name}</span>
+                  <span className="text-[10px] text-text-300 shrink-0 tabular-nums">
+                    {rssi != null ? `${rssi.toFixed(0)} dBm` : snr != null ? `${snr.toFixed(0)} dB` : '—'}
+                  </span>
+                  <span className="text-[10px] text-text-300 shrink-0 w-16 text-right tabular-nums">
+                    {s.ts ? relTime(Date.now() - new Date(s.ts).getTime()) ?? '—' : '—'}
+                  </span>
+                </div>
+              );
+            }) : (
+              <div className="h-full flex items-center justify-center">
+                <p className="text-[11px] text-text-300">Sin sensores reportando</p>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {activeTab === "lector_asignado" && (
-        <MonitorLectorDashboard lectorDeviceId={allDevices?.find((d: any) => d.id === deviceId)?.id_device_father ?? null} gatewayLastSeen={lastSeen} gatewayName={deviceName} />
-      )}
-
-      {activeTab === "mapa" && (
-        <div className="flex-1 min-h-0">
-          <div className="bg-bg-100 border border-border/30 rounded-lg overflow-hidden flex flex-col h-full shadow">
-            <div className="border-b border-border/30 shrink-0">
-              <div className="flex items-center justify-between px-3 py-2">
-                <p className="text-xs font-bold text-text-100 uppercase tracking-wider flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400" /> Cobertura — {connectedDevicesCount} sensores
-                </p>
-                <div className="flex items-center gap-2 text-[10px] text-text-300">
-                  <span><span className="w-2 h-2 rounded-full bg-blue-400 inline-block mr-1" />GW</span>
-                  <span><span className="w-2 h-2 rounded-full bg-green-400 inline-block mr-1" />Sensores</span>
-                </div>
+      {/* Mapa ampliado */}
+      {mapOpen && createPortal(
+        <div className="fixed inset-0 z-9999 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setMapOpen(false)}>
+          <div className="w-full h-full max-w-6xl rounded-xl overflow-hidden bg-bg-100 border border-border flex flex-col shadow-2xl"
+            onClick={(e) => e.stopPropagation()}>
+            <div className="shrink-0 flex items-center justify-between px-3 py-2 border-b border-border/30">
+              <p className="text-xs font-bold uppercase tracking-wider text-text-100 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400" /> Mapa · {sensorsData.length} sensores
+              </p>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-text-300">
+                  <span className="w-2 h-2 rounded-full bg-blue-400 inline-block mr-1" />GW
+                  <span className="w-2 h-2 rounded-full bg-green-400 inline-block ml-3 mr-1" />Sensores
+                </span>
+                <button onClick={() => setMapOpen(false)} title="Cerrar" aria-label="Cerrar"
+                  className="w-6 h-6 rounded flex items-center justify-center text-text-200 hover:text-text-100 hover:bg-bg-300/60 transition-colors">
+                  ✕
+                </button>
               </div>
             </div>
-            <div className="flex-1 min-h-0 flex">
-              <div className="flex-1 min-h-0">
-                {gatewayPosition ? (
-                  <MonitorTelemetryMap devicePosition={gatewayPosition} deviceName={deviceName} sensors={sensorsData} zoom={13} />
-                ) : (
-                  <div className="flex items-center justify-center h-full"><p className="text-[13px] text-text-300">Sin ubicación del gateway</p></div>
-                )}
-              </div>
-              {sensorsData.length > 0 && (
-                <div className="w-44 border-l border-border/30 overflow-y-auto p-2 space-y-1.5 shrink-0">
-                  <p className="text-[9px] font-bold text-text-300 uppercase tracking-wider mb-2">Sensores</p>
-                  {sensorsData.map((s: any) => (
-                    <div key={s.id} className="flex items-center gap-1.5 text-[10px]">
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${(s.rssi !== null ? (s.rssi < -120 ? 'bg-red-400' : s.rssi < -118 ? 'bg-yellow-400' : 'bg-green-400') : s.snr !== null ? (s.snr >= 10 ? 'bg-green-400' : s.snr >= 5 ? 'bg-yellow-400' : 'bg-red-400') : 'bg-gray-500')}`} />
-                      <span className="text-text-200 truncate flex-1">{s.name}</span>
-                      <span className="font-mono text-text-300 text-[9px]">{s.rssi !== null ? `${s.rssi.toFixed(0)}dBm` : s.snr !== null ? `${s.snr.toFixed(0)}dB` : '—'}</span>
-                    </div>
-                  ))}
-                </div>
+            <div className="flex-1 min-h-0">
+              {gatewayPosition ? (
+                <MonitorTelemetryMap devicePosition={gatewayPosition} deviceName={deviceName} sensors={sensorsData} zoom={13} />
+              ) : (
+                <div className="flex items-center justify-center h-full"><p className="text-[13px] text-text-300">Sin ubicación del gateway</p></div>
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </MonitorLectorDashboard>
   );
 }

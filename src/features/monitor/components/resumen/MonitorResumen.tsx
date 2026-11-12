@@ -60,7 +60,7 @@ function parsePk(name: string): { via: number | null; pk: number | null; poste: 
   };
 }
 
-export default function MonitorResumen() {
+export default function MonitorResumen({ onOpenDevice }: { onOpenDevice?: (id: number) => void }) {
   const hoy = useMemo(() => format(new Date(), "yyyy-MM-dd"), []);
   const { data: summary, isLoading } = useMonitorSummary();
   const { data: devices } = useMonitorDevices();
@@ -156,12 +156,12 @@ export default function MonitorResumen() {
 
       <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-12 gap-1.5">
         <div className="min-h-0 xl:col-span-5 flex flex-col">
-          <ResumenGatewayUptime />
+          <ResumenGatewayUptime onOpenDevice={onOpenDevice} />
         </div>
 
         <div className="min-h-0 xl:col-span-7 flex flex-col gap-1.5">
           <div className="flex-1 min-h-0 flex flex-col">
-            <ResumenSensorActivity sensores={sensores} activosPorDia={activeSensors ?? []} />
+            <ResumenSensorActivity sensores={sensores} activosPorDia={activeSensors ?? []} onOpenDevice={onOpenDevice} />
           </div>
         </div>
       </div>

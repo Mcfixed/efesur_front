@@ -468,7 +468,7 @@ function RightBarDashboard({ timelineData, timelineRange, setTimelineRange, isLo
         </div>
         <div className="px-4 py-3 border-b border-border/10 flex items-center justify-between text-[11px]">
           <span className="font-semibold text-text-100">{expandedAlert.device_name}</span>
-          <span className="font-mono text-text-300">{format(new Date(expandedAlert.created_at), "dd/MM HH:mm:ss")}</span>
+          <span className=" text-text-300">{format(new Date(expandedAlert.created_at), "dd/MM HH:mm:ss")}</span>
         </div>
         <div className="px-4 py-3 max-h-64 overflow-y-auto space-y-1.5">
           {Object.entries(expandedAlert.metadata).map(([k, v]) => {

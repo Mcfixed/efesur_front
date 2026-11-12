@@ -8,5 +8,5 @@ interface Props {
 }
 
 export default function MonitorLectorDetailPanel({ deviceId }: Props) {
-  return <MonitorLectorDashboard lectorDeviceId={deviceId} showHeader={false} />;
+  return <MonitorLectorDashboard lectorDeviceId={deviceId} />;
 }

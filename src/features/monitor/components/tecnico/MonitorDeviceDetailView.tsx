@@ -74,6 +74,8 @@ export default function MonitorDeviceDetailView({
 
   return (
     <div className="p-2 h-full flex flex-col min-h-0 overflow-hidden">
+      {/* El gateway no usa header: su panel ya muestra todo (3 filas) */}
+      {device.type_device !== 'Gateway' && (
       <MonitorDeviceDetailHeader
         device={device}
         onBack={onBack}
@@ -92,6 +94,7 @@ export default function MonitorDeviceDetailView({
         onLoadMore={device.type_device === 'Lector' ? undefined : onLoadMore}
         hasMore={device.type_device === 'Lector' ? false : hasMore}
       />
+      )}
       {device.type_device === 'Gps' && (
         <MonitorGpsDetailPanel deviceId={device.id} deviceName={device.name} deviceEui={device.dev_eui}
           latitude_current={device.latitude_current} longitude_current={device.longitude_current}
@@ -101,7 +104,7 @@ export default function MonitorDeviceDetailView({
       )}
       {device.type_device === 'Gateway' && (
         <MonitorGatewayDetailPanel deviceId={device.id} deviceName={device.name} deviceEui={device.dev_eui}
-          lastSeen={device.last_seen} lastTs={lastT?.ts} range={range} onRangeChange={onRangeChange} />
+          lastSeen={device.last_seen} lastTs={lastT?.ts} range={range} onRangeChange={onRangeChange} onBack={onBack} />
       )}
       {device.type_device === 'Lector' && (
         <MonitorLectorDetailPanel deviceId={device.id} deviceName={device.name} deviceEui={device.dev_eui} lastTs={lastT?.ts} />

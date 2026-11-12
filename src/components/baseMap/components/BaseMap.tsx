@@ -1,7 +1,8 @@
-import React, { useRef, useCallback, useMemo, useState } from "react";
+import React, { useRef, useCallback, useMemo, useState, useEffect } from "react";
 import ReactMapGL from "react-map-gl";
 import type { MapRef } from "react-map-gl";
 import type { LayerSpecification } from "mapbox-gl";
+import { useTheme } from "@/context/ThemeContext";
 import "mapbox-gl/dist/mapbox-gl.css";
 import {
   IconMap,
@@ -47,7 +48,21 @@ const BaseMap: React.FC<BaseMapProps> = ({
   onMapRef,
 }) => {
   const mapRef = useRef<MapRef>(null);
-  const [selectedLayer, setSelectedLayer] = useState<MapLayer>("smooth_labels");
+  const { theme } = useTheme();
+  const isLight = theme === "light";
+  // En tema claro el satélite se ve muy oscuro/cargado: se arranca con el mapa claro de
+  // Mapbox. En oscuro se mantiene el satélite con nombres ("smooth_labels").
+  const [selectedLayer, setSelectedLayer] = useState<MapLayer>(() => (isLight ? "light" : "smooth_labels"));
+
+  // Al cambiar de tema se alterna entre los dos estilos por defecto, pero solo si el usuario
+  // no eligió otra capa a mano (esa elección se respeta).
+  useEffect(() => {
+    setSelectedLayer(prev => {
+      if (isLight && prev === "smooth_labels") return "light";
+      if (!isLight && prev === "light") return "smooth_labels";
+      return prev;
+    });
+  }, [isLight]);
 
   const mapLayers = useMemo<Record<MapLayer, MapLayerConfig>>(
     () => ({

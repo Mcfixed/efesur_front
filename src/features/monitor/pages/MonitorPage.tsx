@@ -21,6 +21,16 @@ export default function MonitorPage() {
     return ALL_TABS;
   }, [role]);
   const [tab, setTab] = useState("resumen");
+  // Dispositivo al que se quiere saltar desde el resumen (abre el panel técnico con él seleccionado)
+  const [focusDeviceId, setFocusDeviceId] = useState<number | null>(null);
+
+  // El salto desde el resumen solo lo usan los administradores
+  const puedeSaltar = role === 'admin_efe' || role === 'superadmin';
+  const abrirDispositivo = (id: number) => {
+    if (!puedeSaltar) return;
+    setFocusDeviceId(id);
+    setTab('tecnico');
+  };
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -42,10 +52,10 @@ export default function MonitorPage() {
         </div>
       </div>
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-        {tab === "resumen" && <MonitorResumen />}
+        {tab === "resumen" && <MonitorResumen onOpenDevice={puedeSaltar ? abrirDispositivo : undefined} />}
         {tab === "calendario" && <MonitorCalendario />}
         {tab === "mapa" && <MonitorHeatMap />}
-        {tab === "tecnico" && <MonitorTelemetryView />}
+        {tab === "tecnico" && <MonitorTelemetryView focusDeviceId={focusDeviceId} />}
       </div>
     </div>
   );
