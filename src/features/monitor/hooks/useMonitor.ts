@@ -28,14 +28,17 @@ export const useMonitorGatewaysUptime = (dias = 7, opts?: { enabled?: boolean })
   enabled: opts?.enabled ?? true,
   refetchInterval: 60000,
 });
-// Recorrido del tracker (vista LillieGo): se refresca solo mientras esa vista está abierta
-export const useMonitorDeviceTrack = (deviceId: number | null, opts?: { dias?: number; enabled?: boolean }) => useQuery({
-  queryKey: [...KEYS.all, "track", deviceId, opts?.dias ?? 1],
+// Recorrido del tracker (vista LillieGo): se refresca solo mientras esa vista está abierta.
+// `todo` trae el histórico completo (lo usa el historial GPS del sensor, que llega 1 vez por semana).
+export const useMonitorDeviceTrack = (deviceId: number | null, opts?: { dias?: number; enabled?: boolean; todo?: boolean; refetchInterval?: number }) => useQuery({
+  queryKey: [...KEYS.all, "track", deviceId, opts?.todo ? "todo" : (opts?.dias ?? 1)],
   queryFn: () => monitorService.getDeviceTrack(deviceId!, {
-    from: new Date(Date.now() - (opts?.dias ?? 1) * 24 * 3600 * 1000).toISOString(),
+    from: opts?.todo
+      ? "2000-01-01T00:00:00.000Z"
+      : new Date(Date.now() - (opts?.dias ?? 1) * 24 * 3600 * 1000).toISOString(),
   }),
   enabled: (opts?.enabled ?? true) && !!deviceId,
-  refetchInterval: 10000,
+  refetchInterval: opts?.refetchInterval ?? (opts?.todo ? 5 * 60 * 1000 : 10000),
   refetchIntervalInBackground: false,
   staleTime: 0,
 });

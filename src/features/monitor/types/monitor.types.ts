@@ -111,10 +111,38 @@ export interface MonitorTrackPoint {
   lng: number;
   alt: number | null;
   bateria_mv: number | null;
+  /** Satélites con fix en ese paquete (GPS_TELEMETRY) */
+  satelites: number | null;
+  temperatura_c: number | null;
+  /** packetType crudo de ChirpStack: GPS_TELEMETRY, KEEPALIVE_HEARTBEAT, ... */
+  packet_type: string | null;
+  /** Modo de operación reportado por el equipo */
+  modo: string | null;
+  motion: boolean;
+  freefall: boolean;
   n_gw: number;
   gateways: MonitorTrackGateway[];
   rssi: number | null;
   snr: number | null;
+}
+/** Paquete GPS tal como llegó: lat/lng pueden ser null o 0 (sin fix) */
+export interface MonitorGpsPacket {
+  ts: string;
+  lat: number | null;
+  lng: number | null;
+  alt: number | null;
+  bateria_mv: number | null;
+  satelites: number | null;
+  temperatura_c: number | null;
+  packet_type: string | null;
+  modo: string | null;
+  motion: boolean;
+  freefall: boolean;
+  n_gw: number;
+  gateways: MonitorTrackGateway[];
+  rssi: number | null;
+  snr: number | null;
+  sin_fix: boolean;
 }
 export interface MonitorDeviceTrack {
   device: { id: number; name: string; dev_eui: string; type_device: string } | null;
@@ -122,5 +150,23 @@ export interface MonitorDeviceTrack {
   hasta: string;
   total_registros: number;
   puntos: MonitorTrackPoint[];
-  resumen: { puntos: number; sin_fix: number; gw_promedio: number; distancia_km: number };
+  /** Todos los paquetes GPS recibidos, incluidos los que llegaron sin fix (0,0) */
+  gps_paquetes?: MonitorGpsPacket[];
+  resumen: {
+    puntos: number;
+    /** Puntos válidos totales (puede ser mayor que los enviados si se acotó el histórico) */
+    puntos_total?: number;
+    /** Paquetes GPS (los únicos con lat/lon) que llegaron con coordenada 0 / sin fix */
+    sin_fix: number;
+    /** Paquetes GPS recibidos en el rango */
+    gps_total?: number;
+    /** Fechas de los paquetes GPS sin fix, en orden ascendente */
+    sin_fix_fechas?: string[];
+    /** Último dato recibido del equipo, sea del tipo que sea (keepalive, GPS, config...) */
+    ultimo_dato?: { ts: string; packet_type: string | null; bateria_mv: number | null } | null;
+    /** Última lectura GPS con coordenada válida */
+    ultimo_gps?: string | null;
+    gw_promedio: number;
+    distancia_km: number;
+  };
 }

@@ -5,8 +5,10 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { useMonitorDevices, useMonitorLatestTelemetry, useMonitorDeviceAlerts, useMonitorGatewayPositions } from "../../../hooks/useMonitor";
 import MonitorTelemetryMap from "../MonitorTelemetryMap";
 import MonitorLectorDashboard, { relTime } from "./MonitorLectorDashboard";
+import DeviceSwitcher from "../DeviceSwitcher";
 import { IconArrowsMaximize } from "@tabler/icons-react";
 import { intervalosCaida, segmentosUptime, statsUptime, fmtDuracion, uptimeTextClass, uptimeDotClass } from "../../../utils/uptime";
+import type { MonitorDevice } from "../../../types/monitor.types";
 
 interface Props {
   deviceId: number;
@@ -17,6 +19,8 @@ interface Props {
   range?: string;
   onRangeChange?: (range: string) => void;
   onBack?: () => void;
+  /** Cambiar a otro gateway sin salir del panel */
+  onSelectDevice?: (device: MonitorDevice) => void;
 }
 
 // Tooltip del gráfico de estado: 1 = conectado, 0 = desconectado (+ duración del tramo)
@@ -60,7 +64,7 @@ const EstadoTooltip = ({ active, payload }: EstadoTooltipProps) => {
 // ═══════════════════════════════════════════
 // COMPONENTE PRINCIPAL
 // ═══════════════════════════════════════════
-export default function MonitorGatewayDetailPanel({ deviceId, deviceName, deviceEui, lastSeen, range = '7d', onRangeChange, onBack }: Props) {
+export default function MonitorGatewayDetailPanel({ deviceId, deviceName, deviceEui, lastSeen, range = '7d', onRangeChange, onBack, onSelectDevice }: Props) {
   const { data: deviceAlerts } = useMonitorDeviceAlerts(deviceId);
   const { data: allDevices } = useMonitorDevices();
   const { data: gatewayPositions } = useMonitorGatewayPositions();
@@ -220,11 +224,24 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
   const [panTab, setPanTab] = useState<"mapa" | "alertas" | "sensores">("mapa");
   const [mapOpen, setMapOpen] = useState(false);
 
+  // Lista de gateways para el selector del título
+  const gatewaysLista = useMemo(
+    () => (allDevices || [])
+      .filter((d: any) => d.type_device === 'Gateway')
+      .sort((a: any, b: any) => String(a.name || '').localeCompare(String(b.name || ''))),
+    [allDevices],
+  );
+
+  const headerTitle = (
+    <DeviceSwitcher devices={gatewaysLista} currentId={deviceId} onSelect={onSelectDevice} fallbackName={deviceName} />
+  );
+
   return (
     <MonitorLectorDashboard
       lectorDeviceId={lectorDeviceId}
       gatewayLastSeen={lastSeen}
       gatewayName={deviceName}
+      headerTitle={headerTitle}
       onBack={onBack}
     >
       {/* B · CONECTIVIDAD */}

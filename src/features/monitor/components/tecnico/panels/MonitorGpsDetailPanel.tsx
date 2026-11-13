@@ -1,10 +1,11 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { ResponsiveContainer, AreaChart, Area, Tooltip, XAxis, YAxis, CartesianGrid, Legend } from "recharts";
-import { useMonitorDeviceAlerts, useMonitorGatewayPositions } from "../../../hooks/useMonitor";
+import { useMonitorDeviceAlerts, useMonitorDeviceTrack, useMonitorGatewayPositions } from "../../../hooks/useMonitor";
 import MonitorTelemetryMap from "../MonitorTelemetryMap";
 import { MonitorChartTooltip } from "../../shared/MonitorChartTooltip";
 import { formatBattery } from "../../../utils/battery";
+import type { MonitorGpsPacket } from "../../../types/monitor.types";
 import MonitorBatteryPopup from "../../shared/MonitorBatteryPopup";
 import { mejorSenal, promedioSenal } from "../../../utils/signal";
 
@@ -31,6 +32,85 @@ export default function MonitorGpsDetailPanel({
 }: Props) {
   const { data: deviceAlerts } = useMonitorDeviceAlerts(deviceId);
   const { data: gatewayPositions } = useMonitorGatewayPositions();
+  // Historial GPS completo del sensor: una lectura por semana (paquete GPS_TELEMETRY).
+  const { data: track, isLoading: trackLoading } = useMonitorDeviceTrack(deviceId, { todo: true });
+  const gpsPuntos = useMemo(() => track?.puntos ?? [], [track]);
+  const ultimaGps = gpsPuntos.length > 0 ? gpsPuntos[gpsPuntos.length - 1] : null;
+  const resumenTrack = track?.resumen;
+  const sinFix = resumenTrack?.sin_fix ?? 0;
+  const gpsTotal = resumenTrack?.gps_total ?? gpsPuntos.length;
+  const ultimoDato = resumenTrack?.ultimo_dato ?? null;
+  // Pestaña de la tabla inferior: todos los registros o solo los paquetes GPS (con y sin fix)
+  const [regTab, setRegTab] = useState<"todos" | "gps">("todos");
+  // `gps_paquetes` viene del endpoint de track (histórico completo, con y sin fix).
+  // Si el backend todavía no expone ese campo, se arma la lista con la telemetría ya cargada.
+  const gpsPaquetes = useMemo<MonitorGpsPacket[]>(() => {
+    const delTrack = track?.gps_paquetes;
+    const lista: MonitorGpsPacket[] = delTrack && delTrack.length > 0
+      ? delTrack
+      : ((telemetryData?.telemetry ?? []) as any[])
+          .filter(t => t.object?.latitude != null || t.object?.longitude != null)
+          .map(t => {
+            const lat = Number(t.object?.latitude);
+            const lng = Number(t.object?.longitude);
+            const sinFix = !Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0);
+            const rx = Array.isArray(t.rxinfo) ? t.rxinfo : (t.rxinfo ? [t.rxinfo] : []);
+            const validas = rx.filter((g: any) => !g.crcStatus || g.crcStatus === "CRC_OK");
+            return {
+              ts: t.ts,
+              lat: Number.isFinite(lat) ? lat : null,
+              lng: Number.isFinite(lng) ? lng : null,
+              alt: null,
+              bateria_mv: t.object?.voltage_mV ?? null,
+              satelites: t.object?.satellites ?? null,
+              temperatura_c: t.object?.temperature_C ?? null,
+              packet_type: t.object?.packetType ?? null,
+              modo: t.object?.systemStatus?.operatingMode ?? null,
+              motion: t.object?.systemStatus?.motionFlag === true,
+              freefall: t.object?.systemStatus?.freeFallFlag === true,
+              n_gw: validas.length,
+              gateways: validas.map((g: any) => ({
+                eui: g.gatewayId ?? null,
+                name: null,
+                lat: null,
+                lng: null,
+                rssi: g.rssi ?? null,
+                snr: g.snr ?? null,
+              })),
+              rssi: null,
+              snr: null,
+              sin_fix: sinFix,
+            };
+          });
+    return [...lista].sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
+  }, [track, telemetryData]);
+  const sinFixLista = gpsPaquetes.filter(p => p.sin_fix).length;
+  const conCoordLista = gpsPaquetes.length - sinFixLista;
+  // Punto GPS al que el mapa debe volar al hacer clic en un registro (tick fuerza el re-vuelo)
+  const [focusGps, setFocusGps] = useState<{ ts: string; tick: number } | null>(null);
+  // Detalle (fecha por fecha) de los paquetes GPS que llegaron con coordenada 0 / sin fix
+  const tituloSinFix = useMemo(() => {
+    const fechas = (resumenTrack?.sin_fix_fechas ?? []).slice(-6).reverse()
+      .map(ts => `· ${format(new Date(ts), "dd/MM/yyyy HH:mm")}`);
+    const resto = sinFix - fechas.length;
+    return [
+      `${sinFix} de ${gpsTotal} paquetes GPS llegaron sin GPS (coordenada 0).`,
+      "No se dibujan en el mapa.",
+      ...fechas,
+      resto > 0 ? `… y ${resto} más` : "",
+    ].filter(Boolean).join("\n");
+  }, [resumenTrack?.sin_fix_fechas, sinFix, gpsTotal]);
+  // Distancia entre la coordenada de la BD (instalación) y la última lectura GPS
+  const desvioM = useMemo(() => {
+    if (!ultimaGps || latitude_current == null || longitude_current == null) return null;
+    const R = 6371000;
+    const rad = (d: number) => (d * Math.PI) / 180;
+    const dLat = rad(ultimaGps.lat - latitude_current);
+    const dLng = rad(ultimaGps.lng - longitude_current);
+    const h = Math.sin(dLat / 2) ** 2
+      + Math.cos(rad(latitude_current)) * Math.cos(rad(ultimaGps.lat)) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }, [ultimaGps, latitude_current, longitude_current]);
 
   // Promedio de la mejor señal en los últimos 5 registros (la API los devuelve del más reciente
   // al más antiguo). La lógica vive en utils/signal.ts y la comparte el header del dispositivo.
@@ -71,11 +151,49 @@ export default function MonitorGpsDetailPanel({
       <div className="grid grid-rows-[1.2fr_1fr] gap-2 min-h-0">
         <div className="bg-bg-100 border border-border/30 rounded-lg overflow-hidden flex flex-col min-h-0 shadow">
           <div className="border-b border-border/30 shrink-0">
-            <div className="flex items-center justify-between px-3 py-2">
-              <p className="text-xs font-bold text-text-100 uppercase tracking-wider">Cobertura &darr; Gateways</p>
-              {activeGatewayIds.length > 0 && (
-                <span className="text-[10px] text-text-300">{activeGatewayIds.length} enlaces</span>
-              )}
+            <div className="flex items-center justify-between gap-2 px-3 py-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <p className="text-xs font-bold text-text-100 uppercase tracking-wider whitespace-nowrap">Cobertura &darr; Gateways</p>
+                <div className="flex items-center gap-2 text-[10px] text-text-300 border-l border-border/30 pl-2 ml-0.5 min-w-0">
+                  <span className="inline-flex items-center gap-1 whitespace-nowrap" title="Posición guardada en la tabla devices (se carga a mano, no la escribe el GPS)">
+                    <span className="w-2 h-2 rounded-full bg-purple-400" /> BD
+                  </span>
+                  <span className="inline-flex items-center gap-1 whitespace-nowrap" title={`Lecturas del GPS del sensor con coordenada válida (1 paquete por semana, desde telemetry_data_all)${(resumenTrack?.puntos_total ?? 0) > gpsPuntos.length ? `\nSe muestran las últimas ${gpsPuntos.length} de ${resumenTrack?.puntos_total}` : ""}`}>
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" /> GPS {gpsPuntos.length}
+                  </span>
+                  {sinFix > 0 && (
+                    <span className="inline-flex items-center gap-1 whitespace-nowrap text-amber-400 cursor-help" title={tituloSinFix}>
+                      <span className="w-2 h-2 rounded-full bg-amber-400" /> sin GPS {sinFix}
+                    </span>
+                  )}
+                  {desvioM != null && desvioM > 1 && (
+                    <span className="text-text-300 whitespace-nowrap" title="Distancia entre la posición de la BD y la última lectura GPS">
+                      Δ {desvioM < 1000 ? `${desvioM.toFixed(0)} m` : `${(desvioM / 1000).toFixed(2)} km`}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 text-[10px] text-text-300">
+                {ultimoDato && (
+                  <span
+                    className="whitespace-nowrap"
+                    title={`Último dato recibido: ${format(new Date(ultimoDato.ts), "dd/MM/yyyy HH:mm")}\n${ultimoDato.packet_type ?? "—"}${ultimoDato.bateria_mv != null ? ` · ${formatBattery(ultimoDato.bateria_mv)}` : ""}`}
+                  >
+                    últ. dato {format(new Date(ultimoDato.ts), "dd/MM HH:mm")}
+                  </span>
+                )}
+                {ultimaGps && (
+                  <span
+                    className="whitespace-nowrap"
+                    title={`Última lectura GPS con coordenada: ${format(new Date(ultimaGps.ts), "dd/MM/yyyy HH:mm")}\n${ultimaGps.lat.toFixed(6)}, ${ultimaGps.lng.toFixed(6)}`}
+                  >
+                    últ. GPS {format(new Date(ultimaGps.ts), "dd/MM HH:mm")}
+                  </span>
+                )}
+                {activeGatewayIds.length > 0 && (
+                  <span className="text-[10px] text-text-300">{activeGatewayIds.length} enlaces</span>
+                )}
+              </div>
             </div>
           </div>
           <div className="flex-1 relative min-h-0">
@@ -86,30 +204,111 @@ export default function MonitorGpsDetailPanel({
               deviceName={deviceName}
               gateways={gatewayPositions}
               activeGatewayIds={activeGatewayIds.length > 0 ? activeGatewayIds : undefined}
+              gpsHistorial={trackLoading ? undefined : gpsPuntos}
+              focusGps={focusGps}
             />
+            {!trackLoading && gpsPuntos.length === 0 && (
+              <div className="absolute bottom-2 left-2 z-500 pointer-events-none rounded-md bg-bg-100/90 border border-border/40 px-2 py-1 text-[10px] text-text-300 shadow-sm">
+                {sinFix > 0
+                  ? `${sinFix} paquete${sinFix !== 1 ? "s" : ""} sin GPS: se muestra solo la coordenada de la BD`
+                  : "Sin lecturas GPS: se muestra solo la coordenada de la BD"}
+              </div>
+            )}
           </div>
         </div>
 
         <div className="bg-bg-100 border border-border/30 rounded-lg overflow-hidden flex flex-col shadow min-h-0">
           <div className="border-b border-border/30 shrink-0">
-            <div className="flex items-center justify-between px-3 py-2">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-text-100 uppercase tracking-wider">Registros</span>
-                <button onClick={onExportCSV} className="text-[10px] hover:text-brand-200 px-1.5 py-0.5 rounded hover:bg-bg-100 transition-colors" title="Exportar CSV">CSV</button>
-                <button onClick={onExportPDF} className="text-[10px] hover:text-brand-200 px-1.5 py-0.5 rounded hover:bg-bg-100 transition-colors" title="Exportar PDF">PDF</button>
-                {(promSenal.snr != null || promSenal.rssi != null) && (
-                  <span className="text-[10px] text-text-300 border-l border-border/30 pl-2 ml-0.5"
-                    title={`Promedio de la mejor señal en los últimos ${promSenal.n} registros`}>
-                    prom. {promSenal.n}: <span className="font-mono text-text-200">SNR {promSenal.snr != null ? promSenal.snr.toFixed(1) : '—'} dB</span>
-                    {' · '}
-                    <span className="font-mono text-text-200">RSSI {promSenal.rssi != null ? promSenal.rssi.toFixed(0) : '—'} dBm</span>
+            <div className="flex items-center justify-between gap-2 px-3 py-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center gap-0.5 bg-bg-200/50 rounded p-0.5 shrink-0">
+                  {([["todos", "Registros"], ["gps", "Registros GPS"]] as const).map(([k, label]) => (
+                    <button key={k} onClick={() => setRegTab(k)}
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors whitespace-nowrap ${regTab === k ? "bg-[#00a3e8]/20 text-[#00a3e8]" : "text-text-300 hover:text-text-200"}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {regTab === "todos" && (
+                  <>
+                    <button onClick={onExportCSV} className="text-[10px] hover:text-brand-200 px-1.5 py-0.5 rounded hover:bg-bg-100 transition-colors" title="Exportar CSV">CSV</button>
+                    <button onClick={onExportPDF} className="text-[10px] hover:text-brand-200 px-1.5 py-0.5 rounded hover:bg-bg-100 transition-colors" title="Exportar PDF">PDF</button>
+                    {(promSenal.snr != null || promSenal.rssi != null) && (
+                      <span className="text-[10px] text-text-300 border-l border-border/30 pl-2 ml-0.5 truncate"
+                        title={`Promedio de la mejor señal en los últimos ${promSenal.n} registros`}>
+                        prom. {promSenal.n}: <span className="font-mono text-text-200">SNR {promSenal.snr != null ? promSenal.snr.toFixed(1) : '—'} dB</span>
+                        {' · '}
+                        <span className="font-mono text-text-200">RSSI {promSenal.rssi != null ? promSenal.rssi.toFixed(0) : '—'} dBm</span>
+                      </span>
+                    )}
+                  </>
+                )}
+                {regTab === "gps" && (
+                  <span className="text-[10px] text-text-300 truncate" title="Cada paquete GPS del equipo (1 por semana). Incluye los que llegaron sin GPS (0,0).">
+                    {conCoordLista} con coordenada · <span className={sinFixLista > 0 ? "text-amber-400" : ""}>{sinFixLista} sin GPS</span>
                   </span>
                 )}
               </div>
-              <span className="text-sm font-bold text-text-100">{telemetryData?.telemetry?.length || 0}</span>
+              <span className="text-sm font-bold text-text-100 tabular-nums shrink-0">
+                {regTab === "gps" ? gpsPaquetes.length : (telemetryData?.telemetry?.length || 0)}
+              </span>
             </div>
           </div>
           <div className="flex-1 overflow-auto">
+            {regTab === "gps" ? (
+              <table className="w-full text-xs">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-bg-200 text-text-300 uppercase tracking-wider text-[9px]">
+                    <th className="text-left py-2 px-2 font-medium">Fecha</th>
+                    <th className="text-left py-2 px-2 font-medium">GPS</th>
+                    <th className="text-right py-2 px-2 font-medium">Latitud</th>
+                    <th className="text-right py-2 px-2 font-medium">Longitud</th>
+                    <th className="text-right py-2 px-2 font-medium">Sats</th>
+                    <th className="text-left py-2 px-2 font-medium"><MonitorBatteryPopup><span className="flex items-center gap-1 cursor-help">Bat<svg className="w-3 h-3 text-text-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span></MonitorBatteryPopup></th>
+                    <th className="text-left py-2 px-2 font-medium">Gateways</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {gpsPaquetes.map((p, i) => (
+                    <tr key={p.ts}
+                      onClick={p.sin_fix ? undefined : () => setFocusGps({ ts: p.ts, tick: Date.now() })}
+                      title={p.sin_fix ? "Punto sin GPS (0,0): no se puede ubicar en el mapa" : "Ver este punto en el mapa"}
+                      className={`${p.sin_fix ? "bg-amber-500/5" : i % 2 === 0 ? "bg-bg-100" : "bg-bg-200/30"} ${p.sin_fix ? "cursor-default" : "cursor-pointer"} ${focusGps?.ts === p.ts ? "ring-1 ring-emerald-400/50" : ""} hover:bg-bg-200/60 transition-colors border-b border-border/20`}>
+                      <td className="py-1.5 px-2 text-text-200 font-mono text-[10px] whitespace-nowrap"
+                        title={format(new Date(p.ts), "dd/MM/yyyy HH:mm:ss")}>
+                        {format(new Date(p.ts), "dd/MM HH:mm")}
+                      </td>
+                      <td className="py-1.5 px-2 text-[10px] whitespace-nowrap">
+                        {p.sin_fix
+                          ? <span className="text-amber-400 font-semibold" title="Llegó sin GPS: coordenada 0, 0">sin GPS</span>
+                          : <span className="text-emerald-400 font-semibold" title="Coordenada válida">OK</span>}
+                      </td>
+                      <td className={`py-1.5 px-2 text-right font-mono text-[10px] ${p.sin_fix ? "text-amber-400/80" : "text-text-100"}`}>
+                        {p.lat != null ? p.lat.toFixed(6) : "—"}
+                      </td>
+                      <td className={`py-1.5 px-2 text-right font-mono text-[10px] ${p.sin_fix ? "text-amber-400/80" : "text-text-100"}`}>
+                        {p.lng != null ? p.lng.toFixed(6) : "—"}
+                      </td>
+                      <td className="py-1.5 px-2 text-right font-mono text-[10px] text-text-100">{p.satelites ?? "—"}</td>
+                      <td className="py-1.5 px-2 font-mono text-[10px] text-text-100 whitespace-nowrap">{formatBattery(p.bateria_mv)}</td>
+                      <td className="py-1.5 px-2">
+                        {p.gateways.length > 0 ? (
+                          <span className="flex items-center gap-1 flex-wrap">
+                            {p.gateways.map((gw, gi) => (
+                              <span key={gi}
+                                className="text-[10px] bg-bg-300/40 px-1 py-0.5 rounded font-mono text-text-200"
+                                title={`${gw.name || gw.eui || "GW"}${gw.snr != null ? ` · SNR ${Number(gw.snr).toFixed(1)}` : ""}${gw.rssi != null ? ` · RSSI ${Number(gw.rssi).toFixed(0)}` : ""}`}>
+                                {gw.name || (gw.eui ? gw.eui.slice(-6) : `GW${gi + 1}`)}
+                              </span>
+                            ))}
+                          </span>
+                        ) : <span className="text-text-300">—</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
             <table className="w-full text-xs">
               <thead className="sticky top-0 z-10">
                 <tr className="bg-bg-200 text-text-300 uppercase tracking-wider text-[9px]">
@@ -135,8 +334,12 @@ export default function MonitorGpsDetailPanel({
                             ? <span className="text-purple-400 font-semibold text-[10px]">QA Validación</span>
                             : t.object?.systemStatus?.freeFallFlag ? <span className="text-red-400" title="Caída libre">●</span>
                               : t.object?.systemStatus?.motionFlag ? <span className="text-yellow-400" title="Movimiento">●</span>
-                                : t.object?.voltage_mV != null && t.object?.temperature_C != null ? <span className="text-green-400" title="KeepAlive">●</span>
-                                  : <span className="text-text-300">○</span>}
+                                : (t.object?.latitude != null || t.object?.longitude != null)
+                                  ? (Number(t.object?.latitude) === 0 && Number(t.object?.longitude) === 0
+                                      ? <span className="text-amber-400" title="Paquete GPS sin GPS: llegó con coordenada 0, 0">◎</span>
+                                      : <span className="text-emerald-400" title={`GPS con coordenada · ${t.object?.satellites ?? '—'} satélites`}>◎</span>)
+                                  : t.object?.voltage_mV != null && t.object?.temperature_C != null ? <span className="text-green-400" title="KeepAlive">●</span>
+                                    : <span className="text-text-300">○</span>}
                     </td>
                     {(() => { const { snr, rssi } = mejorSenal(t.rxinfo); return (
                       <>
@@ -157,10 +360,18 @@ export default function MonitorGpsDetailPanel({
                 ))}
               </tbody>
             </table>
-            {!isLoading && (!telemetryData?.telemetry || telemetryData.telemetry.length === 0) &&
-              <p className="text-center text-[11px] py-6">Sin registros</p>}
-            {isLoading &&
-              <div className="flex justify-center py-4"><span className="text-[10px] text-brand-200 animate-pulse">Cargando...</span></div>}
+            )}
+            {regTab === "gps"
+              ? (!trackLoading && gpsPaquetes.length === 0 &&
+                  <p className="text-center text-[11px] py-6 text-text-300">Sin registros GPS</p>)
+              : (
+                <>
+                  {!isLoading && (!telemetryData?.telemetry || telemetryData.telemetry.length === 0) &&
+                    <p className="text-center text-[11px] py-6">Sin registros</p>}
+                  {isLoading &&
+                    <div className="flex justify-center py-4"><span className="text-[10px] text-brand-200 animate-pulse">Cargando...</span></div>}
+                </>
+              )}
           </div>
         </div>
       </div>

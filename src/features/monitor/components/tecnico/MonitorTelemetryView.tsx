@@ -17,7 +17,7 @@ const RANGES = [
 // Tipos que tienen pestaña propia en la lista (Gateway, Gps, Lector). El resto (LillieGo) se
 const TABS_CON_TABLA = ["Gateway", "Gps", "Lector"];
 
-export default function MonitorTelemetryView({ focusDeviceId }: { focusDeviceId?: number | null }) {
+export default function MonitorTelemetryView({ focusDeviceId, onVolverAlOrigen }: { focusDeviceId?: number | null; onVolverAlOrigen?: () => void }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [range, setRange] = useState("24h");
   const [deviceTab, setDeviceTab] = useState("Gateway");
@@ -132,11 +132,19 @@ export default function MonitorTelemetryView({ focusDeviceId }: { focusDeviceId?
     if (TABS_CON_TABLA.includes(device.type_device)) setDeviceTab(device.type_device);
   };
 
+  // "Atrás" del panel del equipo: si se llegó desde el resumen, se vuelve al resumen.
+  const handleBack = () => {
+    const veniaDelResumen = focusAplicado.current != null;
+    setSelectedDeviceSnapshot(null);
+    focusAplicado.current = null;
+    if (veniaDelResumen) onVolverAlOrigen?.();
+  };
+
   if (selectedDevice) {
     return (
       <MonitorDeviceDetailView
         device={selectedDevice}
-        onBack={() => setSelectedDeviceSnapshot(null)}
+        onBack={handleBack}
         range={range}
         onRangeChange={setRange}
         telemetryData={telemetryData}
@@ -147,6 +155,7 @@ export default function MonitorTelemetryView({ focusDeviceId }: { focusDeviceId?
         hasMore={hasMore}
         onLoadMore={() => setTelemetryOffset(p => p + PAGE_SIZE)}
         lastT={lastT}
+        onSelectDevice={handleSelectDevice}
       />
     );
   }

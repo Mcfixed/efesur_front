@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import MonitorDeviceDetailHeader from "../shared/MonitorDeviceDetailHeader";
+import DeviceSwitcher from "./DeviceSwitcher";
 import MonitorGpsDetailPanel from "./panels/MonitorGpsDetailPanel";
 import MonitorGatewayDetailPanel from "./panels/MonitorGatewayDetailPanel";
 import MonitorLectorDetailPanel from "./panels/MonitorLectorDetailPanel";
@@ -21,14 +22,22 @@ interface Props {
   hasMore: boolean;
   onLoadMore: () => void;
   lastT: any;
+  /** Cambiar de dispositivo sin volver a la lista (selector del panel de gateway) */
+  onSelectDevice?: (device: MonitorDevice) => void;
 }
 
 export default function MonitorDeviceDetailView({
   device, onBack, range, onRangeChange,
   telemetryData, isLoading, chartData, gatewayNames, activeGatewayIds,
-  hasMore, onLoadMore, lastT,
+  hasMore, onLoadMore, lastT, onSelectDevice,
 }: Props) {
   const { data: allDevices } = useMonitorDevices();
+
+  // Sensores (Gps) para el selector del título: se agrupan en activos / inactivos
+  const sensoresLista = useMemo(
+    () => (allDevices || []).filter((d: any) => d.type_device === 'Gps'),
+    [allDevices],
+  );
 
   // Promedio de la mejor señal en los últimos 5 registros (para el header)
   const promSenal = useMemo(() => promedioSenal(telemetryData?.telemetry, 5), [telemetryData]);
@@ -93,6 +102,11 @@ export default function MonitorDeviceDetailView({
         // El lector no usa paginación del header (su historial es fijo); ocultar "+ Cargar más"
         onLoadMore={device.type_device === 'Lector' ? undefined : onLoadMore}
         hasMore={device.type_device === 'Lector' ? false : hasMore}
+        headerTitle={
+          device.type_device === 'Gps' && sensoresLista.length > 0
+            ? <DeviceSwitcher devices={sensoresLista} currentId={device.id} onSelect={onSelectDevice} agrupar fallbackName={device.name} />
+            : undefined
+        }
       />
       )}
       {device.type_device === 'Gps' && (
@@ -104,7 +118,8 @@ export default function MonitorDeviceDetailView({
       )}
       {device.type_device === 'Gateway' && (
         <MonitorGatewayDetailPanel deviceId={device.id} deviceName={device.name} deviceEui={device.dev_eui}
-          lastSeen={device.last_seen} lastTs={lastT?.ts} range={range} onRangeChange={onRangeChange} onBack={onBack} />
+          lastSeen={device.last_seen} lastTs={lastT?.ts} range={range} onRangeChange={onRangeChange} onBack={onBack}
+          onSelectDevice={onSelectDevice} />
       )}
       {device.type_device === 'Lector' && (
         <MonitorLectorDetailPanel deviceId={device.id} deviceName={device.name} deviceEui={device.dev_eui} lastTs={lastT?.ts} />

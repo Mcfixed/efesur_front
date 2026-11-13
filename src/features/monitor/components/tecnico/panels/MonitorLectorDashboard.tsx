@@ -105,7 +105,7 @@ export function relTime(diffMs: number | null | undefined): string | null {  if 
 // ═══════════════════════════════════════════
 // LECTOR DASHBOARD — Victron-style
 // ═══════════════════════════════════════════
-export default function MonitorLectorDashboard({ lectorDeviceId, gatewayLastSeen, gatewayName: gatewayNameProp, onBack, children }: { lectorDeviceId?: number | null; gatewayLastSeen?: string | null; gatewayName?: string | null; onBack?: () => void; children?: ReactNode }) {
+export default function MonitorLectorDashboard({ lectorDeviceId, gatewayLastSeen, gatewayName: gatewayNameProp, onBack, headerTitle, children }: { lectorDeviceId?: number | null; gatewayLastSeen?: string | null; gatewayName?: string | null; onBack?: () => void; headerTitle?: ReactNode; children?: ReactNode }) {
   const { data: allDevices } = useMonitorDevices();
   const { data: latestTelemetry } = useMonitorLatestTelemetry(5000);
 
@@ -440,7 +440,9 @@ export default function MonitorLectorDashboard({ lectorDeviceId, gatewayLastSeen
               </button>
             )}
             <span className="shrink-0 text-[9px] font-bold uppercase tracking-widest text-[#00a3e8] bg-[#00a3e8]/10 border border-[#00a3e8]/30 px-1.5 py-0.5 rounded">Gateway</span>
-            <p className="text-[16px] font-bold tracking-tight text-text-100 truncate leading-tight">{gatewayName || 'Sin gateway'}</p>
+            {headerTitle ?? (
+              <p className="text-[16px] font-bold tracking-tight text-text-100 truncate leading-tight">{gatewayName || 'Sin gateway'}</p>
+            )}
             <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${gwState === 'online' ? 'bg-emerald-400' : gwState === 'offline' ? 'bg-red-400' : 'bg-gray-500'}`} />
             <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider" style={{ color: gwColor }}>
               {gwState === 'online' ? 'Online' : gwState === 'offline' ? 'Offline' : 'Sin asignar'}

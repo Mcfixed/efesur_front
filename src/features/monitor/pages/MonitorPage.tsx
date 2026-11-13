@@ -23,13 +23,22 @@ export default function MonitorPage() {
   const [tab, setTab] = useState("resumen");
   // Dispositivo al que se quiere saltar desde el resumen (abre el panel técnico con él seleccionado)
   const [focusDeviceId, setFocusDeviceId] = useState<number | null>(null);
+  // Pestaña desde la que se saltó (para que "Atrás" en el panel del equipo vuelva ahí)
+  const [tabOrigen, setTabOrigen] = useState<string | null>(null);
 
   // El salto desde el resumen solo lo usan los administradores
   const puedeSaltar = role === 'admin_efe' || role === 'superadmin';
   const abrirDispositivo = (id: number) => {
     if (!puedeSaltar) return;
+    setTabOrigen(tab);
     setFocusDeviceId(id);
     setTab('tecnico');
+  };
+  // "Atrás" en el panel del equipo: si se entró desde el resumen, vuelve al resumen
+  const volverAlOrigen = () => {
+    setFocusDeviceId(null);
+    if (tabOrigen && tabOrigen !== 'tecnico') setTab(tabOrigen);
+    setTabOrigen(null);
   };
 
   return (
@@ -55,7 +64,7 @@ export default function MonitorPage() {
         {tab === "resumen" && <MonitorResumen onOpenDevice={puedeSaltar ? abrirDispositivo : undefined} />}
         {tab === "calendario" && <MonitorCalendario />}
         {tab === "mapa" && <MonitorHeatMap />}
-        {tab === "tecnico" && <MonitorTelemetryView focusDeviceId={focusDeviceId} />}
+        {tab === "tecnico" && <MonitorTelemetryView focusDeviceId={focusDeviceId} onVolverAlOrigen={volverAlOrigen} />}
       </div>
     </div>
   );

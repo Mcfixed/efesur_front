@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import type { ReactNode } from "react";
 import { formatBattery, batteryColor } from "../../utils/battery";
 import { isFreshForDevice, onlineThresholdMs } from "../../utils/online";
 import MonitorBatteryPopup from "./MonitorBatteryPopup";
@@ -20,6 +21,8 @@ interface Props {
   onRangeChange?: (range: string) => void;
   onLoadMore?: () => void;
   hasMore?: boolean;
+  /** Sustituye el nombre del equipo por un selector (cambiar de equipo sin volver a la lista) */
+  headerTitle?: ReactNode;
 }
 
 // Presets del header. Sin opción "Todo": el rango por defecto es 24H.
@@ -29,7 +32,7 @@ const RANGES = [
   { key: "30d", label: "30 Días", hours: 720 },
 ];
 
-export default function MonitorDeviceDetailHeader({ device, onBack, lastTs, recordCount, lastVoltage, lastTemp, lastMotion, lastGwNames, avgSnr, avgRssi, range, onRangeChange, onLoadMore, hasMore }: Props) {
+export default function MonitorDeviceDetailHeader({ device, onBack, lastTs, recordCount, lastVoltage, lastTemp, lastMotion, lastGwNames, avgSnr, avgRssi, range, onRangeChange, onLoadMore, hasMore, headerTitle }: Props) {
   // Estado online: usar el último dato real de telemetría (lastTs) con fallback a last_seen de la DB.
   // El margen depende del tipo: 4 h 15 min para sensores (keepalive cada 4 h) y 5 min para gateways.
   const refTs = lastTs ?? device.last_seen ?? null;
@@ -54,7 +57,9 @@ export default function MonitorDeviceDetailHeader({ device, onBack, lastTs, reco
         <span className={`w-3 h-3 rounded-full shrink-0 ${isOnline ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.6)]' : 'bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.6)]'}`} />
         <div className="min-w-0">
           <div className="flex items-center gap-2 min-w-0">
-            <h2 className="text-lg font-extrabold text-text-100 truncate leading-tight tracking-tight">{device.name}</h2>
+            {headerTitle ?? (
+              <h2 className="text-lg font-extrabold text-text-100 truncate leading-tight tracking-tight">{device.name}</h2>
+            )}
             <span className="text-[10px] font-bold uppercase tracking-wider text-text-300 bg-bg-300/50 px-2 py-0.5 rounded border border-border/20 shrink-0">{device.type_device}</span>
           </div>
           <span className="text-[12px] font-mono text-text-300 truncate block">{device.dev_eui}</span>

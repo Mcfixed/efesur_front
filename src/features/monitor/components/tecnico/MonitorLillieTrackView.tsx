@@ -498,7 +498,7 @@ export default function MonitorLillieTrackView() {
               <p className="font-semibold text-gray-100">{track?.resumen.gw_promedio ?? 0}</p>
             </div>
             <div className="rounded-md border border-gray-800 bg-black/40 px-2 py-1">
-              <p className="text-gray-500">Sin fix GPS</p>
+              <p className="text-gray-500">Sin GPS</p>
               <p className="font-semibold text-gray-100">{track?.resumen.sin_fix ?? 0}</p>
             </div>
           </div>

@@ -232,7 +232,7 @@ export default function MonitorCalendario() {
           <div className="text-center">
             <h3 className="text-base font-extrabold text-text-100 capitalize tracking-tight">{format(new Date(year, month - 1), "MMMM yyyy", { locale: es })}</h3>
             <p className="text-[11px] font-medium text-text-200 mt-0.5">
-              {daysInMonth} días · {calendar?.reduce((s, d) => s + (d.total || 0), 0) || 0} alertas
+              {daysInMonth} días
             </p>
           </div>
           <button onClick={() => { setYear(today.getFullYear()); setMonth(today.getMonth() + 1); setSelectedDate(null); }}
