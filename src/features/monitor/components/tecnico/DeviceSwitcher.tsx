@@ -76,7 +76,12 @@ export default function DeviceSwitcher({ devices, currentId, onSelect, agrupar, 
       cerrar();
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") cerrar(); };
-    const onScroll = () => cerrar();
+    // Cerrar al hacer scroll de la página, pero NO cuando el scroll ocurre dentro del panel
+    // (al abrir centramos el equipo actual con scrollIntoView, y eso lo cerraba al instante).
+    const onScroll = (e: Event) => {
+      if (panelRef.current && e.target instanceof Node && panelRef.current.contains(e.target)) return;
+      cerrar();
+    };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
     window.addEventListener("resize", onScroll);
