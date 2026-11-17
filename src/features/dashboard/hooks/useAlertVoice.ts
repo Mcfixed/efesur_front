@@ -130,6 +130,11 @@ export function useAlertVoice({ alerts = [] }: AlertVoiceOptions) {
 
   // Anunciar alertas (primer lote + nuevas)
   const initialAnnounced = useRef(false);
+  // Timer del primer lote: se limpia al desmontar para no recitar alertas de una vista cerrada
+  const firstBatchTimer = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (firstBatchTimer.current != null) window.clearTimeout(firstBatchTimer.current);
+  }, []);
 
   useEffect(() => {
     if (muted || !ready) return;
@@ -148,7 +153,7 @@ export function useAlertVoice({ alerts = [] }: AlertVoiceOptions) {
       lastAlertIds.current = currentIds;
       const recientes = active.filter(a => isRecent(a.created_at, Date.now())).slice(0, MAX_FIRST_BATCH);
       if (recientes.length === 0) return;
-      setTimeout(() => {
+      firstBatchTimer.current = window.setTimeout(() => {
         for (const alert of recientes) {
           speak(buildAlertMessage(alert));
         }

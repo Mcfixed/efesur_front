@@ -52,15 +52,15 @@ export default function ResumenSystemCards({ gateways, gps, lectores, criticas, 
       <CardEquipo label="Dispositivos GPS" icon={IconDeviceSdCard} data={gps} />
       <CardEquipo label="Lectores" icon={IconBook} data={lectores} />
 
-      <div className={`rounded-lg resumen-card p-3.5 flex flex-col gap-2 min-w-0 ${hayCriticas ? "ring-1 ring-rose-500/35" : ""}`}>
+      <div className={`rounded-lg resumen-card p-3.5 flex flex-col gap-2 min-w-0 ${hayCriticas ? "ring-1 ring-red-500/35" : ""}`}>
         <div className="flex items-center justify-between gap-2">
           <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-200 truncate">Alertas críticas hoy</p>
-          <span className={`shrink-0 grid place-items-center w-7 h-7 rounded-lg border ${hayCriticas ? "bg-rose-500/15 border-rose-500/40 text-rose-500" : "bg-bg-300 border-border/70 text-text-300"}`}>
+          <span className={`shrink-0 grid place-items-center w-7 h-7 rounded-lg border ${hayCriticas ? "bg-red-500/15 border-red-500/40 text-red-400" : "bg-bg-300 border-border/70 text-text-300"}`}>
             <IconAlertTriangle size={15} stroke={1.7} />
           </span>
         </div>
         <div className="flex items-end gap-1.5">
-          <span className={`text-[30px] font-semibold leading-none tracking-tight tabular-nums ${hayCriticas ? "text-rose-500" : "text-emerald-600"}`}>{criticas}</span>
+          <span className={`text-[30px] font-semibold leading-none tracking-tight tabular-nums ${hayCriticas ? "text-red-400" : "text-emerald-600"}`}>{criticas}</span>
           <span className="text-[11px] font-medium text-text-300 mb-0.5">críticas</span>
         </div>
         <div className="flex flex-wrap items-center gap-1.5">

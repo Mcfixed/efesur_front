@@ -21,6 +21,16 @@ export const useMonitorDeviceTelemetry = (deviceId: number | null, params?: { fr
 export const useMonitorDeviceTelemetryHistory = (deviceId: number | null, params?: { from?: string; to?: string; limit?: number; offset?: number; sample?: number }) => useQuery({ queryKey: [...KEYS.all, "telemetry-history", deviceId, params], queryFn: () => monitorService.getDeviceTelemetry(deviceId!, params), enabled: !!deviceId });
 export const useMonitorDeviceAlerts = (deviceId: number | null) => useQuery({ queryKey: [...KEYS.all, "alerts", deviceId], queryFn: () => monitorService.getDeviceAlerts(deviceId!), enabled: !!deviceId, refetchInterval: 30000 });
 export const useMonitorGatewayPositions = () => useQuery({ queryKey: [...KEYS.all, "gateways"], queryFn: () => monitorService.getGatewayPositions(), staleTime: 300000 });
+// Sensores de un gateway (una fila por sensor en vez de 5000 uplinks). Lista corta y ya agregada:
+// se refresca cada minuto y nunca en segundo plano.
+export const useMonitorGatewaySensores = (gatewayId: number | null, horas = 24) => useQuery({
+  queryKey: [...KEYS.all, "gateway-sensores", gatewayId, horas],
+  queryFn: () => monitorService.getGatewaySensores(gatewayId!, horas),
+  enabled: !!gatewayId,
+  refetchInterval: 60000,
+  refetchIntervalInBackground: false,
+  staleTime: 30000,
+});
 // Uptime de gateways (caídas del período): alimenta el mini gráfico de la tabla, por eso se refresca
 export const useMonitorGatewaysUptime = (dias = 7, opts?: { enabled?: boolean }) => useQuery({
   queryKey: [...KEYS.all, "gateways-uptime", dias],
@@ -43,5 +53,13 @@ export const useMonitorDeviceTrack = (deviceId: number | null, opts?: { dias?: n
   staleTime: 0,
 });
 export const useMonitorAlertTracking = (alertId: number | null) => useQuery({ queryKey: [...KEYS.all, "tracking", alertId], queryFn: () => monitorService.getAlertTracking(alertId!), enabled: !!alertId, refetchInterval: false });
-export const useMonitorLatestTelemetry = (limit?: number) => useQuery({ queryKey: [...KEYS.all, "latest", limit], queryFn: () => monitorService.getLatestTelemetry(limit), refetchInterval: 15000 });
+// Últimos datos de todos los equipos. Es una consulta CARA (cada fila trae object+rxinfo jsonb):
+// por eso el intervalo de refresco se puede bajar desde el consumidor y no refresca en 2do plano.
+export const useMonitorLatestTelemetry = (limit?: number, opts?: { refetchInterval?: number; enabled?: boolean }) => useQuery({
+  queryKey: [...KEYS.all, "latest", limit],
+  queryFn: () => monitorService.getLatestTelemetry(limit),
+  refetchInterval: opts?.refetchInterval ?? 15000,
+  refetchIntervalInBackground: false,
+  enabled: opts?.enabled ?? true,
+});
 export const useSystemServices = () => useQuery({ queryKey: [...KEYS.all, "system-services"], queryFn: () => monitorService.getSystemServices(), refetchInterval: 30000 });

@@ -100,4 +100,6 @@ export interface GatewayDevice {
   ip_internal: string;
   firmware_version: string;
   is_online: boolean;
+  /** Voltaje del cargador 220 V del lector asignado (0 = sin red / panel solar, null = sin dato) */
+  grid_v?: number | null;
 }

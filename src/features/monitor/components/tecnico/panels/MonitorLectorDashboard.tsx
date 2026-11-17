@@ -3,9 +3,10 @@ import { format } from "date-fns";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import * as XLSX from "xlsx";
 import { useQuery } from "@tanstack/react-query";
-import { useMonitorDevices, useMonitorLatestTelemetry, useMonitorDeviceTelemetryHistory } from "../../../hooks/useMonitor";
+import { useMonitorDevices, useMonitorDeviceTelemetry, useMonitorDeviceTelemetryHistory } from "../../../hooks/useMonitor";
 import { monitorService } from "../../../services/monitor.service";
 import { cleanVoltage, cleanCurrent, cleanPower, cleanState, cleanTemp } from "../../../utils/mppt";
+import { stationBatteryPercent } from "../../../utils/battery";
 import { IconX, IconLoader2, IconArrowLeft, IconHash, IconCheck } from "@tabler/icons-react";
 
 // ═══════════════════════════════════════════
@@ -107,7 +108,6 @@ export function relTime(diffMs: number | null | undefined): string | null {  if 
 // ═══════════════════════════════════════════
 export default function MonitorLectorDashboard({ lectorDeviceId, gatewayLastSeen, gatewayName: gatewayNameProp, onBack, headerTitle, children }: { lectorDeviceId?: number | null; gatewayLastSeen?: string | null; gatewayName?: string | null; onBack?: () => void; headerTitle?: ReactNode; children?: ReactNode }) {
   const { data: allDevices } = useMonitorDevices();
-  const { data: latestTelemetry } = useMonitorLatestTelemetry(5000);
 
   const lectores = useMemo(() => {
     if (!allDevices) return [];
@@ -126,6 +126,10 @@ export default function MonitorLectorDashboard({ lectorDeviceId, gatewayLastSeen
   const lectorId = useMemo(() => {
     return lectores[0]?.id ?? lectorDeviceId ?? null;
   }, [lectores, lectorDeviceId]);
+
+  // Dato "live" del lector: solo sus últimas filas (antes se bajaban 5000 uplinks de toda la red, ≈9 MB).
+  const { data: lectorTelemetry } = useMonitorDeviceTelemetry(lectorId, { limit: 50 });
+  const latestTelemetry = lectorTelemetry?.telemetry ?? null;
 
   // Gateway del lector: prop (panel del gateway) o por convención (id_device_father).
   const assignedGateway = useMemo(() => {
@@ -296,7 +300,7 @@ export default function MonitorLectorDashboard({ lectorDeviceId, gatewayLastSeen
     };
   }, [lectores, latestTelemetry]);
 
-  if (!allDevices || !latestTelemetry) {
+  if (!allDevices || (lectores.length > 0 && !latestTelemetry)) {
     return (
       <div className="flex-1 flex items-center justify-center text-text-300 text-[13px] min-h-50">
         <div className="w-5 h-5 border-2 border-text-300 border-t-transparent rounded-full animate-spin mr-2" />
@@ -369,7 +373,8 @@ export default function MonitorLectorDashboard({ lectorDeviceId, gatewayLastSeen
     : (Number.isFinite(gwTsMs) && Math.abs(Date.now() - gwTsMs) < 300000 ? 'online' : 'offline');
   const gwColor = gwState === 'online' ? '#22c55e' : gwState === 'offline' ? '#ef4444' : '#94a3b8';
 
-  const batPct = vBat != null ? Math.max(0, Math.min(100, ((vBat - 11) / (15 - 11)) * 100)) : null;
+  // Batería del banco de 12 V: curva compartida con el resto de la app (utils/battery)
+  const batPct = stationBatteryPercent(vBat);
   const batColor = vBat != null ? (vBat >= 12.5 ? '#22c55e' : vBat >= 11.8 ? '#f97316' : '#ef4444') : '#94a3b8';
 
   // chargeState: valores BLE del MPPT (0/64/128/255) + los del estándar Victron (0-7)

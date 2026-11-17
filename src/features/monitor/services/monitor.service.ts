@@ -58,6 +58,12 @@ export const monitorService = {
     const r = await apiClient.get<{data: any[]}>("/monitor/gateways/positions");
     return r.data.data;
   },
+  // Sensores que escuchó un gateway (una fila por sensor, últimas N horas).
+  // Reemplaza la descarga de 5000 uplinks que se hacía para pintar el mapa del panel.
+  getGatewaySensores: async (gatewayId: number, horas = 24) => {
+    const r = await apiClient.get<{data: { total: number; sensores: any[] }}>(`/monitor/gateways/${gatewayId}/sensores`, { horas });
+    return r.data.data;
+  },
   getAlertTracking: async (alertId: number) => {
     const r = await apiClient.get<{data: any[]}>(`/monitor/tracking/${alertId}`);
     return r.data.data;

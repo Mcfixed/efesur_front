@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { useMonitorDevices, useMonitorLatestTelemetry, useMonitorDeviceAlerts, useMonitorGatewayPositions } from "../../../hooks/useMonitor";
+import { useMonitorDevices, useMonitorDeviceAlerts, useMonitorGatewayPositions, useMonitorGatewaySensores } from "../../../hooks/useMonitor";
 import MonitorTelemetryMap from "../MonitorTelemetryMap";
 import MonitorLectorDashboard, { relTime } from "./MonitorLectorDashboard";
 import DeviceSwitcher from "../DeviceSwitcher";
@@ -68,7 +68,8 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
   const { data: deviceAlerts } = useMonitorDeviceAlerts(deviceId);
   const { data: allDevices } = useMonitorDevices();
   const { data: gatewayPositions } = useMonitorGatewayPositions();
-  const { data: latestTelemetry } = useMonitorLatestTelemetry(5000);
+  // Sensores del gateway: una sola consulta agregada (≈23 KB) en vez de 5000 uplinks (≈9 MB).
+  const { data: gatewaySensores } = useMonitorGatewaySensores(deviceId);
 
   // Lector device ID asociado al gateway
   const lectorDeviceId = useMemo(() => {
@@ -79,27 +80,10 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
 
   const { data: lectorAlerts } = useMonitorDeviceAlerts(lectorDeviceId);
 
-  const connectedDeviceEuis = useMemo(() => {
-    const devEuiSet = new Set<string>();
-    const gwIdShort = deviceName?.slice(-6)?.toLowerCase();
-    const euiShort = deviceEui?.slice(-6)?.toLowerCase();
-    const telemetry = Array.isArray(latestTelemetry) ? latestTelemetry : (latestTelemetry as any)?.telemetry || [];
-    (telemetry as any[]).forEach((t: any) => {
-      if (Array.isArray(t.rxinfo)) {
-        t.rxinfo.forEach((gw: any) => {
-          const rxGwId = (gw.gatewayId || '').toLowerCase();
-          if (rxGwId === deviceName?.toLowerCase() ||
-              rxGwId === deviceEui?.toLowerCase() ||
-              rxGwId.endsWith(gwIdShort) ||
-              rxGwId.endsWith(euiShort) ||
-              (gwIdShort && rxGwId.includes(gwIdShort))) {
-            devEuiSet.add(t.device_id || t.dev_eui);
-          }
-        });
-      }
-    });
-    return [...devEuiSet];
-  }, [latestTelemetry, deviceName, deviceEui]);
+  const connectedDeviceEuis = useMemo(
+    () => (gatewaySensores?.sensores ?? []).map((s: any) => String(s.dev_eui ?? s.id)),
+    [gatewaySensores],
+  );
 
   const connectedDevicesData = useMemo(() => {
     if (!allDevices || !connectedDeviceEuis.length) return [];
@@ -109,43 +93,10 @@ export default function MonitorGatewayDetailPanel({ deviceId, deviceName, device
     );
   }, [allDevices, connectedDeviceEuis]);
 
-  const connectedDevicesCount = connectedDevicesData.length;
+  const connectedDevicesCount = gatewaySensores?.total ?? connectedDevicesData.length;
 
-  const sensorsData = useMemo(() => {
-    const telemetry = Array.isArray(latestTelemetry) ? latestTelemetry : (latestTelemetry as any)?.telemetry || [];
-    if (!telemetry.length || !allDevices || !connectedDevicesData.length) return [];
-    const euiLower = deviceEui?.toLowerCase() || '';
-    const nameLower = deviceName?.toLowerCase() || '';
-    const short6 = euiLower.slice(-6);
-
-    const deviceMap = new Map(allDevices.map((d: any) => [d.id, d]));
-    const seen = new Set();
-    const result: any[] = [];
-
-    (telemetry as any[]).forEach((t: any) => {
-      if (!Array.isArray(t.rxinfo)) return;
-      const gwEntry = t.rxinfo.find((gw: any) => {
-        const id = (gw.gatewayId || '').toLowerCase();
-        return id === euiLower || id === nameLower || id.endsWith(short6) || (short6 && id.includes(short6));
-      });
-      if (!gwEntry) return;
-      const device = deviceMap.get(t.device_id);
-      if (!device || seen.has(device.id)) return;
-      seen.add(device.id);
-      result.push({
-        id: device.id,
-        name: device.name,
-        dev_eui: device.dev_eui,
-        lat: device.latitude_current ? Number(device.latitude_current) : null,
-        lng: device.longitude_current ? Number(device.longitude_current) : null,
-        snr: gwEntry.snr ?? null,
-        rssi: gwEntry.rssi ?? null,
-        ts: t.ts,
-      });
-    });
-
-    return result;
-  }, [latestTelemetry, allDevices, connectedDevicesData, connectedDeviceEuis, deviceEui, deviceName]);
+  // Ya viene agregado del backend: { id, name, dev_eui, lat, lng, snr, rssi, ts }
+  const sensorsData = useMemo(() => gatewaySensores?.sensores ?? [], [gatewaySensores]);
 
   const gatewayPosition = useMemo(() => {
     if (!gatewayPositions) return null;

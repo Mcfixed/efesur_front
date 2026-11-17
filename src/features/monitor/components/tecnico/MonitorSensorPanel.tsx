@@ -113,14 +113,16 @@ export default function MonitorSensorPanel({ device, onClose }: { device: any; o
       return {
         from: customFrom ? new Date(customFrom).toISOString() : undefined,
         to: customTo ? new Date(customTo).toISOString() : undefined,
-        limit: 3000,
+        limit: 1000,
       };
     }
     const r = RANGES.find(x => x.key === range)!;
+    // Límite contenido: cada fila trae el `object` jsonb completo y estas consultas quedan
+    // cacheadas por equipo; con 3000 filas por sensor el navegador acumulaba MBs.
     return {
       from: new Date(Date.now() - r.ms).toISOString(),
       to: undefined,
-      limit: range === "1h" ? 400 : range === "6h" ? 800 : range === "24h" ? 1500 : range === "7d" ? 2500 : 3000,
+      limit: range === "1h" ? 300 : range === "6h" ? 500 : range === "24h" ? 800 : range === "7d" ? 1000 : 1000,
     };
   }, [range, customFrom, customTo]);
 

@@ -4,7 +4,7 @@ import type { DashboardData, GatewayDevice, GpsDevice, MapFocusRequest } from ".
 import DevicePopup from "./DevicePopup";
 import GatewayLectorInfo from "./GatewayLectorInfo";
 import MapSearchBox, { type SearchItem } from "./MapSearchBox";
-import { IconEye, IconEyeOff } from "@tabler/icons-react";
+import { IconEye, IconEyeOff, IconPlugConnected, IconSolarPanel } from "@tabler/icons-react";
 import roboIcon from "@/assets/iconsdashboard/robo.png";
 
 interface Props {
@@ -723,6 +723,20 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, showSensor
             </div>
             <div className="space-y-1.5 text-[11px]">
               <div className="flex justify-between"><span className="text-text-300">Estado:</span><span className={`font-medium ${selectedGateway.is_online ? 'text-green-400' : 'text-red-400'}`}>{selectedGateway.is_online ? 'Online' : 'Offline'}</span></div>
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-text-300">Energía:</span>
+                {selectedGateway.grid_v == null ? (
+                  <span className="font-medium text-text-300">sin dato</span>
+                ) : Number(selectedGateway.grid_v) > 0 ? (
+                  <span className="inline-flex items-center gap-1 font-medium text-green-400">
+                    <IconPlugConnected size={12} stroke={2} /> 220 V
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 font-medium text-yellow-400">
+                    <IconSolarPanel size={12} stroke={2} /> Panel solar
+                  </span>
+                )}
+              </div>
               {selectedGateway.ip_internal && <div className="flex justify-between"><span className="text-text-300">IP:</span><span className="text-text-100 font-medium font-mono text-[10px]">{selectedGateway.ip_internal}</span></div>}
               {selectedGateway.firmware_version && <div className="flex justify-between"><span className="text-text-300">Firmware:</span><span className="text-text-100 font-medium">{selectedGateway.firmware_version}</span></div>}
               <div className="flex justify-between"><span className="text-text-300">Último reporte:</span><span className="text-text-100 font-medium">{selectedGateway.last_seen ? new Date(selectedGateway.last_seen).toLocaleString() : 'N/A'}</span></div>

@@ -14,7 +14,6 @@ export const useDashboardData = () => {
     queryKey: DASHBOARD_KEYS.data(),
     queryFn: () => dashboardService.getDashboardData(),
     refetchInterval: 10000,
-    refetchIntervalInBackground: true,
     staleTime: 5000,
   });
 };
@@ -24,7 +23,6 @@ export const useDevicesLocations = () => {
     queryKey: DASHBOARD_KEYS.locations(),
     queryFn: () => dashboardService.getDevicesLocations(),
     refetchInterval: 15000,
-    refetchIntervalInBackground: true,
     staleTime: 10000,
   });
 };
@@ -34,7 +32,6 @@ export const useGatewayStatus = () => {
     queryKey: DASHBOARD_KEYS.gateways(),
     queryFn: () => dashboardService.getGatewayStatus(),
     refetchInterval: 10000,
-    refetchIntervalInBackground: true,
     staleTime: 5000,
   });
 };
@@ -66,7 +63,6 @@ export const useAlertHistory = (type: string, range: string) => {
     queryKey: [...DASHBOARD_KEYS.all, "history", type, range],
     queryFn: () => dashboardService.getAlertHistory(type, range),
     refetchInterval: 60000,
-    refetchIntervalInBackground: true,
     staleTime: 30000,
   });
 };
@@ -76,7 +72,6 @@ export const useAlertTimeline = (range: string) => {
     queryKey: [...DASHBOARD_KEYS.all, "timeline", range],
     queryFn: () => dashboardService.getAlertTimeline(range),
     refetchInterval: 10000,
-    refetchIntervalInBackground: true,
     staleTime: 5000,
   });
 };

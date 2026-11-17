@@ -49,13 +49,51 @@ export function batteryColor(mV: number | null | undefined): string {
 }
 
 // ─── Batería de la estación (plomo 12 V) ───
-const BATERIA_12V_MIN = 11;
-const BATERIA_12V_MAX = 15;
+// Curva real del banco de los gateways: 14,20 V en carga/absorción → 10,70 V descargado.
+const BATERIA_12V_TABLE = [
+  { v: 14.20, p: 100 }, // Máximo voltaje en fase de carga (Absorción)
+  { v: 14.00, p: 99 },
+  { v: 13.80, p: 99 },
+  { v: 13.60, p: 98 },  // Batería completamente cargada (en reposo)
+  { v: 13.40, p: 95 },
+  { v: 13.30, p: 90 },
+  { v: 13.25, p: 85 },
+  { v: 13.20, p: 80 },
+  { v: 13.15, p: 75 },
+  { v: 13.10, p: 70 },
+  { v: 13.05, p: 65 },
+  { v: 13.00, p: 60 },
+  { v: 12.95, p: 55 },
+  { v: 12.90, p: 50 },
+  { v: 12.85, p: 45 },
+  { v: 12.80, p: 40 },
+  { v: 12.75, p: 35 },
+  { v: 12.70, p: 30 },
+  { v: 12.65, p: 25 },
+  { v: 12.60, p: 20 },
+  { v: 12.40, p: 15 },
+  { v: 12.00, p: 10 },
+  { v: 11.50, p: 5 },
+  { v: 10.70, p: 0 },
+];
 
 /** Porcentaje del banco de 12 V a partir del voltaje (null si no hay dato válido) */
 export function stationBatteryPercent(v: number | null | undefined): number | null {
   if (v == null || !Number.isFinite(v) || v >= 500) return null;
-  return Math.max(0, Math.min(100, Math.round(((v - BATERIA_12V_MIN) / (BATERIA_12V_MAX - BATERIA_12V_MIN)) * 100)));
+  const V = Number(v);
+  const t = BATERIA_12V_TABLE;
+  if (V >= t[0].v) return t[0].p;
+  const ultimo = t[t.length - 1];
+  if (V <= ultimo.v) return ultimo.p;
+  for (let i = 0; i < t.length - 1; i++) {
+    const a = t[i];
+    const b = t[i + 1];
+    if (V <= a.v && V >= b.v) {
+      const k = (V - a.v) / (b.v - a.v);
+      return Math.round(a.p + k * (b.p - a.p));
+    }
+  }
+  return 0;
 }
 
 /** Formatea el voltaje del banco: "13.49V · 62%" */

@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { format } from "date-fns";
-import { IconPlugConnected, IconSolarPanel } from "@tabler/icons-react";
-import { useMonitorGatewaysUptime, useMonitorDevices, useMonitorLatestTelemetry } from "../../hooks/useMonitor";
+import { IconPlugConnected, IconSolarPanel, IconBattery1, IconBattery2, IconBattery3, IconBattery4 } from "@tabler/icons-react";
+import { useMonitorGatewaysUptime, useMonitorDevices } from "../../hooks/useMonitor";
+import { stationBatteryColor, stationBatteryPercent } from "../../utils/battery";
 import { isFreshForDevice } from "../../utils/online";
 import { buildUptimePorGateway, MonitorUptimeStrip, type UptimeGateway } from "../shared/MonitorUptimeStrip";
 
@@ -49,24 +50,25 @@ function IconoEnergia({ conRed }: { conRed: boolean }) {
 export default function ResumenGatewayUptime({ onOpenDevice }: { onOpenDevice?: (id: number) => void }) {
   const { data, isLoading } = useMonitorGatewaysUptime(7);
   const { data: devices } = useMonitorDevices();
-  const { data: latest } = useMonitorLatestTelemetry(500);
 
-  // ¿El gabinete tiene CA 220? Se lee del lector asignado al gateway (BlueSmartIP67.voltaje_V > 0)
+  // ¿El gabinete tiene CA 220? El backend ya entrega `grid_v` por gateway (última lectura del
+  // BlueSmartIP67 del lector asignado, últimos 7 días), así que no hace falta bajar telemetría.
   const conElectricidad = useMemo(() => {
     const out = new Map<number, boolean>();
-    const lista: any[] = Array.isArray(latest) ? latest : ((latest as any)?.telemetry ?? []);
     const porId = new Map<number, any>((devices ?? []).map((d: any) => [d.id, d]));
     for (const g of data?.gateways ?? []) {
-      const gw = porId.get(g.id);
-      const lector = gw?.id_device_father ? porId.get(gw.id_device_father) : null;
-      if (!lector) { out.set(g.id, false); continue; }
-      const eui = String(lector.dev_eui || "").toLowerCase();
-      const t = lista.find((x: any) => String(x.dev_eui || "").toLowerCase() === eui || x.device_id === lector.id);
-      const v = t?.object?.BlueSmartIP67?.voltaje_V;
+      const v = porId.get(g.id)?.grid_v;
       out.set(g.id, typeof v === "number" && v > 0);
     }
     return out;
-  }, [data, devices, latest]);
+  }, [data, devices]);
+
+  // Batería del banco de 12 V de cada gateway (mismo `battery_v` que usa la tabla del panel técnico)
+  const bateriaPorGateway = useMemo(() => {
+    const out = new Map<number, number | null>();
+    for (const d of devices ?? []) out.set(d.id, d.battery_v != null ? Number(d.battery_v) : null);
+    return out;
+  }, [devices]);
 
   const filas = useMemo<Fila[]>(() => {
     const map = buildUptimePorGateway(data);
@@ -124,11 +126,21 @@ export default function ResumenGatewayUptime({ onOpenDevice }: { onOpenDevice?: 
                 >
                   Uptime gateway
                 </th>
+                <th className="text-right py-1.5 px-2 font-semibold whitespace-nowrap"
+                  title="Batería del banco de 12 V que reporta el MPPT del lector del gateway">
+                  <span className="inline-flex items-center gap-1 justify-end">
+                    <IconBattery2 size={13} stroke={2} /> Batería
+                  </span>
+                </th>
                 <th className="text-center py-1.5 px-2 font-semibold">Energía</th>
               </tr>
             </thead>
             <tbody>
-              {filas.map((f) => (
+              {filas.map((f) => {
+                const bat = bateriaPorGateway.get(f.id) ?? null;
+                const pctBat = stationBatteryPercent(bat);
+                const IconBat = pctBat == null ? IconBattery1 : pctBat >= 75 ? IconBattery4 : pctBat >= 50 ? IconBattery3 : pctBat >= 25 ? IconBattery2 : IconBattery1;
+                return (
                 <tr
                   key={f.id}
                   className={`resumen-row ${onOpenDevice ? "cursor-pointer" : ""}`}
@@ -147,11 +159,21 @@ export default function ResumenGatewayUptime({ onOpenDevice }: { onOpenDevice?: 
                   <td className="h-10 py-2 px-2">
                     {f.up ? <MonitorUptimeStrip s={f.up} /> : <span className="text-[11px] text-text-300">—</span>}
                   </td>
+                  <td className="h-10 py-2 px-2 text-right whitespace-nowrap"
+                    title={bat != null ? `Voltaje del banco: ${Number(bat).toFixed(2)} V` : "Sin lectura de batería en los últimos 7 días"}>
+                    {pctBat != null ? (
+                      <span className={`inline-flex items-center gap-1 justify-end tabular-nums text-[11.5px] font-semibold ${stationBatteryColor(bat)}`}>
+                        {pctBat}<span className="text-[9px] font-medium opacity-70">%</span>
+                        <IconBat size={16} stroke={2} />
+                      </span>
+                    ) : <span className="text-text-300">—</span>}
+                  </td>
                   <td className="h-10 py-2 px-2 text-center">
                     <IconoEnergia conRed={conElectricidad.get(f.id) === true} />
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}

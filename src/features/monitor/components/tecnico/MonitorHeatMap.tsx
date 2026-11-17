@@ -88,12 +88,15 @@ function nombreGateway(m: Map<string, string>, eui?: string | null): string | nu
 const chip = (texto: string, color: string) =>
   `<span style="display:inline-flex;align-items:center;font-size:9px;font-weight:700;letter-spacing:0.4px;text-transform:uppercase;color:${color};background:${color}1f;border:1px solid ${color}44;border-radius:999px;padding:2px 6px;">${texto}</span>`;
 
+type FuenteEnergia = 'red' | 'solar' | null;
+
 /** Popup del mapa: métricas del equipo, batería y los gateways que recibieron el dato. */
 function construirPopup(
   d: MonitorDevice,
   tel: PopupTel | undefined,
   cob: MonitorDaySensor | undefined,
   resolver: (eui?: string | null) => string | null,
+  energia?: FuenteEnergia,
 ): string {
   const isGateway = d.type_device === 'Gateway';
   const rssi = tel?.rssi ?? cob?.rssi ?? null;
@@ -148,6 +151,10 @@ function construirPopup(
       <span style="font-size:9px;letter-spacing:0.4px;text-transform:uppercase;color:#64748b;">${bat.etiqueta}</span>
       <span style="margin-left:auto;font-family:ui-monospace,monospace;font-size:13px;font-weight:700;color:${bat.color};">${bat.texto}</span>
     </div>
+    ${isGateway ? `<div style="display:flex;align-items:center;gap:6px;margin-top:6px;background:rgba(0,0,0,0.3);border-radius:7px;padding:5px 8px;">
+      <span style="font-size:9px;letter-spacing:0.4px;text-transform:uppercase;color:#64748b;">Energía</span>
+      <span style="margin-left:auto;">${energia === 'red' ? chip('220 V', VERDE) : energia === 'solar' ? chip('Panel solar', AMBAR) : '<span style="font-size:10px;color:#64748b;">sin dato</span>'}</span>
+    </div>` : ''}
     ${gw.length ? `<div style="margin-top:7px;border-top:1px solid rgba(255,255,255,0.08);padding-top:5px;">
       <div style="display:flex;justify-content:space-between;font-size:9px;letter-spacing:0.4px;text-transform:uppercase;color:#64748b;margin-bottom:2px;">
         <span>Gateways último dato (${gw.length})</span><span>SNR · RSSI</span>
@@ -216,7 +223,8 @@ export default function MonitorRadarMap({ initialView = 'senal', compact = false
   }), [dayReport]);
 
   const { data: allDevices } = useMonitorDevices();
-  const { data: latestTelemetry } = useMonitorLatestTelemetry(200);
+  // Solo para el popup de cada punto (señal del último uplink): 200 filas, refresco lento.
+  const { data: latestTelemetry } = useMonitorLatestTelemetry(200, { refetchInterval: 60000 });
 
   const telemetryMap = useMemo(() => {
     const map = new Map<number, PopupTel>();
@@ -247,6 +255,18 @@ export default function MonitorRadarMap({ initialView = 'senal', compact = false
     });
     return map;
   }, [latestTelemetry]);
+
+  // ¿Cada gateway está en la red 220 V o con panel solar? El backend manda `grid_v` por gateway
+  // (última lectura del BlueSmartIP67 del lector asignado), así que no se necesita telemetría.
+  const energiaPorGateway = useMemo(() => {
+    const out = new Map<number, FuenteEnergia>();
+    for (const d of allDevices || []) {
+      if (d.type_device !== 'Gateway') continue;
+      const v = d.grid_v != null ? Number(d.grid_v) : null;
+      out.set(d.id, v != null && Number.isFinite(v) ? (v > 0 ? 'red' : 'solar') : null);
+    }
+    return out;
+  }, [allDevices]);
 
   const devicesWithPos = useMemo(() => {
     return (allDevices || []).filter(d => {
@@ -504,9 +524,9 @@ export default function MonitorRadarMap({ initialView = 'senal', compact = false
       if (punto) { punto.style.borderColor = color; punto.style.boxShadow = `0 0 12px ${color}aa`; }
       if (anillo) anillo.style.borderColor = color;
 
-      marker.setPopupContent(construirPopup(d, tel, cob, resolver));
+      marker.setPopupContent(construirPopup(d, tel, cob, resolver, energiaPorGateway.get(d.id) ?? null));
     });
-  }, [deviceSig, viewMode, devicesWithPos, telemetryMap, coberturaMap, gwPorEui]);
+  }, [deviceSig, viewMode, devicesWithPos, telemetryMap, coberturaMap, gwPorEui, energiaPorGateway]);
 
   return (
     <div className={`p-0 h-full flex flex-col min-h-0 relative overflow-hidden bg-bg-100 ${compact ? "" : "rounded-xl border border-border/60 shadow-[0_12px_28px_rgba(15,23,42,0.08)]"}`}>

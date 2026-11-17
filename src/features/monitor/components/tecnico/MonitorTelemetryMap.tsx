@@ -123,6 +123,8 @@ interface GatewayInfo {
   name: string;
   latitude_current: number;
   longitude_current: number;
+  /** Fuente de energía del gateway: red 220 V o panel solar (undefined = sin dato) */
+  energia?: "red" | "solar" | null;
 }
 
 interface SensorInfo {
@@ -458,6 +460,16 @@ export default function MonitorTelemetryMap({ devicePosition, deviceName, gatewa
             <div style="font-size:12px; font-weight:700; color:#f8fafc; margin-bottom:4px;">${gw.name}</div>
             <div style="font-size:10px; color:#93c5fd; letter-spacing:0.08em; text-transform:uppercase;">Gateway activo</div>
             <div style="font-size:10px; color:#94a3b8; margin-top:6px;">${gwLat.toFixed(6)}, ${gwLng.toFixed(6)}</div>
+            ${gw.energia === undefined ? "" : `<div style="display:flex; align-items:center; gap:8px; margin-top:6px; padding-top:6px; border-top:1px solid rgba(148,163,184,0.18);">
+              <span style="font-size:9px; letter-spacing:0.08em; text-transform:uppercase; color:#94a3b8;">Energía</span>
+              <span style="margin-left:auto; font-size:10px; font-weight:700; padding:2px 7px; border-radius:999px; ${gw.energia === "red"
+                ? "color:#86efac; background:rgba(34,197,94,0.18); border:1px solid rgba(34,197,94,0.4);"
+                : gw.energia === "solar"
+                  ? "color:#fcd34d; background:rgba(245,158,11,0.18); border:1px solid rgba(245,158,11,0.4);"
+                  : "color:#94a3b8; background:rgba(148,163,184,0.14); border:1px solid rgba(148,163,184,0.3);"}">
+                ${gw.energia === "red" ? "220 V" : gw.energia === "solar" ? "Panel solar" : "sin dato"}
+              </span>
+            </div>`}
           </div>
         `, { maxWidth: 320, className: "dark-popup" });
         gwMarkersRef.current.push(gMarker);
