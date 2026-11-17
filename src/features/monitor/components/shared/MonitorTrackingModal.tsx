@@ -29,10 +29,18 @@ export default function MonitorTrackingModal({ alertId, alertTitle, onClose }: P
     }
 
     const map = mapInstance.current;
-    // Filtrar puntos con coordenadas válidas (evita NaN en Leaflet)
-    const points: [number, number][] = tracking
-      .map(p => [parseFloat(p.latitude), parseFloat(p.longitude)] as [number, number])
-      .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180);
+    // Se filtran los puntos con coordenadas válidas (evita NaN en Leaflet) quedándose con su
+    // fecha y batería: antes se filtraba `points` pero se leía `tracking[i]`, así que si se
+    // descartaba un punto los popups mostraban la fecha de otro.
+    const validos = tracking
+      .map(p => ({
+        lat: parseFloat(p.latitude),
+        lng: parseFloat(p.longitude),
+        ts: p.timestamp,
+        battery: p.battery,
+      }))
+      .filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lng) && p.lat >= -90 && p.lat <= 90 && p.lng >= -180 && p.lng <= 180);
+    const points: [number, number][] = validos.map(p => [p.lat, p.lng]);
 
     map.eachLayer(layer => {
       if (layer instanceof L.Marker || layer instanceof L.Polyline || layer instanceof L.CircleMarker) {
@@ -44,13 +52,14 @@ export default function MonitorTrackingModal({ alertId, alertTitle, onClose }: P
       L.polyline(points, { color: "#ef4444", weight: 2.5, opacity: 0.8 }).addTo(map);
     }
 
-    points.forEach((pos, i) => {
+    validos.forEach((p, i) => {
       const isFirst = i === 0;
-      const isLast = i === points.length - 1;
+      const isLast = i === validos.length - 1;
       const color = isFirst ? "#22c55e" : isLast ? "#ef4444" : "#3b82f6";
       const radius = isFirst || isLast ? 7 : 4;
-      L.circleMarker(pos, { radius, color, fillColor: color, fillOpacity: 0.8, weight: 2 })
-        .bindPopup(`<b>${isFirst ? "Inicio" : isLast ? "Último" : `Punto ${i + 1}`}</b><br/>${new Date(tracking[i].timestamp).toLocaleString()}<br/>Batería: ${tracking[i].battery ?? "—"}%`)
+      const hora = p.ts ? new Date(p.ts).toLocaleString("es-CL") : "—";
+      L.circleMarker([p.lat, p.lng], { radius, color, fillColor: color, fillOpacity: 0.8, weight: 2 })
+        .bindPopup(`<b>${isFirst ? "Inicio" : isLast ? "Último" : `Punto ${i + 1}`}</b><br/>${hora}<br/>Batería: ${p.battery ?? "—"}%`)
         .addTo(map);
     });
 

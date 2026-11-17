@@ -271,9 +271,9 @@ export default function MonitorLectorDashboard({ lectorDeviceId, gatewayLastSeen
     }
     if (!latestTelemetry) return null;
     const lector = lectores[0];
-    const tel = (latestTelemetry || []).filter((t: any) =>
-      t.dev_eui?.toLowerCase() === lector.dev_eui.toLowerCase() || t.device_id === lector.id
-    );
+    // Las filas ya vienen del propio lector (/monitor/devices/:id/telemetry, que no devuelve
+    // `dev_eui` ni `device_id`). Antes venían del listado global, donde sí había que filtrar.
+    const tel = latestTelemetry;
 
     if (!tel.length) return { tel: [], mpttTel: [], lector, lastT: null, sensores: {}, charger220: {}, vBat: null, pPan: null, iBat: null, iOut: null, loadState: null, chargeState: null, charging: false, charger220State: null, charger220Volt: null, temp: null };
     const lastT = tel.find((t: any) => t.object?.Mppt) || tel[0] || null;
