@@ -43,7 +43,7 @@ export default function ResumenActiveDevices({ data, embedded = false }: { data:
     <div className={embedded ? "flex flex-col h-full min-h-0" : "rounded-lg resumen-card flex flex-col min-h-0 overflow-hidden"}>
       <div className={embedded ? "shrink-0 flex items-center justify-between gap-2 pb-1" : "shrink-0 flex items-center justify-between gap-2 px-3 py-2 resumen-card-head"}>
         <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-text-200 truncate">
-          Dispositivos activos
+          Sensores GPS activos
           <span className="ml-1.5 text-text-300 normal-case tracking-normal font-medium">(últimos 7 días)</span>
         </p>
         <div className="flex items-center gap-1.5 shrink-0">

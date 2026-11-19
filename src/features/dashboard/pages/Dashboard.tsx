@@ -219,15 +219,37 @@ export default function Dashboard() {
         if (lat > maxLat) maxLat = lat;
       }
 
-      // Agregar padding
-      const padLng = Math.max((maxLng - minLng) * (hasCritical ? 0.02 : 0.1), 0.002);
-      const padLat = Math.max((maxLat - minLat) * (hasCritical ? 0.02 : 0.1), 0.002);
+      // Agregar padding: solo un margen pequeño para que la cámara quede más cerca.
+      // (Antes era 10 % del área + 60 px por lado, que alejaba mucho la vista de los gateways.)
+      const padLng = Math.max((maxLng - minLng) * 0.02, 0.002);
+      const padLat = Math.max((maxLat - minLat) * 0.02, 0.002);
 
-      // Hacer zoom
-      mapRef.current.fitBounds(
-        [[minLng - padLng, minLat - padLat], [maxLng + padLng, maxLat + padLat]],
-        { padding: hasCritical ? 10 : 60, maxZoom: 25, duration: 1000, pitch: 45, bearing: -55 }
-      );
+      const bounds: [[number, number], [number, number]] = [
+        [minLng - padLng, minLat - padLat],
+        [maxLng + padLng, maxLat + padLat],
+      ];
+
+      // Cuánto acercar por encima del encuadre que contiene todos los puntos.
+      // 0 = todos los gateways dentro del marco. Subirlo acerca y va dejando fuera los del borde.
+      const ZOOM_EXTRA = hasCritical ? 0 : 0.3;
+      const padding = hasCritical ? 10 : 24;
+
+      const map = mapRef.current;
+      const m = map.getMap();
+      // Encaje calculado sin mover la cámara (con el pitch/bearing finales) y luego se le suma
+      // ZOOM_EXTRA: un solo movimiento animado, en vez de fitBounds y después un zoom aparte.
+      const cam = m.cameraForBounds(bounds, { padding, bearing: -55, pitch: 45 });
+      if (cam) {
+        m.flyTo({
+          center: cam.center,
+          zoom: (cam.zoom ?? m.getZoom()) + ZOOM_EXTRA,
+          bearing: -55,
+          pitch: 45,
+          duration: 1000,
+        });
+      } else {
+        map.fitBounds(bounds, { padding, maxZoom: 25, duration: 1000, pitch: 45, bearing: -55 });
+      }
     }
   }, [data, mapLoaded, gatewayData, mapNonce]);
 
