@@ -23,6 +23,7 @@ import FpsIndicator from "../components/FpsIndicator";
 import MapErrorBoundary from "../components/MapErrorBoundary";
 import GatewayStatusBar from "../components/GatewayStatusBar";
 import CriticalAlertCounters from "../components/CriticalAlertCounters";
+import { useBetterSession } from "@/libs/better-auth";
 
 // Umbral de zoom a partir del cual se dibujan todos los sensores (igual que MapLayers)
 const ZOOM_SENSORES = 13;
@@ -31,8 +32,13 @@ export default function Dashboard() {
   const { isMobile } = useBreakpoint();
   const { theme } = useTheme();
   const isDark = theme === "dark";
+  const { user } = useBetterSession();
+  // El filtro de sensores (Todos / Activos / Inactivos) es solo para superadministradores.
+  const esSuperadmin = user?.role === 'superadmin';
   const [isOpenRightBar, setOpenRightBar] = useState(false);
   const [showAllSensors, setShowAllSensors] = useState(false);
+  // Filtro de sensores por último dato (los inactivos son los pines grises)
+  const [sensorFilter, setSensorFilter] = useState<'todos' | 'activos' | 'inactivos'>('todos');
   // Se guarda solo el booleano del umbral, no el zoom: así un paneo normal no cambia
   // ningún estado y no re-renderiza el dashboard completo al soltar el mapa.
   const [zoomShowsSensors, setZoomShowsSensors] = useState(false);
@@ -332,7 +338,7 @@ export default function Dashboard() {
                   <CriticalAlertCounters alerts={data?.alerts?.critical || []} />
                 </div>
               )}
-              <MapLayers data={data} gateways={gateways} showAllSensors={showAllSensors} onToggleShowAll={handleToggleShowAll} showSensorsFromZoom={zoomShowsSensors} focusRequest={mapFocus} />
+              <MapLayers data={data} gateways={gateways} showAllSensors={showAllSensors} onToggleShowAll={handleToggleShowAll} showSensorsFromZoom={zoomShowsSensors} sensorFilter={esSuperadmin ? sensorFilter : 'todos'} onSensorFilterChange={esSuperadmin ? setSensorFilter : undefined} focusRequest={mapFocus} />
             </BaseMap>
           </MapErrorBoundary>
 

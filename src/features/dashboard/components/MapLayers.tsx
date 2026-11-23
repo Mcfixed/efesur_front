@@ -14,8 +14,14 @@ interface Props {
   onToggleShowAll?: () => void;
   /** Ya resuelto por el dashboard: true si el zoom alcanza el umbral de sensores. */
   showSensorsFromZoom?: boolean;
+  /** Filtro por último dato (last_seen): todos, los que reportan o los grises. */
+  sensorFilter?: SensorFilter;
+  onSensorFilterChange?: (f: SensorFilter) => void;
   focusRequest?: MapFocusRequest | null;
 }
+
+/** Activo = reportó en las últimas 24 h (mismo criterio con el que el pin se pinta gris). */
+export type SensorFilter = 'todos' | 'activos' | 'inactivos';
 
 function createCircleGeoJSON(lng: number, lat: number, radiusKm: number) {
   const points = 48;
@@ -79,9 +85,18 @@ const getAuraColor = (snr?: number | null) => {
   return '#ef4444';
 };
 
-function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, showSensorsFromZoom, focusRequest }: Props) {
+function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, showSensorsFromZoom, sensorFilter = 'todos', onSensorFilterChange, focusRequest }: Props) {
   const { current: map } = useMap();
   const showSensors = !!showAllSensors || !!showSensorsFromZoom;
+
+  // Sensores a dibujar según el último dato: los inactivos son exactamente los pines grises.
+  const devicesVisibles = useMemo(() => {
+    const lista = data?.devices || [];
+    if (sensorFilter === 'todos') return lista;
+    const quieroInactivos = sensorFilter === 'inactivos';
+    return lista.filter(d => isStaleLastSeen(d.last_seen) === quieroInactivos);
+  }, [data?.devices, sensorFilter]);
+
   // Se guarda el ID, no el objeto: el popup se re-alimenta de la data fresca (el dashboard
   // refetchea cada 10 s). Guardando el objeto, quedaba con los valores del momento del clic.
   const [selectedDeviceId, setSelectedDeviceId] = useState<number | null>(null);
@@ -249,7 +264,7 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, showSensor
     
     if (!showSensors) return { type: "FeatureCollection", features };
 
-    (data?.devices || []).forEach(device => {
+    devicesVisibles.forEach(device => {
       if (!device.latitude_current || !device.longitude_current) return;
       
       const dAlert = alertsByDevice.get(device.id);
@@ -282,7 +297,7 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, showSensor
     });
 
     return { type: "FeatureCollection", features };
-  }, [data?.devices, alertsByDevice, showSensors]);
+  }, [devicesVisibles, alertsByDevice, showSensors]);
 
   // ─── INTERACTIVIDAD CLICS (WEBGL) ───
   useEffect(() => {
@@ -572,7 +587,7 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, showSensor
       </Source>
 
       {/* Toggle mostrar/ocultar sensores */}
-      <div className="absolute top-20 left-2 z-20">
+      <div className="absolute top-20 left-2 z-20 flex flex-col gap-1.5">
         <button
           onClick={onToggleShowAll}
           className="flex items-center gap-1.5 bg-bg-100/95 hover:bg-bg-100 border border-border/40 rounded-lg px-2.5 py-1.5 shadow-lg transition-all text-[11px] font-medium"
@@ -581,6 +596,25 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, showSensor
           {showAllSensors ? <IconEyeOff size={14} className="text-text-300" /> : <IconEye size={14} className="text-text-300" />}
           <span className="text-text-200">{showAllSensors ? 'Ocultar sensores' : 'Mostrar sensores'}</span>
         </button>
+
+        {/* Filtro por último dato: los inactivos son los pines grises (> 24 h sin reportar) */}
+        {showSensors && onSensorFilterChange && (
+          <div className="flex items-center gap-0.5 bg-bg-100/95 border border-border/40 rounded-lg p-0.5 shadow-lg"
+            title="Filtra los sensores según su último dato (last_seen)">
+            {([
+              ['todos', 'Todos'],
+              ['activos', 'Activos'],
+              ['inactivos', 'Inactivos'],
+            ] as const).map(([valor, texto]) => (
+              <button key={valor} onClick={() => onSensorFilterChange(valor)}
+                className={`px-2 py-1 rounded-md text-[10px] font-semibold transition-colors ${sensorFilter === valor
+                  ? 'bg-brand-100/15 text-brand-100'
+                  : 'text-text-300 hover:text-text-100 hover:bg-bg-200/60'}`}>
+                {texto}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ─── RENDERIZADO WEBGL PARA SENSORES NORMALES ─── */}
@@ -612,7 +646,7 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, showSensor
       </Source>
 
       {/* ─── RENDERIZADO DOM (MARKERS) SOLO PARA ALERTAS ─── */}
-      {data?.devices?.map(device => {
+      {devicesVisibles.map(device => {
         if (!device.latitude_current || !device.longitude_current) return null;
         const dAlert = alertsByDevice.get(device.id);
         
@@ -641,7 +675,7 @@ function MapLayers({ data, gateways, showAllSensors, onToggleShowAll, showSensor
       })}
 
       {/* Críticos al final */}
-      {data?.devices?.map(device => {
+      {devicesVisibles.map(device => {
         if (!device.latitude_current || !device.longitude_current) return null;
         if (!alertsByDevice.get(device.id)?.critical) return null;
 
