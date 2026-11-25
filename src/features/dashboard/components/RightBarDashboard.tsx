@@ -1,5 +1,5 @@
 import { useMemo, useState, memo } from "react";
-import { IconX, IconCheck, IconRadar, IconAlertTriangle, IconAlertCircle, IconDoor, IconUser, IconWifiOff, IconBellOff, IconRun, IconChevronDown, IconChevronUp, IconMapPin } from "@tabler/icons-react";
+import { IconX, IconCheck, IconRadar, IconAlertTriangle, IconAlertCircle, IconDoor, IconUser, IconWifiOff, IconBellOff, IconRun, IconChevronDown, IconChevronUp, IconMapPin, IconHexagonFilled } from "@tabler/icons-react";
 import { format } from "date-fns";
 import { useTheme } from "@/context/ThemeContext";
 import RightBar from "@/components/bars/RightBar";
@@ -117,8 +117,55 @@ function RightBarDashboard({ timelineData, timelineRange, setTimelineRange, isLo
     setLastCommandAction(null);
   };
 
+  // ─── Filtro por tipo de alerta (solo afecta la lista; "Críticas activas" queda fija) ───
+  // Cada filtro es un conjunto de tipos: así se pueden agrupar (críticas + anómalas) sin lógica extra.
+  const [typeFilter, setTypeFilter] = useState<'todos' | 'criticas' | 'atencion' | 'desconexiones'>('todos');
+  const FILTROS_TIPO: { key: typeof typeFilter; label: string; tipos: string[] | null }[] = [
+    // 3 en la primera fila + 1 en la segunda: hay ancho para las etiquetas completas.
+    { key: 'todos', label: 'Todas', tipos: null },
+    // Apertura y presencia comparten el rojo de las críticas: son eventos del sitio, no avisos.
+    { key: 'criticas', label: 'Críticas', tipos: ['critica', 'movimientos_anomalos', 'apertura', 'presencia'] },
+    { key: 'atencion', label: 'Atención', tipos: ['atencion'] },
+    { key: 'desconexiones', label: 'Desconexiones', tipos: ['desconexionGW', 'desconexionGPS', 'desconexion220', 'desconexionbatGW'] },
+  ];
+  const filtroActivo = FILTROS_TIPO.find((f) => f.key === typeFilter) ?? FILTROS_TIPO[0];
+  const alertsFiltradas = useMemo(
+    () => (filtroActivo.tipos ? timelineData.filter((a: any) => filtroActivo.tipos!.includes(a.type)) : timelineData),
+    [timelineData, typeFilter],
+  );
+  const cuentaPorFiltro = (tipos: string[] | null) =>
+    tipos ? timelineData.filter((a: any) => tipos.includes(a.type)).length : timelineData.length;
+
+  // Segmento del filtro de tipo (se usa en las dos filas)
+  const segmentoTipo = (f: typeof FILTROS_TIPO[number]) => {
+    const activo = typeFilter === f.key;
+    const n = cuentaPorFiltro(f.tipos);
+    const Icon = f.key === 'criticas' ? IconAlertTriangle : f.key === 'atencion' ? IconAlertCircle : f.key === 'desconexiones' ? IconWifiOff : null;
+    const colorIcono = f.key === 'criticas' ? '#ef4444' : f.key === 'atencion' ? '#eab308' : f.key === 'desconexiones' ? '#f97316' : undefined;
+    return (
+      <button key={f.key} onClick={() => setTypeFilter(f.key)}
+        className={`relative flex-1 min-w-0 flex items-center justify-center gap-1 px-1 py-1 rounded text-[10px] font-semibold transition-all ${
+          activo
+            ? 'bg-[#00a3e8]/15 text-[#00a3e8] shadow-[inset_0_0_0_1px_rgba(0,163,232,0.45)]'
+            : `text-text-200 hover:text-text-100 hover:bg-bg-200/50 ${n === 0 ? 'opacity-55' : ''}`
+        }`}
+        title={f.tipos ? `Incluye: ${f.tipos.join(', ')}` : 'Sin filtro: todas las alertas'}>
+        {(f.key === 'criticas' || f.key === 'atencion' || f.key === 'desconexiones') && (
+          <span className="flex items-center gap-0.5 shrink-0">
+            <Icon size={12} color={colorIcono} />
+            {/* El grupo incluye también los movimientos anómalos: su marca es el hexágono morado */}
+            {f.key === 'criticas' && <IconHexagonFilled size={8} color="#a855f7" />}
+          </span>
+        )}
+        {!Icon && <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-current opacity-70" />}
+        <span className="truncate">{f.label}</span>
+        <span className={`text-[9px] font-bold tabular-nums ${activo ? 'opacity-80' : 'text-text-300'}`}>{n}</span>
+      </button>
+    );
+  };
+
   const criticalActive = timelineData.filter((a: any) => a.priority === 0);
-  const allAlerts = timelineData;
+  const allAlerts = alertsFiltradas;
   // Alerta que se está resolviendo y su estado de comando (desde metadata del backend)
   const resolvingAlert = resolvingAlertId !== null ? timelineData.find((a: any) => a.id === resolvingAlertId) : undefined;
   const cmd = resolvingAlert?.metadata?.command;
@@ -167,15 +214,34 @@ function RightBarDashboard({ timelineData, timelineRange, setTimelineRange, isLo
 
   const content = (
     <div className={`flex flex-col ${isDark ? "" : "bg-white/60"}`} style={{ height: '100%' }}>
-      <div className="flex items-center gap-1 px-1 mb-2 shrink-0">
-        {ranges.map(r => (
-          <button key={r.key} onClick={() => setTimelineRange(r.key)}
-            className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${timelineRange === r.key ? "bg-brand-100/15 text-brand-200" : "bg-bg-300/50 text-text-300 hover:text-text-200"}`}
-          >
-            {r.label}
-          </button>
-        ))}
-        <span className="text-[9px] text-text-300 ml-auto">{timelineData.length}</span>
+      {/* ─── Jerarquía de filtros ─────────────────────────────────────────────
+          Nivel 2 (secundario): rango de tiempo, control chico y agrupado.
+          Nivel 1 (principal): tipo de alerta, control ancho con iconos y contadores.
+          Cada dimensión vive en su propio contenedor, así se lee como un solo control. */}
+      <div className="flex items-center justify-between gap-1 px-1 mb-1 shrink-0">
+        <div className="flex items-center gap-0.5 p-0.5 rounded-md bg-bg-300/30 border border-border/25">
+          {ranges.map(r => (
+            <button key={r.key} onClick={() => setTimelineRange(r.key)}
+              className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${timelineRange === r.key
+                ? 'bg-bg-200/80 text-text-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.25)]'
+                : 'text-text-300 hover:text-text-100'}`}>
+              {r.label}
+            </button>
+          ))}
+        </div>
+        <span className="text-[10px] text-text-300 tabular-nums whitespace-nowrap">
+          {typeFilter === 'todos' ? `${timelineData.length} alertas` : `${allAlerts.length} de ${timelineData.length}`}
+        </span>
+      </div>
+
+      {/* 3 segmentos arriba + el restante abajo a todo el ancho (sin apretar ni abreviar) */}
+      <div className="flex flex-col gap-0.5 p-0.5 rounded-md bg-bg-300/25 border border-border/25 mx-1 mb-2 shrink-0">
+        <div className="flex items-center gap-0.5">
+          {FILTROS_TIPO.slice(0, 3).map(segmentoTipo)}
+        </div>
+        <div className="flex items-center gap-0.5">
+          {FILTROS_TIPO.slice(3).map(segmentoTipo)}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto min-h-0 space-y-1 pb-4 scrollbar-thin">
@@ -295,6 +361,10 @@ function RightBarDashboard({ timelineData, timelineRange, setTimelineRange, isLo
                 </div>
               );
             })}
+
+            {allAlerts.length === 0 && (
+              <p className="text-[11px] text-text-300 text-center py-3">Sin alertas de este tipo en el período</p>
+            )}
           </>
         )}
       </div>
